@@ -72,7 +72,6 @@
   }
 
   function formatUptime(raw: any): string {
-    if (typeof raw === 'string') return raw;
     if (typeof raw === 'number') {
       const h = Math.floor(raw / 3600);
       const m = Math.floor((raw % 3600) / 60);
@@ -80,6 +79,19 @@
       if (h > 0) return `${h}h ${m}m ${s}s`;
       if (m > 0) return `${m}m ${s}s`;
       return `${s}s`;
+    }
+    if (typeof raw === 'string') {
+      // Parse Go duration format: "1h34m25.2628827s"
+      const match = raw.match(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)(?:\.\d+)?s)?/);
+      if (match) {
+        const h = parseInt(match[1] || '0');
+        const m = parseInt(match[2] || '0');
+        const s = parseInt(match[3] || '0');
+        if (h > 0) return `${h}h ${m}m ${s}s`;
+        if (m > 0) return `${m}m ${s}s`;
+        return `${s}s`;
+      }
+      return raw;
     }
     return '—';
   }
