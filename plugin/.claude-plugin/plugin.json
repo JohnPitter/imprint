@@ -1,0 +1,14 @@
+{
+    "name": "imprint",
+    "version": "1.0.0",
+    "description": "Persistent memory for AI coding agents - Go edition",
+    "author": "joaop",
+    "homepage": "https://github.com/joaop/imprint",
+    "mcpServers": {
+        "imprint": {
+            "command": "${PLUGIN_ROOT}/../build/mcp-server",
+            "args": [],
+            "env": {}
+        }
+    }
+}

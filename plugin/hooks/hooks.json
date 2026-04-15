@@ -1,0 +1,88 @@
+{
+    "hooks": {
+        "SessionStart": [{
+            "matcher": "",
+            "hooks": [{
+                "type": "command",
+                "command": "${IMPRINT_HOOKS_DIR}/session-start"
+            }]
+        }],
+        "UserPromptSubmit": [{
+            "matcher": "",
+            "hooks": [{
+                "type": "command",
+                "command": "${IMPRINT_HOOKS_DIR}/prompt-submit"
+            }]
+        }],
+        "PreToolUse": [{
+            "matcher": "Edit|Write|Read|Glob|Grep",
+            "hooks": [{
+                "type": "command",
+                "command": "${IMPRINT_HOOKS_DIR}/pre-tool-use"
+            }]
+        }],
+        "PostToolUse": [{
+            "matcher": "",
+            "hooks": [{
+                "type": "command",
+                "command": "${IMPRINT_HOOKS_DIR}/post-tool-use"
+            }]
+        }],
+        "PostToolUseFailure": [{
+            "matcher": "",
+            "hooks": [{
+                "type": "command",
+                "command": "${IMPRINT_HOOKS_DIR}/post-tool-failure"
+            }]
+        }],
+        "PreCompact": [{
+            "matcher": "",
+            "hooks": [{
+                "type": "command",
+                "command": "${IMPRINT_HOOKS_DIR}/pre-compact"
+            }]
+        }],
+        "SubagentStart": [{
+            "matcher": "",
+            "hooks": [{
+                "type": "command",
+                "command": "${IMPRINT_HOOKS_DIR}/subagent-start"
+            }]
+        }],
+        "SubagentStop": [{
+            "matcher": "",
+            "hooks": [{
+                "type": "command",
+                "command": "${IMPRINT_HOOKS_DIR}/subagent-stop"
+            }]
+        }],
+        "Notification": [{
+            "matcher": "",
+            "hooks": [{
+                "type": "command",
+                "command": "${IMPRINT_HOOKS_DIR}/notification"
+            }]
+        }],
+        "TaskCompleted": [{
+            "matcher": "",
+            "hooks": [{
+                "type": "command",
+                "command": "${IMPRINT_HOOKS_DIR}/task-completed"
+            }]
+        }],
+        "Stop": [{
+            "matcher": "",
+            "hooks": [{
+                "type": "command",
+                "command": "${IMPRINT_HOOKS_DIR}/stop"
+            }]
+        }],
+        "SessionEnd": [{
+            "matcher": "",
+            "hooks": [{
+                "type": "command",
+                "command": "${IMPRINT_HOOKS_DIR}/session-end"
+            }]
+        }]
+    }
+}

@@ -1,0 +1,35 @@
+<script lang="ts">
+  import { createEventDispatcher } from 'svelte';
+  const dispatch = createEventDispatcher();
+  let searchQuery = '';
+  let theme = localStorage.getItem('theme') || 'dark';
+
+  function toggleTheme() {
+    theme = theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }
+
+  function onSearch() {
+    if (searchQuery.trim()) dispatch('search', { query: searchQuery });
+  }
+</script>
+
+<header class="header">
+  <div class="left"><h1 class="logo">Imprint</h1></div>
+  <div class="center">
+    <form on:submit|preventDefault={onSearch}>
+      <input class="input" bind:value={searchQuery} placeholder="Search memories, observations..." />
+    </form>
+  </div>
+  <div class="right">
+    <button class="toggle" on:click={toggleTheme}>{theme === 'dark' ? '☀' : '☾'}</button>
+  </div>
+</header>
+
+<style>
+  .header { display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:56px; background:var(--bg-secondary); border-bottom:1px solid var(--border); }
+  .logo { font-size:18px; font-weight:700; color:var(--accent); letter-spacing:-0.5px; }
+  .center { flex:1; max-width:480px; margin:0 24px; }
+  .toggle { padding:6px 10px; font-size:16px; background:transparent; border:none; cursor:pointer; color:var(--text-primary); }
+</style>

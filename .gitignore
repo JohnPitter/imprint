@@ -1,0 +1,31 @@
+# Binaries
+*.exe
+*.exe~
+build/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Search index
+bleve_index/
+
+# Data
+*.db
+*.db-wal
+*.db-shm
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Test
+coverage.out

@@ -1,0 +1,288 @@
+/* Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Lora:ital,wght@0,400..700;1,400..700&family=Inter:wght@300..700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* Dark theme (default) */
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #141414;
+  --bg-card: #1a1a1a;
+  --bg-hover: #222222;
+  --bg-active: #2a2a2a;
+
+  --text-primary: #e8e8e8;
+  --text-secondary: #a0a0a0;
+  --text-muted: #666666;
+
+  --border: #2a2a2a;
+  --border-hover: #3a3a3a;
+
+  --accent: #f97316;        /* orange */
+  --accent-hover: #fb923c;
+  --accent-muted: rgba(249, 115, 22, 0.15);
+
+  --success: #22c55e;
+  --warning: #eab308;
+  --danger: #ef4444;
+  --info: #3b82f6;
+  --purple: #a855f7;
+  --gold: #d4a017;
+  --sky: #38bdf8;
+
+  --radius: 8px;
+  --radius-lg: 12px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-lg: 0 4px 12px rgba(0,0,0,0.4);
+
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body: 'Lora', Georgia, serif;
+  --font-ui: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+[data-theme="light"] {
+  --bg-primary: #F9F9F7;
+  --bg-secondary: #F0EDE8;
+  --bg-card: #ffffff;
+  --bg-hover: #F5F3EF;
+  --bg-active: #ECEAE5;
+  --text-primary: #1a1a1a;
+  --text-secondary: #555555;
+  --text-muted: #999999;
+  --border: #e0ddd6;
+  --border-hover: #ccc9c0;
+  --accent-muted: rgba(249, 115, 22, 0.1);
+  --shadow: 0 1px 3px rgba(0,0,0,0.08);
+  --shadow-lg: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+* {
+  margin: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Dot pattern background for main content area */
+.main-content,
+[data-dot-bg="true"] {
+  background-image: radial-gradient(circle, var(--text-muted) 0.5px, transparent 0.5px);
+  background-size: 16px 16px;
+}
+
+/* Headings use display font */
+h1, h2, h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+h1 { font-size: 28px; font-weight: 700; }
+h2 { font-size: 22px; font-weight: 600; }
+h3 { font-size: 18px; font-weight: 600; }
+
+/* Section title — editorial style */
+.section-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+/* Utility classes */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+.card:hover {
+  border-color: var(--border-hover);
+  box-shadow: 4px 4px 0px var(--border);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-ui);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.badge-accent { background: var(--accent-muted); color: var(--accent); }
+.badge-success { background: rgba(34,197,94,0.15); color: var(--success); }
+.badge-warning { background: rgba(234,179,8,0.15); color: var(--warning); }
+.badge-danger { background: rgba(239,68,68,0.15); color: var(--danger); }
+.badge-info { background: rgba(59,130,246,0.15); color: var(--info); }
+.badge-purple { background: rgba(168,85,247,0.15); color: var(--purple); }
+
+/* Type-specific badge colors */
+.badge-file { background: rgba(59,130,246,0.15); color: var(--info); }
+.badge-command { background: var(--accent-muted); color: var(--accent); }
+.badge-error { background: rgba(239,68,68,0.15); color: var(--danger); }
+.badge-decision { background: rgba(212,160,23,0.15); color: var(--gold); }
+.badge-discovery { background: rgba(34,197,94,0.15); color: var(--success); }
+.badge-search { background: rgba(56,189,248,0.15); color: var(--sky); }
+.badge-conversation { background: rgba(168,85,247,0.15); color: var(--purple); }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn:hover { background: var(--bg-hover); border-color: var(--border-hover); }
+.btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+.btn-primary:hover { background: var(--accent-hover); }
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  font-family: var(--font-display);
+  letter-spacing: -1px;
+}
+.stat-label {
+  font-size: 11px;
+  font-family: var(--font-ui);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+  text-align: center;
+}
+.empty-state .icon { font-size: 48px; margin-bottom: 16px; opacity: 0.3; }
+
+.input {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  width: 100%;
+  transition: border-color 0.15s;
+}
+.input:focus { outline: none; border-color: var(--accent); }
+
+table { width: 100%; border-collapse: collapse; }
+th {
+  text-align: left;
+  padding: 8px 12px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+}
+td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+tr:hover td { background: var(--bg-hover); }
+
+.mono { font-family: var(--font-mono); font-size: 12px; }
+
+/* Tabs use UI font */
+.tab, [role="tab"] {
+  font-family: var(--font-ui);
+  font-weight: 500;
+}
+
+/* Gauge bar — horizontal progress */
+.gauge {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+.gauge-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+  background: var(--accent);
+}
+.gauge-fill[data-color="success"] { background: var(--success); }
+.gauge-fill[data-color="warning"] { background: var(--warning); }
+.gauge-fill[data-color="danger"] { background: var(--danger); }
+.gauge-fill[data-color="info"] { background: var(--info); }
+.gauge-fill[data-color="purple"] { background: var(--purple); }
+
+/* Status dot */
+.status-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+.status-dot[data-status="active"],
+.status-dot[data-status="online"] { background: var(--success); }
+.status-dot[data-status="warning"] { background: var(--warning); }
+.status-dot[data-status="error"],
+.status-dot[data-status="offline"] { background: var(--danger); }
+.status-dot[data-status="idle"] { background: var(--text-muted); }
+.status-dot[data-status="info"] { background: var(--info); }
+
+/* Heatmap cell */
+.heatmap-cell {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--bg-secondary);
+  transition: background 0.15s;
+}
+.heatmap-cell[data-intensity="0"] { background: var(--bg-secondary); }
+.heatmap-cell[data-intensity="1"] { background: rgba(249,115,22,0.2); }
+.heatmap-cell[data-intensity="2"] { background: rgba(249,115,22,0.45); }
+.heatmap-cell[data-intensity="3"] { background: rgba(249,115,22,0.7); }
+.heatmap-cell[data-intensity="4"] { background: var(--accent); }
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+  flex-wrap: wrap;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
