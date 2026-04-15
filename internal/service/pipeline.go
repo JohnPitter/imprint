@@ -60,6 +60,7 @@ func (s *PipelineService) Summarize(ctx context.Context, sessionID string) (*sto
 		return nil, fmt.Errorf("store summary: %w", err)
 	}
 
+	s.c.LogAudit("session.summarize", sessionID, "session", map[string]any{"title": summary.Title})
 	log.Printf("[pipeline] Session %s summarized: %s", sessionID[:12], summary.Title)
 	return summary, nil
 }
@@ -125,6 +126,7 @@ func (s *PipelineService) Consolidate(ctx context.Context, sessionID string) (in
 		created++
 	}
 
+	s.c.LogAudit("memory.consolidate", sessionID, "session", map[string]any{"created": created, "observations": len(obs)})
 	log.Printf("[pipeline] Consolidated %d memories from %d observations", created, len(obs))
 
 	// Also detect patterns and store as lessons

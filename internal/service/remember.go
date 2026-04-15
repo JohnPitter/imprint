@@ -60,6 +60,7 @@ func (s *RememberService) Remember(memType types.MemoryType, title, content stri
 		return nil, fmt.Errorf("create memory: %w", err)
 	}
 
+	s.c.LogAudit("memory.create", id, "memory", map[string]any{"type": string(memType), "title": title})
 	return row, nil
 }
 

@@ -43,6 +43,8 @@ func (s *SessionService) Start(sessionID, project, cwd string) (*store.SessionRo
 		return nil, nil, fmt.Errorf("create session: %w", err)
 	}
 
+	s.c.LogAudit("session.start", sessionID, "session", map[string]any{"project": project})
+
 	blocks := s.buildContext(project)
 	return row, blocks, nil
 }
@@ -52,7 +54,11 @@ func (s *SessionService) End(sessionID string) error {
 	if sessionID == "" {
 		return fmt.Errorf("sessionId is required")
 	}
-	return s.c.Sessions.End(sessionID)
+	err := s.c.Sessions.End(sessionID)
+	if err == nil {
+		s.c.LogAudit("session.end", sessionID, "session", nil)
+	}
+	return err
 }
 
 // List returns sessions with pagination.

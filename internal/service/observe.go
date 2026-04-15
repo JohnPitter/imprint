@@ -116,6 +116,12 @@ func (s *ObserveService) Observe(payload *types.HookPayload) (*store.RawObservat
 		return nil, fmt.Errorf("store observation: %w", err)
 	}
 
+	toolName := ""
+	if obs.ToolName != nil {
+		toolName = *obs.ToolName
+	}
+	s.c.LogAudit("observation.create", obsID, "observation", map[string]any{"tool": toolName, "hook": string(payload.HookType)})
+
 	// Increment session observation count.
 	if err := s.c.Sessions.IncrementObservationCount(payload.SessionID); err != nil {
 		// Non-fatal: log but do not fail the observation.
