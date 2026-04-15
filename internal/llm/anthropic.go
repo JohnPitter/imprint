@@ -82,12 +82,8 @@ func (p *AnthropicProvider) Complete(ctx context.Context, req CompletionRequest)
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("anthropic-version", "2023-06-01")
 
-	switch p.authMode {
-	case "oauth":
-		httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
-	default: // "api_key" or unset
-		httpReq.Header.Set("x-api-key", p.apiKey)
-	}
+	// Both API key and OAuth token use x-api-key header
+	httpReq.Header.Set("x-api-key", p.apiKey)
 
 	resp, err := p.client.Do(httpReq)
 	if err != nil {
