@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="640" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0a0a0a"/>
+      <stop offset="1" stop-color="#1a1a2e"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="640" cy="280" r="400" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F97316" stop-opacity="0.15"/>
+      <stop offset="1" stop-color="#F97316" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" patternUnits="userSpaceOnUse" width="20" height="20">
+      <circle cx="10" cy="10" r="0.8" fill="#333"/>
+    </pattern>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <rect width="1280" height="640" fill="url(#dots)"/>
+  <rect width="1280" height="640" fill="url(#glow)"/>
+
+  <!-- Brain/Memory icon -->
+  <g transform="translate(640, 220)" opacity="0.9">
+    <!-- Simplified brain outline -->
+    <circle cx="0" cy="0" r="60" stroke="#F97316" stroke-width="2" fill="none" opacity="0.3"/>
+    <circle cx="0" cy="0" r="40" stroke="#F97316" stroke-width="1.5" fill="none" opacity="0.5"/>
+    <circle cx="0" cy="0" r="20" fill="#F97316" opacity="0.2"/>
+    <!-- Connection nodes -->
+    <circle cx="-45" cy="-30" r="4" fill="#F97316" opacity="0.8"/>
+    <circle cx="45" cy="-30" r="4" fill="#F97316" opacity="0.8"/>
+    <circle cx="-30" cy="45" r="4" fill="#F97316" opacity="0.8"/>
+    <circle cx="30" cy="45" r="4" fill="#F97316" opacity="0.8"/>
+    <circle cx="0" cy="-55" r="4" fill="#F97316" opacity="0.8"/>
+    <circle cx="55" cy="10" r="4" fill="#F97316" opacity="0.8"/>
+    <circle cx="-55" cy="10" r="4" fill="#F97316" opacity="0.8"/>
+    <!-- Connection lines -->
+    <line x1="-45" y1="-30" x2="0" y2="0" stroke="#F97316" stroke-width="1" opacity="0.3"/>
+    <line x1="45" y1="-30" x2="0" y2="0" stroke="#F97316" stroke-width="1" opacity="0.3"/>
+    <line x1="-30" y1="45" x2="0" y2="0" stroke="#F97316" stroke-width="1" opacity="0.3"/>
+    <line x1="30" y1="45" x2="0" y2="0" stroke="#F97316" stroke-width="1" opacity="0.3"/>
+    <line x1="0" y1="-55" x2="0" y2="0" stroke="#F97316" stroke-width="1" opacity="0.3"/>
+    <line x1="55" y1="10" x2="0" y2="0" stroke="#F97316" stroke-width="1" opacity="0.3"/>
+    <line x1="-55" y1="10" x2="0" y2="0" stroke="#F97316" stroke-width="1" opacity="0.3"/>
+    <!-- Cross connections -->
+    <line x1="-45" y1="-30" x2="0" y2="-55" stroke="#F97316" stroke-width="0.5" opacity="0.2"/>
+    <line x1="45" y1="-30" x2="0" y2="-55" stroke="#F97316" stroke-width="0.5" opacity="0.2"/>
+    <line x1="-30" y1="45" x2="-55" y2="10" stroke="#F97316" stroke-width="0.5" opacity="0.2"/>
+    <line x1="30" y1="45" x2="55" y2="10" stroke="#F97316" stroke-width="0.5" opacity="0.2"/>
+  </g>
+
+  <!-- Title -->
+  <text x="640" y="350" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="72" font-weight="bold" fill="#F97316" letter-spacing="-2">Imprint</text>
+
+  <!-- Subtitle -->
+  <text x="640" y="400" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif" font-size="22" fill="#a0a0a0">Persistent memory for AI coding agents</text>
+
+  <!-- Tech badges -->
+  <g transform="translate(640, 460)" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif" font-size="14" fill="#666">
+    <rect x="-280" y="-15" width="70" height="28" rx="4" fill="#00ADD8" opacity="0.15"/>
+    <text x="-245" y="5" fill="#00ADD8">Go</text>
+
+    <rect x="-190" y="-15" width="80" height="28" rx="4" fill="#FF3E00" opacity="0.15"/>
+    <text x="-150" y="5" fill="#FF3E00">Svelte</text>
+
+    <rect x="-90" y="-15" width="80" height="28" rx="4" fill="#003B57" opacity="0.15"/>
+    <text x="-50" y="5" fill="#4a9fd0">SQLite</text>
+
+    <rect x="10" y="-15" width="80" height="28" rx="4" fill="#2B7BB5" opacity="0.15"/>
+    <text x="50" y="5" fill="#5ba3d9">Bleve</text>
+
+    <rect x="110" y="-15" width="70" height="28" rx="4" fill="#7E44A8" opacity="0.15"/>
+    <text x="145" y="5" fill="#a070c8">MCP</text>
+
+    <rect x="200" y="-15" width="90" height="28" rx="4" fill="#F97316" opacity="0.15"/>
+    <text x="245" y="5" fill="#F97316">180 tests</text>
+  </g>
+
+  <!-- Bottom accent line -->
+  <rect x="540" y="520" width="200" height="2" rx="1" fill="#F97316" opacity="0.5"/>
+</svg>

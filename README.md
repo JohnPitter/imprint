@@ -1,6 +1,6 @@
 <div align="center">
 
-# Imprint
+<img src="assets/banner.svg" alt="Imprint" width="720" />
 
 **Persistent memory for AI coding agents — every session builds on the last.**
 
