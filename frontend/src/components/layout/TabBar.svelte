@@ -25,8 +25,8 @@
 </nav>
 
 <style>
-  .tabbar { display:flex; overflow-x:auto; gap:2px; padding:0 16px; background:var(--bg-secondary); border-bottom:1px solid var(--border); }
-  .tab { display:flex; align-items:center; padding:10px 14px; border:none; background:transparent; color:var(--text-secondary); font-size:13px; font-weight:500; cursor:pointer; border-bottom:2px solid transparent; transition:all 0.15s; white-space:nowrap; }
-  .tab:hover { color:var(--text-primary); background:var(--bg-hover); }
+  .tabbar { display:flex; overflow-x:auto; gap:0; padding:0 20px; background:var(--bg-secondary); border-bottom:1px solid var(--border); }
+  .tab { display:flex; align-items:center; padding:12px 16px; border:none; background:transparent; color:var(--text-muted); font-size:11px; font-weight:700; font-family:var(--font-ui); cursor:pointer; border-bottom:2px solid transparent; transition:all 0.2s; white-space:nowrap; text-transform:uppercase; letter-spacing:0.08em; }
+  .tab:hover { color:var(--text-primary); }
   .tab.active { color:var(--accent); border-bottom-color:var(--accent); }
 </style>
