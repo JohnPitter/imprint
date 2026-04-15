@@ -32,10 +32,10 @@
       memoriesCount = (m as any).total ?? ((m as any).memories?.length || 0);
       lessonsCount = (l as any).total ?? ((l as any).lessons?.length || 0);
       crystalsCount = (c as any).total ?? ((c as any).crystals?.length || 0);
-      lastRefresh = new Date().toLocaleTimeString();
     } catch (e) {
       console.error('Dashboard refresh error:', e);
     }
+    lastRefresh = new Date().toLocaleTimeString();
     loading = false;
   }
 

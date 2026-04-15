@@ -71,7 +71,7 @@ func (h *AdvancedHandler) HandleListSignals(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, signals)
+	writeJSON(w, http.StatusOK, map[string]any{"signals": orEmpty(signals)})
 }
 
 // ---------------------------------------------------------------------------
@@ -129,7 +129,7 @@ func (h *AdvancedHandler) HandleListCheckpoints(w http.ResponseWriter, r *http.R
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, cps)
+	writeJSON(w, http.StatusOK, map[string]any{"checkpoints": orEmpty(cps)})
 }
 
 // ---------------------------------------------------------------------------
@@ -166,7 +166,7 @@ func (h *AdvancedHandler) HandleListSentinels(w http.ResponseWriter, r *http.Req
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, sents)
+	writeJSON(w, http.StatusOK, map[string]any{"sentinels": orEmpty(sents)})
 }
 
 // HandleTriggerSentinel handles POST /sentinels/trigger.
@@ -257,7 +257,7 @@ func (h *AdvancedHandler) HandleListSketches(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, sketches)
+	writeJSON(w, http.StatusOK, map[string]any{"sketches": orEmpty(sketches)})
 }
 
 // HandleAddToSketch handles POST /sketches/add.
@@ -360,7 +360,7 @@ func (h *AdvancedHandler) HandleListCrystals(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, crystals)
+	writeJSON(w, http.StatusOK, map[string]any{"crystals": orEmpty(crystals)})
 }
 
 // HandleAutoCrystallize handles POST /crystals/auto.
@@ -417,7 +417,7 @@ func (h *AdvancedHandler) HandleListLessons(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, lessons)
+	writeJSON(w, http.StatusOK, map[string]any{"lessons": orEmpty(lessons)})
 }
 
 // HandleSearchLessons handles POST /lessons/search.
@@ -436,7 +436,7 @@ func (h *AdvancedHandler) HandleSearchLessons(w http.ResponseWriter, r *http.Req
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, lessons)
+	writeJSON(w, http.StatusOK, map[string]any{"lessons": orEmpty(lessons)})
 }
 
 // HandleStrengthenLesson handles POST /lessons/strengthen.
@@ -470,7 +470,7 @@ func (h *AdvancedHandler) HandleListInsights(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, insights)
+	writeJSON(w, http.StatusOK, map[string]any{"insights": orEmpty(insights)})
 }
 
 // HandleSearchInsights handles POST /insights/search.
@@ -489,7 +489,7 @@ func (h *AdvancedHandler) HandleSearchInsights(w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, insights)
+	writeJSON(w, http.StatusOK, map[string]any{"insights": orEmpty(insights)})
 }
 
 // ---------------------------------------------------------------------------
@@ -531,7 +531,7 @@ func (h *AdvancedHandler) HandleGetFacets(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, facets)
+	writeJSON(w, http.StatusOK, map[string]any{"facets": orEmpty(facets)})
 }
 
 // HandleRemoveFacet handles POST /facets/remove.
@@ -568,7 +568,7 @@ func (h *AdvancedHandler) HandleQueryFacets(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, facets)
+	writeJSON(w, http.StatusOK, map[string]any{"facets": orEmpty(facets)})
 }
 
 // HandleFacetStats handles GET /facets/stats.
@@ -596,7 +596,7 @@ func (h *AdvancedHandler) HandleListAudit(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, entries)
+	writeJSON(w, http.StatusOK, map[string]any{"entries": orEmpty(entries)})
 }
 
 // ---------------------------------------------------------------------------

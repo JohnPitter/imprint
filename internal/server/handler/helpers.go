@@ -4,10 +4,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 
 	"imprint/internal/types"
 )
+
+// orEmpty returns the slice as-is if non-nil, or an empty slice for clean JSON serialization.
+// Go serializes nil slices as "null" but we want "[]".
+func orEmpty(v any) any {
+	rv := reflect.ValueOf(v)
+	if !rv.IsValid() || (rv.Kind() == reflect.Slice && rv.IsNil()) {
+		return []any{}
+	}
+	return v
+}
 
 // writeJSON writes a JSON response with the given status code.
 func writeJSON(w http.ResponseWriter, status int, v any) {
