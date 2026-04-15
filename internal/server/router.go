@@ -25,6 +25,7 @@ type RouterDeps struct {
 	Actions      *handler.ActionHandler
 	Advanced     *handler.AdvancedHandler
 	Settings     *handler.SettingsHandler
+	Pipeline     *handler.PipelineHandler
 }
 
 var startTime = time.Now()
@@ -111,9 +112,15 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 			r.Get("/memories", notImplemented)
 			r.Post("/evolve", notImplemented)
 		}
-		r.Post("/summarize", notImplemented)
-		r.Post("/consolidate", notImplemented)
-		r.Post("/consolidate-pipeline", notImplemented)
+		if deps.Pipeline != nil {
+			r.Post("/summarize", deps.Pipeline.HandleSummarize)
+			r.Post("/consolidate", deps.Pipeline.HandleFullPipeline)
+			r.Post("/consolidate-pipeline", deps.Pipeline.HandleConsolidatePipeline)
+		} else {
+			r.Post("/summarize", notImplemented)
+			r.Post("/consolidate", notImplemented)
+			r.Post("/consolidate-pipeline", notImplemented)
+		}
 		r.Post("/file-context", notImplemented)
 		r.Post("/patterns", notImplemented)
 		r.Post("/generate-rules", notImplemented)

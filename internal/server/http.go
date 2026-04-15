@@ -21,7 +21,7 @@ func NewHTTPServer(port int, handler http.Handler) *HTTPServer {
 			Addr:         fmt.Sprintf(":%d", port),
 			Handler:      handler,
 			ReadTimeout:  30 * time.Second,
-			WriteTimeout: 30 * time.Second,
+			WriteTimeout: 5 * time.Minute, // Pipeline endpoints need time for multiple LLM calls
 			IdleTimeout:  60 * time.Second,
 		},
 	}

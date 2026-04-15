@@ -87,6 +87,11 @@ func main() {
 	graphExtractor := pipeline.NewGraphExtractor(llmProvider)
 	graphSvc := service.NewGraphService(container, graphExtractor)
 
+	// Create pipeline services
+	summarizer := pipeline.NewSummarizer(llmProvider)
+	consolidator := pipeline.NewConsolidator(llmProvider)
+	pipelineSvc := service.NewPipelineService(container, summarizer, consolidator)
+
 	// Create advanced services
 	actionSvc := service.NewActionService(container)
 	advancedSvc := service.NewAdvancedService(container)
@@ -101,6 +106,7 @@ func main() {
 		Actions:      handler.NewActionHandler(actionSvc),
 		Advanced:     handler.NewAdvancedHandler(advancedSvc),
 		Settings:     handler.NewSettingsHandler(cfg),
+		Pipeline:     handler.NewPipelineHandler(pipelineSvc),
 	}
 
 	// Create router and HTTP server
