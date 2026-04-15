@@ -1,88 +1,88 @@
 {
-    "hooks": {
-        "SessionStart": [{
-            "matcher": "",
-            "hooks": [{
-                "type": "command",
-                "command": "${IMPRINT_HOOKS_DIR}/session-start"
-            }]
-        }],
-        "UserPromptSubmit": [{
-            "matcher": "",
-            "hooks": [{
-                "type": "command",
-                "command": "${IMPRINT_HOOKS_DIR}/prompt-submit"
-            }]
-        }],
-        "PreToolUse": [{
-            "matcher": "Edit|Write|Read|Glob|Grep",
-            "hooks": [{
-                "type": "command",
-                "command": "${IMPRINT_HOOKS_DIR}/pre-tool-use"
-            }]
-        }],
-        "PostToolUse": [{
-            "matcher": "",
-            "hooks": [{
-                "type": "command",
-                "command": "${IMPRINT_HOOKS_DIR}/post-tool-use"
-            }]
-        }],
-        "PostToolUseFailure": [{
-            "matcher": "",
-            "hooks": [{
-                "type": "command",
-                "command": "${IMPRINT_HOOKS_DIR}/post-tool-failure"
-            }]
-        }],
-        "PreCompact": [{
-            "matcher": "",
-            "hooks": [{
-                "type": "command",
-                "command": "${IMPRINT_HOOKS_DIR}/pre-compact"
-            }]
-        }],
-        "SubagentStart": [{
-            "matcher": "",
-            "hooks": [{
-                "type": "command",
-                "command": "${IMPRINT_HOOKS_DIR}/subagent-start"
-            }]
-        }],
-        "SubagentStop": [{
-            "matcher": "",
-            "hooks": [{
-                "type": "command",
-                "command": "${IMPRINT_HOOKS_DIR}/subagent-stop"
-            }]
-        }],
-        "Notification": [{
-            "matcher": "",
-            "hooks": [{
-                "type": "command",
-                "command": "${IMPRINT_HOOKS_DIR}/notification"
-            }]
-        }],
-        "TaskCompleted": [{
-            "matcher": "",
-            "hooks": [{
-                "type": "command",
-                "command": "${IMPRINT_HOOKS_DIR}/task-completed"
-            }]
-        }],
-        "Stop": [{
-            "matcher": "",
-            "hooks": [{
-                "type": "command",
-                "command": "${IMPRINT_HOOKS_DIR}/stop"
-            }]
-        }],
-        "SessionEnd": [{
-            "matcher": "",
-            "hooks": [{
-                "type": "command",
-                "command": "${IMPRINT_HOOKS_DIR}/session-end"
-            }]
-        }]
-    }
+  "hooks": {
+    "SessionStart": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-server.sh && ${CLAUDE_PLUGIN_ROOT}/bin/hooks/session-start.exe"
+      }]
+    }],
+    "UserPromptSubmit": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/prompt-submit.exe"
+      }]
+    }],
+    "PreToolUse": [{
+      "matcher": "Edit|Write|Read|Glob|Grep",
+      "hooks": [{
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/pre-tool-use.exe"
+      }]
+    }],
+    "PostToolUse": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/post-tool-use.exe"
+      }]
+    }],
+    "PostToolUseFailure": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/post-tool-failure.exe"
+      }]
+    }],
+    "PreCompact": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/pre-compact.exe"
+      }]
+    }],
+    "SubagentStart": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/subagent-start.exe"
+      }]
+    }],
+    "SubagentStop": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/subagent-stop.exe"
+      }]
+    }],
+    "Notification": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/notification.exe"
+      }]
+    }],
+    "TaskCompleted": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/task-completed.exe"
+      }]
+    }],
+    "Stop": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/stop.exe"
+      }]
+    }],
+    "SessionEnd": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/session-end.exe"
+      }]
+    }]
+  }
 }

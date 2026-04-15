@@ -1,14 +1,14 @@
 {
-    "name": "imprint",
-    "version": "1.0.0",
-    "description": "Persistent memory for AI coding agents - Go edition",
-    "author": "joaop",
-    "homepage": "https://github.com/joaop/imprint",
-    "mcpServers": {
-        "imprint": {
-            "command": "${PLUGIN_ROOT}/../build/mcp-server",
-            "args": [],
-            "env": {}
-        }
-    }
+  "name": "imprint",
+  "version": "1.0.0",
+  "description": "Persistent memory for AI coding agents. Captures observations, compresses with LLM, builds a knowledge graph, and injects relevant context into new sessions.",
+  "author": {
+    "name": "joaop",
+    "email": "joaopedro.ts16@gmail.com"
+  },
+  "homepage": "https://github.com/joaop/imprint",
+  "license": "MIT",
+  "keywords": ["memory", "persistent", "knowledge-graph", "context"],
+  "hooks": "../hooks/hooks.json",
+  "mcpServers": "../.mcp.json"
 }

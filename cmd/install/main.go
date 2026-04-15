@@ -1,13 +1,10 @@
-// install.go installs imprint as a Claude Code plugin.
-//
-// What it does:
-//   1. Builds all binaries (server, hooks, mcp-server) into ~/.imprint/bin/
-//   2. Registers hooks in ~/.claude/settings.json
-//   3. Registers MCP server in ~/.claude/settings.json
+// install.go builds Imprint binaries and installs as a Claude Code plugin.
 //
 // Usage:
-//   go run ./cmd/install
-//   go run ./cmd/install --uninstall
+//
+//	go run ./cmd/install          # Build + install
+//	go run ./cmd/install --uninstall   # Remove from settings
+//	go run ./cmd/install --build-only  # Build binaries only (no settings change)
 package main
 
 import (
@@ -20,170 +17,96 @@ import (
 	"strings"
 )
 
-var hooks = []string{
+var hookNames = []string{
 	"session-start", "session-end", "prompt-submit",
 	"post-tool-use", "post-tool-failure", "pre-tool-use",
 	"pre-compact", "subagent-start", "subagent-stop",
 	"notification", "task-completed", "stop",
 }
 
-var hookEvents = map[string]struct {
-	event   string
-	matcher string
-}{
-	"session-start":    {"SessionStart", ""},
-	"session-end":      {"SessionEnd", ""},
-	"prompt-submit":    {"UserPromptSubmit", ""},
-	"post-tool-use":    {"PostToolUse", ""},
-	"post-tool-failure": {"PostToolUseFailure", ""},
-	"pre-tool-use":     {"PreToolUse", "Edit|Write|Read|Glob|Grep"},
-	"pre-compact":      {"PreCompact", ""},
-	"subagent-start":   {"SubagentStart", ""},
-	"subagent-stop":    {"SubagentStop", ""},
-	"notification":     {"Notification", ""},
-	"task-completed":   {"TaskCompleted", ""},
-	"stop":             {"Stop", ""},
-}
-
 func main() {
-	uninstall := len(os.Args) > 1 && os.Args[1] == "--uninstall"
-
-	home, err := os.UserHomeDir()
-	if err != nil {
-		fatal("cannot find home dir: %v", err)
-	}
-
-	binDir := filepath.Join(home, ".imprint", "bin")
-	settingsPath := filepath.Join(home, ".claude", "settings.json")
-
-	if uninstall {
-		doUninstall(binDir, settingsPath)
+	if len(os.Args) > 1 && os.Args[1] == "--uninstall" {
+		doUninstall()
 		return
 	}
+	buildOnly := len(os.Args) > 1 && os.Args[1] == "--build-only"
 
-	doInstall(binDir, settingsPath)
-}
-
-func doInstall(binDir, settingsPath string) {
+	projectRoot := findProjectRoot()
+	pluginDir := filepath.Join(projectRoot, "plugin")
+	binDir := filepath.Join(pluginDir, "bin")
 	ext := ""
 	if runtime.GOOS == "windows" {
 		ext = ".exe"
 	}
 
-	// 1. Create bin directory
-	fmt.Println("[install] Creating", binDir)
-	os.MkdirAll(binDir, 0o755)
+	fmt.Println("[build] Project root:", projectRoot)
 
-	// 2. Find project root (where go.mod is)
-	projectRoot := findProjectRoot()
-	fmt.Println("[install] Project root:", projectRoot)
-
-	// 3. Build frontend
-	fmt.Println("[install] Building frontend...")
+	// 1. Build frontend
+	fmt.Println("[build] Building frontend...")
 	runCmd(projectRoot, "npm", "install", "--prefix", "frontend")
 	runCmd(projectRoot, "npm", "run", "build", "--prefix", "frontend")
 
-	// 4. Build main server
-	fmt.Println("[install] Building imprint server...")
-	serverBin := filepath.Join(binDir, "imprint"+ext)
-	buildGo(projectRoot, serverBin, ".")
+	// 2. Build server binary → plugin/bin/imprint[.exe]
+	fmt.Println("[build] Building Imprint server...")
+	os.MkdirAll(binDir, 0o755)
+	buildGo(projectRoot, filepath.Join(binDir, "imprint"+ext), ".")
 
-	// 5. Build hooks
-	fmt.Println("[install] Building hooks...")
-	for _, hook := range hooks {
-		hookBin := filepath.Join(binDir, "hooks", hook+ext)
-		os.MkdirAll(filepath.Dir(hookBin), 0o755)
-		buildGo(projectRoot, hookBin, "./cmd/hooks/"+hook)
+	// 3. Build hooks → plugin/bin/hooks/*[.exe]
+	fmt.Println("[build] Building hooks...")
+	os.MkdirAll(filepath.Join(binDir, "hooks"), 0o755)
+	for _, hook := range hookNames {
+		buildGo(projectRoot, filepath.Join(binDir, "hooks", hook+ext), "./cmd/hooks/"+hook)
 		fmt.Printf("  %s\n", hook)
 	}
 
-	// 6. Build MCP server
-	fmt.Println("[install] Building MCP server...")
-	mcpBin := filepath.Join(binDir, "mcp-server"+ext)
-	buildGo(projectRoot, mcpBin, "./cmd/mcp-server")
+	// 4. Build MCP server → plugin/bin/mcp-server[.exe]
+	fmt.Println("[build] Building MCP server...")
+	buildGo(projectRoot, filepath.Join(binDir, "mcp-server"+ext), "./cmd/mcp-server")
 
-	// 7. Update settings.json
-	fmt.Println("[install] Updating Claude Code settings...")
-	settings := loadSettings(settingsPath)
-
-	// Add hooks
-	hooksMap := getOrCreateMap(settings, "hooks")
-	hooksDir := filepath.Join(binDir, "hooks")
-
-	for _, hook := range hooks {
-		info := hookEvents[hook]
-		hookCmd := filepath.ToSlash(filepath.Join(hooksDir, hook+ext))
-		entry := []any{
-			map[string]any{
-				"matcher": info.matcher,
-				"hooks": []any{
-					map[string]any{
-						"type":    "command",
-						"command": hookCmd,
-					},
-				},
-			},
+	// 5. Make scripts executable
+	scriptsDir := filepath.Join(pluginDir, "scripts")
+	if entries, err := os.ReadDir(scriptsDir); err == nil {
+		for _, e := range entries {
+			os.Chmod(filepath.Join(scriptsDir, e.Name()), 0o755)
 		}
-
-		// Check if event already has entries
-		if existing, ok := hooksMap[info.event]; ok {
-			if arr, ok := existing.([]any); ok {
-				// Append if not already present
-				found := false
-				for _, e := range arr {
-					if m, ok := e.(map[string]any); ok {
-						if hooks, ok := m["hooks"].([]any); ok {
-							for _, h := range hooks {
-								if hm, ok := h.(map[string]any); ok {
-									if cmd, ok := hm["command"].(string); ok && strings.Contains(cmd, "imprint") {
-										found = true
-									}
-								}
-							}
-						}
-					}
-				}
-				if !found {
-					hooksMap[info.event] = append(arr, entry[0])
-				}
-				continue
-			}
-		}
-		hooksMap[info.event] = entry
 	}
-	settings["hooks"] = hooksMap
 
-	// Add MCP server
-	mcpServers := getOrCreateMap(settings, "mcpServers")
-	mcpServers["imprint"] = map[string]any{
-		"command": filepath.ToSlash(mcpBin),
-		"args":    []string{},
+	// 6. Create data directory
+	home, _ := os.UserHomeDir()
+	dataDir := filepath.Join(home, ".imprint")
+	os.MkdirAll(dataDir, 0o755)
+
+	if buildOnly {
+		fmt.Println("\n[build] Done! Binaries built in plugin/bin/")
+		fmt.Println("  Test with: claude --plugin-dir", filepath.ToSlash(pluginDir))
+		return
 	}
-	settings["mcpServers"] = mcpServers
 
-	saveSettings(settingsPath, settings)
+	// 7. Register in Claude Code settings.json
+	fmt.Println("[install] Registering plugin in Claude Code settings...")
+	settingsPath := filepath.Join(home, ".claude", "settings.json")
+	registerPlugin(settingsPath, pluginDir)
 
 	fmt.Println()
 	fmt.Println("[install] Done! Imprint installed as Claude Code plugin.")
 	fmt.Println()
-	fmt.Printf("  Server:   %s\n", filepath.ToSlash(filepath.Join(binDir, "imprint"+ext)))
-	fmt.Printf("  Hooks:    %s\n", filepath.ToSlash(filepath.Join(binDir, "hooks")))
-	fmt.Printf("  MCP:      %s\n", filepath.ToSlash(mcpBin))
-	fmt.Printf("  Settings: %s\n", settingsPath)
+	fmt.Println("  Plugin dir:", filepath.ToSlash(pluginDir))
+	fmt.Println("  Data dir:  ", filepath.ToSlash(dataDir))
 	fmt.Println()
-	fmt.Println("  Start the server before using Claude Code:")
-	fmt.Printf("    %s\n", filepath.ToSlash(filepath.Join(binDir, "imprint"+ext)))
+	fmt.Println("  The server auto-starts when you open Claude Code.")
+	fmt.Println("  Web UI:     http://localhost:3111")
 	fmt.Println()
-	fmt.Println("  Or run in background:")
-	fmt.Printf("    %s &\n", filepath.ToSlash(filepath.Join(binDir, "imprint"+ext)))
+	fmt.Println("  To test without installing:")
+	fmt.Printf("    claude --plugin-dir %s\n", filepath.ToSlash(pluginDir))
+	fmt.Println()
+	fmt.Println("  To uninstall:")
+	fmt.Println("    go run ./cmd/install --uninstall")
 }
 
-func doUninstall(binDir, settingsPath string) {
-	fmt.Println("[uninstall] Removing Imprint from Claude Code settings...")
-
+func registerPlugin(settingsPath, pluginDir string) {
 	settings := loadSettings(settingsPath)
 
-	// Remove hooks that contain "imprint"
+	// Remove any old direct hooks containing "imprint"
 	if hooksMap, ok := settings["hooks"].(map[string]any); ok {
 		for event, entries := range hooksMap {
 			if arr, ok := entries.([]any); ok {
@@ -191,15 +114,15 @@ func doUninstall(binDir, settingsPath string) {
 				for _, e := range arr {
 					if m, ok := e.(map[string]any); ok {
 						if hooks, ok := m["hooks"].([]any); ok {
-							hasAgentMemory := false
+							hasImprint := false
 							for _, h := range hooks {
 								if hm, ok := h.(map[string]any); ok {
 									if cmd, ok := hm["command"].(string); ok && strings.Contains(cmd, "imprint") {
-										hasAgentMemory = true
+										hasImprint = true
 									}
 								}
 							}
-							if !hasAgentMemory {
+							if !hasImprint {
 								filtered = append(filtered, e)
 							}
 						} else {
@@ -217,22 +140,134 @@ func doUninstall(binDir, settingsPath string) {
 		settings["hooks"] = hooksMap
 	}
 
-	// Remove MCP server
+	// Remove old MCP server entry
+	if mcpServers, ok := settings["mcpServers"].(map[string]any); ok {
+		delete(mcpServers, "imprint")
+		settings["mcpServers"] = mcpServers
+	}
+
+	// Add plugin-dir based hooks (the proper plugin way)
+	// Claude Code reads hooks from the plugin's hooks/hooks.json when loaded via --plugin-dir
+	// But for persistent installation, we register hooks directly pointing to plugin/bin/
+	hooksMap := getOrCreateMap(settings, "hooks")
+	pluginBinHooks := filepath.ToSlash(filepath.Join(pluginDir, "bin", "hooks"))
+	ensureScript := filepath.ToSlash(filepath.Join(pluginDir, "scripts", "ensure-server.sh"))
+	ext := ""
+	if runtime.GOOS == "windows" {
+		ext = ".exe"
+	}
+
+	type hookDef struct {
+		event   string
+		matcher string
+	}
+	hookDefs := map[string]hookDef{
+		"session-start":     {"SessionStart", ""},
+		"session-end":       {"SessionEnd", ""},
+		"prompt-submit":     {"UserPromptSubmit", ""},
+		"post-tool-use":     {"PostToolUse", ""},
+		"post-tool-failure": {"PostToolUseFailure", ""},
+		"pre-tool-use":      {"PreToolUse", "Edit|Write|Read|Glob|Grep"},
+		"pre-compact":       {"PreCompact", ""},
+		"subagent-start":    {"SubagentStart", ""},
+		"subagent-stop":     {"SubagentStop", ""},
+		"notification":      {"Notification", ""},
+		"task-completed":    {"TaskCompleted", ""},
+		"stop":              {"Stop", ""},
+	}
+
+	for _, hook := range hookNames {
+		def := hookDefs[hook]
+		hookBin := filepath.ToSlash(filepath.Join(pluginBinHooks, hook+ext))
+
+		// SessionStart gets the ensure-server prefix
+		cmd := hookBin
+		if hook == "session-start" {
+			cmd = ensureScript + " && " + hookBin
+		}
+
+		entry := map[string]any{
+			"matcher": def.matcher,
+			"hooks": []any{
+				map[string]any{
+					"type":    "command",
+					"command": cmd,
+				},
+			},
+		}
+
+		if existing, ok := hooksMap[def.event]; ok {
+			if arr, ok := existing.([]any); ok {
+				hooksMap[def.event] = append(arr, entry)
+			} else {
+				hooksMap[def.event] = []any{entry}
+			}
+		} else {
+			hooksMap[def.event] = []any{entry}
+		}
+	}
+	settings["hooks"] = hooksMap
+
+	// Register MCP server
+	mcpServers := getOrCreateMap(settings, "mcpServers")
+	mcpServers["imprint"] = map[string]any{
+		"command": filepath.ToSlash(filepath.Join(pluginDir, "bin", "mcp-server"+ext)),
+		"args":    []string{},
+	}
+	settings["mcpServers"] = mcpServers
+
+	saveSettings(settingsPath, settings)
+}
+
+func doUninstall() {
+	home, _ := os.UserHomeDir()
+	settingsPath := filepath.Join(home, ".claude", "settings.json")
+
+	fmt.Println("[uninstall] Removing Imprint from Claude Code settings...")
+	settings := loadSettings(settingsPath)
+
+	// Remove hooks
+	if hooksMap, ok := settings["hooks"].(map[string]any); ok {
+		for event, entries := range hooksMap {
+			if arr, ok := entries.([]any); ok {
+				var filtered []any
+				for _, e := range arr {
+					if m, ok := e.(map[string]any); ok {
+						if hooks, ok := m["hooks"].([]any); ok {
+							has := false
+							for _, h := range hooks {
+								if hm, ok := h.(map[string]any); ok {
+									if cmd, ok := hm["command"].(string); ok && strings.Contains(cmd, "imprint") {
+										has = true
+									}
+								}
+							}
+							if !has {
+								filtered = append(filtered, e)
+							}
+						} else {
+							filtered = append(filtered, e)
+						}
+					}
+				}
+				if len(filtered) > 0 {
+					hooksMap[event] = filtered
+				} else {
+					delete(hooksMap, event)
+				}
+			}
+		}
+		settings["hooks"] = hooksMap
+	}
+
+	// Remove MCP
 	if mcpServers, ok := settings["mcpServers"].(map[string]any); ok {
 		delete(mcpServers, "imprint")
 		settings["mcpServers"] = mcpServers
 	}
 
 	saveSettings(settingsPath, settings)
-
-	fmt.Println("[uninstall] Removing binaries...")
-	os.RemoveAll(filepath.Join(binDir, "hooks"))
-	os.Remove(filepath.Join(binDir, "imprint.exe"))
-	os.Remove(filepath.Join(binDir, "imprint"))
-	os.Remove(filepath.Join(binDir, "mcp-server.exe"))
-	os.Remove(filepath.Join(binDir, "mcp-server"))
-
-	fmt.Println("[uninstall] Done.")
+	fmt.Println("[uninstall] Done. Binaries in plugin/bin/ are not removed.")
 }
 
 func findProjectRoot() string {
@@ -243,7 +278,8 @@ func findProjectRoot() string {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			fatal("cannot find go.mod in any parent directory")
+			fmt.Fprintln(os.Stderr, "[error] cannot find go.mod")
+			os.Exit(1)
 		}
 		dir = parent
 	}
@@ -255,41 +291,32 @@ func buildGo(projectRoot, output, pkg string) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		fatal("build %s failed: %v", pkg, err)
+		fmt.Fprintf(os.Stderr, "[error] build %s failed: %v\n", pkg, err)
+		os.Exit(1)
 	}
 }
 
-func runCmd(dir string, name string, args ...string) {
+func runCmd(dir, name string, args ...string) {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Run() // ignore errors (npm install may warn)
+	cmd.Run()
 }
 
 func loadSettings(path string) map[string]any {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return map[string]any{}
-		}
-		fatal("read settings: %v", err)
+		return map[string]any{}
 	}
-	var settings map[string]any
-	if err := json.Unmarshal(data, &settings); err != nil {
-		fatal("parse settings: %v", err)
-	}
-	return settings
+	var s map[string]any
+	json.Unmarshal(data, &s)
+	return s
 }
 
-func saveSettings(path string, settings map[string]any) {
-	data, err := json.MarshalIndent(settings, "", "  ")
-	if err != nil {
-		fatal("marshal settings: %v", err)
-	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		fatal("write settings: %v", err)
-	}
+func saveSettings(path string, s map[string]any) {
+	data, _ := json.MarshalIndent(s, "", "  ")
+	os.WriteFile(path, data, 0o644)
 }
 
 func getOrCreateMap(m map[string]any, key string) map[string]any {
@@ -298,12 +325,7 @@ func getOrCreateMap(m map[string]any, key string) map[string]any {
 			return vm
 		}
 	}
-	result := map[string]any{}
-	m[key] = result
-	return result
-}
-
-func fatal(format string, args ...any) {
-	fmt.Fprintf(os.Stderr, "[error] "+format+"\n", args...)
-	os.Exit(1)
+	r := map[string]any{}
+	m[key] = r
+	return r
 }
