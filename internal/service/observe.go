@@ -123,7 +123,8 @@ func (s *ObserveService) Observe(payload *types.HookPayload) (*store.RawObservat
 	}
 
 	// Submit for background LLM compression if worker is attached.
-	if s.compressor != nil {
+	// Only compress observations that have meaningful content (tool use with input/output).
+	if s.compressor != nil && obs.ToolName != nil && *obs.ToolName != "" {
 		s.compressor.Submit(obs)
 	}
 
