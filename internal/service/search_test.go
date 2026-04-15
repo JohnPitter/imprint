@@ -212,13 +212,15 @@ func TestContextService_BuildContext(t *testing.T) {
 		t.Fatal("expected at least 1 context block, got 0")
 	}
 
-	// Verify all 3 block types are present.
+	// Verify layered block types are present.
 	blockTypes := make(map[string]bool)
 	for _, b := range blocks {
 		blockTypes[b.Type] = true
 	}
 
-	expectedTypes := []string{"session-history", "key-observations", "memories"}
+	// L1 (essential-story) should contain the memory + summary.
+	// L2 (session-context) should contain the observation.
+	expectedTypes := []string{"essential-story", "session-context"}
 	for _, et := range expectedTypes {
 		if !blockTypes[et] {
 			t.Errorf("expected block type %q to be present, but it was not found", et)
@@ -228,20 +230,16 @@ func TestContextService_BuildContext(t *testing.T) {
 	// Verify priorities are set correctly.
 	for _, b := range blocks {
 		switch b.Type {
-		case "session-history":
+		case "essential-story":
 			if b.Priority != 1 {
-				t.Errorf("session-history priority should be 1, got %d", b.Priority)
+				t.Errorf("essential-story priority should be 1, got %d", b.Priority)
 			}
-			if b.Label != "Recent Sessions" {
-				t.Errorf("session-history label should be 'Recent Sessions', got %s", b.Label)
+			if b.Label != "L1 — Essential Story" {
+				t.Errorf("essential-story label should be 'L1 — Essential Story', got %s", b.Label)
 			}
-		case "key-observations":
+		case "session-context":
 			if b.Priority != 2 {
-				t.Errorf("key-observations priority should be 2, got %d", b.Priority)
-			}
-		case "memories":
-			if b.Priority != 3 {
-				t.Errorf("memories priority should be 3, got %d", b.Priority)
+				t.Errorf("session-context priority should be 2, got %d", b.Priority)
 			}
 		}
 	}

@@ -73,55 +73,60 @@ func (s *SessionService) List(project string, limit, offset int) ([]store.Sessio
 }
 
 // buildContext assembles context blocks from recent summaries and high-importance observations.
+// Uses the same layered approach as ContextService but without needing a full service instance.
 func (s *SessionService) buildContext(project string) []types.ContextBlock {
 	var blocks []types.ContextBlock
 
-	// Recent session summaries for this project.
+	// L1 — Essential Story: high-strength memories + most recent summary
+	var l1sb strings.Builder
+
+	memories, err := s.c.Memories.ListByStrength(7, 10)
+	if err == nil && len(memories) > 0 {
+		for _, m := range memories {
+			fmt.Fprintf(&l1sb, "- [%s] %s: %s\n", m.Type, m.Title, m.Content)
+		}
+	}
+
 	summaries, err := s.c.Summaries.ListByProject(project, 5)
 	if err == nil && len(summaries) > 0 {
-		var sb strings.Builder
-		for _, sum := range summaries {
-			fmt.Fprintf(&sb, "- [%s] %s: %s\n", sum.CreatedAt, sum.Title, sum.Narrative)
-		}
+		fmt.Fprintf(&l1sb, "- [Last Session] %s: %s\n", summaries[0].Title, summaries[0].Narrative)
+	}
+
+	if l1sb.Len() > 0 {
 		blocks = append(blocks, types.ContextBlock{
-			Type:     "session-history",
-			Label:    "Recent Sessions",
-			Content:  sb.String(),
+			Type:     "essential-story",
+			Label:    "L1 — Essential Story",
+			Content:  l1sb.String(),
 			Priority: 1,
 		})
 	}
 
-	// High-importance compressed observations.
-	obs, err := s.c.Observations.ListCompressedByImportance(project, 7, 10)
+	// L2 — Session Context: high-importance observations + older summaries
+	var l2sb strings.Builder
+
+	obs, err := s.c.Observations.ListCompressedByImportance(project, 6, 15)
 	if err == nil && len(obs) > 0 {
-		var sb strings.Builder
 		for _, o := range obs {
-			fmt.Fprintf(&sb, "- [%s] %s", o.Type, o.Title)
+			fmt.Fprintf(&l2sb, "- [%s] %s", o.Type, o.Title)
 			if o.Narrative != nil {
-				sb.WriteString(": " + *o.Narrative)
+				l2sb.WriteString(": " + *o.Narrative)
 			}
-			sb.WriteString("\n")
+			l2sb.WriteString("\n")
 		}
-		blocks = append(blocks, types.ContextBlock{
-			Type:     "key-observations",
-			Label:    "Key Observations",
-			Content:  sb.String(),
-			Priority: 2,
-		})
 	}
 
-	// High-strength memories.
-	memories, err := s.c.Memories.ListByStrength(7, 10)
-	if err == nil && len(memories) > 0 {
-		var sb strings.Builder
-		for _, m := range memories {
-			fmt.Fprintf(&sb, "- [%s] %s: %s\n", m.Type, m.Title, m.Content)
+	if len(summaries) > 1 {
+		for _, sum := range summaries[1:] {
+			fmt.Fprintf(&l2sb, "- [%s] %s: %s\n", sum.CreatedAt, sum.Title, sum.Narrative)
 		}
+	}
+
+	if l2sb.Len() > 0 {
 		blocks = append(blocks, types.ContextBlock{
-			Type:     "memories",
-			Label:    "Relevant Memories",
-			Content:  sb.String(),
-			Priority: 3,
+			Type:     "session-context",
+			Label:    "L2 — Session Context",
+			Content:  l2sb.String(),
+			Priority: 2,
 		})
 	}
 

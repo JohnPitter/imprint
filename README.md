@@ -22,6 +22,8 @@ Imprint is a **plugin for Claude Code** that gives your AI agent persistent memo
 
 **No Docker. No external databases. Single Go binary + SQLite.**
 
+Inspired by [agentmemory](https://github.com/rohitg00/agentmemory) (Node.js + Docker) and [MemPalace](https://github.com/MemPalace/mempalace) (Python + ChromaDB), rebuilt from scratch in Go with ideas from both: agentmemory's observation pipeline and UI, MemPalace's 4-layer memory stack, query sanitization, and write-ahead log.
+
 ---
 
 ## Features
@@ -37,8 +39,14 @@ Imprint is a **plugin for Claude Code** that gives your AI agent persistent memo
 | **MCP Server** | 8 tools for explicit memory recall, save, search, and graph queries |
 | **12-Tab Web UI** | Dashboard, Sessions, Timeline, Memories, Graph, Actions, Crystals, Lessons, Activity, Audit, Profile, Settings |
 | **Settings UI** | Select LLM provider/model, configure API keys, tune search weights — all from the browser |
+| **4-Layer Memory Stack** | L0 Identity, L1 Essential Story, L2 Session Context, L3 On-Demand Search — each with token budgets |
+| **Query Sanitizer** | Detects and strips system prompt contamination from search queries (inspired by MemPalace) |
+| **Write-Ahead Log** | Append-only JSONL audit of every write operation for crash recovery and poisoning detection |
+| **Heuristic Classifier** | Regex-based memory type detection (decision/preference/bug/architecture) — zero LLM cost |
+| **Transcript Mining** | `go run ./cmd/mine` imports historical Claude Code JSONL sessions retroactively |
+| **Temporal Knowledge Graph** | Entity relations with `valid_from`/`valid_to` windows and invalidation |
 | **Auto-Start** | Server launches automatically on first Claude Code session |
-| **180 Tests** | Unit + integration tests across all layers |
+| **180+ Tests** | Unit + integration tests across all layers |
 | **Privacy** | All data stays local in `~/.imprint/`. Secrets are scrubbed with 16 regex patterns before storage |
 
 ---
@@ -229,6 +237,15 @@ imprint/
 - 16 regex patterns scrub API keys, tokens, JWTs, passwords before storage
 - No telemetry, no tracking, no external calls (except configured LLM API)
 - Open source for audit
+
+---
+
+## Acknowledgments
+
+Imprint stands on the shoulders of two excellent projects:
+
+- **[agentmemory](https://github.com/rohitg00/agentmemory)** by Rohit Ghumare — the original persistent memory system for AI coding agents. Imprint adopted its observation capture pipeline, hook architecture, LLM compression approach, and web dashboard concept.
+- **[MemPalace](https://github.com/MemPalace/mempalace)** — a verbatim-first memory system with innovative ideas. Imprint adopted its 4-layer memory stack with token budgets, query sanitizer for system prompt contamination, write-ahead audit log, heuristic memory classification, and temporal knowledge graph invalidation.
 
 ---
 

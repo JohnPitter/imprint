@@ -104,7 +104,7 @@ func (s *GraphService) Query(startNodeID string, maxDepth int) (*GraphQueryResul
 	for depth := 0; depth < maxDepth && len(queue) > 0; depth++ {
 		var nextQueue []string
 		for _, nodeID := range queue {
-			edges, _ := s.c.Graph.GetEdgesFrom(nodeID, 20)
+			edges, _ := s.c.Graph.GetEdgesFrom(nodeID, 20, nil)
 			for _, e := range edges {
 				allEdges = append(allEdges, e)
 				if !visited[e.TargetNodeID] {
@@ -115,7 +115,7 @@ func (s *GraphService) Query(startNodeID string, maxDepth int) (*GraphQueryResul
 					}
 				}
 			}
-			edgesTo, _ := s.c.Graph.GetEdgesTo(nodeID, 20)
+			edgesTo, _ := s.c.Graph.GetEdgesTo(nodeID, 20, nil)
 			for _, e := range edgesTo {
 				allEdges = append(allEdges, e)
 				if !visited[e.SourceNodeID] {

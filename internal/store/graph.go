@@ -211,18 +211,28 @@ func (s *GraphStore) GetEdgeByID(id string) (*GraphEdgeRow, error) {
 }
 
 // GetEdgesFrom returns all edges originating from a node.
-func (s *GraphStore) GetEdgesFrom(nodeID string, limit int) ([]GraphEdgeRow, error) {
+// If asOf is non-nil, only edges temporally valid at that time are returned.
+func (s *GraphStore) GetEdgesFrom(nodeID string, limit int, asOf *time.Time) ([]GraphEdgeRow, error) {
 	if limit <= 0 {
 		limit = 100
 	}
 
-	rows, err := s.db.Query(
-		`SELECT id, type, source_node_id, target_node_id, weight,
-		        COALESCE(source_observation_ids,'[]'), created_at,
-		        valid_from, valid_to, is_latest, version, COALESCE(context,'{}')
-		 FROM graph_edges
-		 WHERE source_node_id = ? AND is_latest = 1
-		 ORDER BY weight DESC LIMIT ?`, nodeID, limit)
+	query := `SELECT id, type, source_node_id, target_node_id, weight,
+	        COALESCE(source_observation_ids,'[]'), created_at,
+	        valid_from, valid_to, is_latest, version, COALESCE(context,'{}')
+	 FROM graph_edges
+	 WHERE source_node_id = ? AND is_latest = 1`
+	args := []any{nodeID}
+
+	if asOf != nil {
+		ts := TimeToString(*asOf)
+		query += ` AND (valid_from IS NULL OR valid_from <= ?) AND (valid_to IS NULL OR valid_to > ?)`
+		args = append(args, ts, ts)
+	}
+	query += ` ORDER BY weight DESC LIMIT ?`
+	args = append(args, limit)
+
+	rows, err := s.db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("get edges from: %w", err)
 	}
@@ -232,18 +242,28 @@ func (s *GraphStore) GetEdgesFrom(nodeID string, limit int) ([]GraphEdgeRow, err
 }
 
 // GetEdgesTo returns all edges pointing to a node.
-func (s *GraphStore) GetEdgesTo(nodeID string, limit int) ([]GraphEdgeRow, error) {
+// If asOf is non-nil, only edges temporally valid at that time are returned.
+func (s *GraphStore) GetEdgesTo(nodeID string, limit int, asOf *time.Time) ([]GraphEdgeRow, error) {
 	if limit <= 0 {
 		limit = 100
 	}
 
-	rows, err := s.db.Query(
-		`SELECT id, type, source_node_id, target_node_id, weight,
-		        COALESCE(source_observation_ids,'[]'), created_at,
-		        valid_from, valid_to, is_latest, version, COALESCE(context,'{}')
-		 FROM graph_edges
-		 WHERE target_node_id = ? AND is_latest = 1
-		 ORDER BY weight DESC LIMIT ?`, nodeID, limit)
+	query := `SELECT id, type, source_node_id, target_node_id, weight,
+	        COALESCE(source_observation_ids,'[]'), created_at,
+	        valid_from, valid_to, is_latest, version, COALESCE(context,'{}')
+	 FROM graph_edges
+	 WHERE target_node_id = ? AND is_latest = 1`
+	args := []any{nodeID}
+
+	if asOf != nil {
+		ts := TimeToString(*asOf)
+		query += ` AND (valid_from IS NULL OR valid_from <= ?) AND (valid_to IS NULL OR valid_to > ?)`
+		args = append(args, ts, ts)
+	}
+	query += ` ORDER BY weight DESC LIMIT ?`
+	args = append(args, limit)
+
+	rows, err := s.db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("get edges to: %w", err)
 	}
@@ -252,19 +272,50 @@ func (s *GraphStore) GetEdgesTo(nodeID string, limit int) ([]GraphEdgeRow, error
 	return s.scanEdges(rows)
 }
 
+// InvalidateEdge marks an edge as no longer valid by setting valid_to = now and is_latest = 0.
+func (s *GraphStore) InvalidateEdge(id string) error {
+	now := TimeToString(time.Now())
+	result, err := s.db.Exec(
+		`UPDATE graph_edges SET valid_to = ?, is_latest = 0 WHERE id = ?`,
+		now, id,
+	)
+	if err != nil {
+		return fmt.Errorf("invalidate edge: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("invalidate edge rows affected: %w", err)
+	}
+	if affected == 0 {
+		return fmt.Errorf("edge not found: %s", id)
+	}
+	return nil
+}
+
 // GetNeighbors returns all nodes connected to a given node (both directions).
-func (s *GraphStore) GetNeighbors(nodeID string, limit int) ([]GraphNodeRow, error) {
+// If asOf is non-nil, only nodes connected via temporally valid edges are returned.
+func (s *GraphStore) GetNeighbors(nodeID string, limit int, asOf *time.Time) ([]GraphNodeRow, error) {
 	if limit <= 0 {
 		limit = 50
 	}
 
-	rows, err := s.db.Query(`
+	query := `
 		SELECT DISTINCT n.id, n.type, n.name, COALESCE(n.properties,'{}'),
 		       COALESCE(n.aliases,'[]'), COALESCE(n.source_observation_ids,'[]'), n.created_at
 		FROM graph_nodes n
 		JOIN graph_edges e ON (e.source_node_id = n.id OR e.target_node_id = n.id)
-		WHERE (e.source_node_id = ? OR e.target_node_id = ?) AND n.id != ? AND e.is_latest = 1
-		LIMIT ?`, nodeID, nodeID, nodeID, limit)
+		WHERE (e.source_node_id = ? OR e.target_node_id = ?) AND n.id != ? AND e.is_latest = 1`
+	args := []any{nodeID, nodeID, nodeID}
+
+	if asOf != nil {
+		ts := TimeToString(*asOf)
+		query += ` AND (e.valid_from IS NULL OR e.valid_from <= ?) AND (e.valid_to IS NULL OR e.valid_to > ?)`
+		args = append(args, ts, ts)
+	}
+	query += ` LIMIT ?`
+	args = append(args, limit)
+
+	rows, err := s.db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("get neighbors: %w", err)
 	}

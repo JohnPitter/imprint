@@ -61,6 +61,15 @@ func main() {
 	// Create service container
 	container := service.NewContainer(db)
 
+	// Attach file-based write-ahead log for crash recovery and poisoning detection.
+	wal, err := store.NewWAL(cfg.DataDir)
+	if err != nil {
+		log.Printf("[app] Warning: could not create WAL: %v (continuing without file-based audit)", err)
+	} else {
+		container.WAL = wal
+		log.Println("[app] Write-ahead log initialized")
+	}
+
 	// Create pipeline components
 	compressor := pipeline.NewCompressor(llmProvider)
 	worker := pipeline.NewWorker(compressor, container.Observations, cfg.CompressWorkers)
@@ -82,6 +91,7 @@ func main() {
 	rememberSvc := service.NewRememberService(container)
 	searchSvc := service.NewSearchService(container, searcher)
 	contextSvc := service.NewContextService(container, cfg.ContextTokenBudget)
+	contextSvc.SetDataDir(cfg.DataDir)
 
 	// Create graph components
 	graphExtractor := pipeline.NewGraphExtractor(llmProvider)
@@ -136,6 +146,12 @@ func main() {
 
 	if err := bm25.Close(); err != nil {
 		log.Printf("[app] BM25 index close error: %v", err)
+	}
+
+	if container.WAL != nil {
+		if err := container.WAL.Close(); err != nil {
+			log.Printf("[app] WAL close error: %v", err)
+		}
 	}
 
 	if err := db.Close(); err != nil {

@@ -45,8 +45,9 @@ func (c *Compressor) Compress(ctx context.Context, raw *store.RawObservationRow)
 
 	// Parse XML response.
 	obsType := getXMLTag(resp, "type")
-	if obsType == "" {
-		obsType = "other"
+	if obsType == "" || obsType == "other" {
+		// Fallback: use heuristic classification from input/output content.
+		obsType = ClassifyMemoryType(input + " " + output)
 	}
 	title := getXMLTag(resp, "title")
 	if title == "" {

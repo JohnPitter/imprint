@@ -120,14 +120,15 @@ func parseConsolidatedMemories(resp string) []ConsolidatedMemory {
 
 	for _, block := range blocks {
 		memType := getXMLTag(block, "type")
-		if memType == "" {
-			memType = "fact"
-		}
 		title := getXMLTag(block, "title")
 		if title == "" {
 			continue
 		}
 		content := getXMLTag(block, "content")
+		if memType == "" {
+			// Fallback: use heuristic classification from content.
+			memType = ClassifyMemoryType(title + " " + content)
+		}
 		concepts := getXMLChildren(block, "concepts", "concept")
 		files := getXMLChildren(block, "files", "file")
 		strength := getXMLInt(block, "strength")

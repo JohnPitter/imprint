@@ -21,6 +21,7 @@ type Container struct {
 	Insights     *store.InsightStore
 	Facets       *store.FacetStore
 	Audit        *store.AuditStore
+	WAL          *store.WAL // file-based write-ahead log (optional, nil-safe)
 }
 
 // NewContainer creates a Container with all stores initialized from the given DB.

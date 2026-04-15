@@ -286,7 +286,7 @@ func TestGraphStore_GetEdgesFromAndTo(t *testing.T) {
 	})
 
 	// GetEdgesFrom(A) should return 2.
-	fromA, err := gs.GetEdgesFrom("gn_a", 100)
+	fromA, err := gs.GetEdgesFrom("gn_a", 100, nil)
 	if err != nil {
 		t.Fatalf("GetEdgesFrom: %v", err)
 	}
@@ -295,7 +295,7 @@ func TestGraphStore_GetEdgesFromAndTo(t *testing.T) {
 	}
 
 	// GetEdgesTo(B) should return 1.
-	toB, err := gs.GetEdgesTo("gn_b", 100)
+	toB, err := gs.GetEdgesTo("gn_b", 100, nil)
 	if err != nil {
 		t.Fatalf("GetEdgesTo: %v", err)
 	}
@@ -307,7 +307,7 @@ func TestGraphStore_GetEdgesFromAndTo(t *testing.T) {
 	}
 
 	// GetEdgesFrom(B) should return 0 (no outgoing edges from B).
-	fromB, err := gs.GetEdgesFrom("gn_b", 100)
+	fromB, err := gs.GetEdgesFrom("gn_b", 100, nil)
 	if err != nil {
 		t.Fatalf("GetEdgesFrom B: %v", err)
 	}
@@ -334,7 +334,7 @@ func TestGraphStore_GetNeighbors(t *testing.T) {
 		Weight: 0.7, IsLatest: 1, Version: 1,
 	})
 
-	neighbors, err := gs.GetNeighbors("gn_na", 50)
+	neighbors, err := gs.GetNeighbors("gn_na", 50, nil)
 	if err != nil {
 		t.Fatalf("GetNeighbors: %v", err)
 	}

@@ -26,10 +26,13 @@ type SearchResultItem struct {
 }
 
 // Search performs hybrid search and enriches results with observation data.
+// The query is sanitized first to mitigate system prompt contamination.
 func (s *SearchService) Search(query string, limit int) ([]SearchResultItem, error) {
 	if limit <= 0 {
 		limit = 20
 	}
+
+	query = search.SanitizeQuery(query)
 
 	results := s.searcher.SearchBM25Only(query, limit)
 	items := make([]SearchResultItem, 0, len(results))
