@@ -17,18 +17,18 @@
   const PAGE_SIZE = 50;
   let currentPage = 0;
 
-  const typeIcons: Record<string, string> = {
-    file_operation: '\u{1F4C4}',
-    command_execution: '\u26A1',
-    search: '\u{1F50D}',
-    error: '\u26A0\uFE0F',
-    decision: '\u{1F914}',
-    discovery: '\u{1F4A1}',
-    conversation: '\u{1F4AC}',
-    notification: '\u{1F514}',
-    subagent_event: '\u{1F916}',
-    task: '\u2611\uFE0F',
-    other: '\u{1F4C4}',
+  const typeLabels: Record<string, string> = {
+    file_operation: 'FILE',
+    command_execution: 'CMD',
+    search: 'SEARCH',
+    error: 'ERROR',
+    decision: 'DECISION',
+    discovery: 'DISCOVERY',
+    conversation: 'CONV',
+    notification: 'NOTIFY',
+    subagent_event: 'AGENT',
+    task: 'TASK',
+    other: 'OTHER',
   };
 
   const typeColors: Record<string, string> = {
@@ -76,7 +76,6 @@
     } catch (e) {
       observations = [];
     }
-    // Reset filters on session change
     activeTypes = new Set();
     allTypesActive = true;
     minImportance = 1;
@@ -114,7 +113,7 @@
     } else {
       activeTypes.add(t);
     }
-    activeTypes = activeTypes; // trigger reactivity
+    activeTypes = activeTypes;
     currentPage = 0;
   }
 
@@ -126,24 +125,25 @@
 </script>
 
 {#if loading}
-  <p style="color:var(--text-muted)">Loading timeline...</p>
+  <div class="tl-loading">
+    <span class="tl-loading-label">LOADING TIMELINE</span>
+  </div>
 {:else}
-  <!-- Session Selector -->
+  <!-- Controls Bar -->
   <div class="tl-controls">
     <div class="tl-control-group">
-      <label class="tl-label">Session</label>
-      <select class="input" style="max-width:400px" bind:value={selectedSessionId} on:change={() => loadObservations(selectedSessionId)}>
+      <label class="tl-label">SESSION</label>
+      <select class="tl-select" bind:value={selectedSessionId} on:change={() => loadObservations(selectedSessionId)}>
         {#each sessions as s}
           <option value={s.ID || s.id}>
-            {s.Project || s.project || truncate(s.ID || s.id, 20)} — {s.ObservationCount || s.observationCount || 0} obs
+            {s.Project || s.project || truncate(s.ID || s.id, 20)} {'\u2014'} {s.ObservationCount || s.observationCount || 0} obs
           </option>
         {/each}
       </select>
     </div>
 
-    <!-- Importance Filter -->
     <div class="tl-control-group">
-      <label class="tl-label">Min Importance: {minImportance}</label>
+      <label class="tl-label">MIN IMPORTANCE: {minImportance}</label>
       <input type="range" min="1" max="10" bind:value={minImportance} on:input={() => { currentPage = 0; }} class="tl-range" />
     </div>
   </div>
@@ -156,7 +156,7 @@
         class:tl-chip-active={allTypesActive}
         on:click={selectAll}
       >
-        All ({observations.length})
+        ALL <span class="tl-chip-count">{observations.length}</span>
       </button>
       {#each typeList as [type, count]}
         <button
@@ -164,25 +164,23 @@
           class:tl-chip-active={!allTypesActive && activeTypes.has(type)}
           on:click={() => toggleType(type)}
         >
-          <span class="badge {typeColors[type] || 'badge-info'}" style="padding:1px 5px;font-size:10px">
-            {typeIcons[type] || '\u{1F4C4}'} {type.replace('_', ' ')}
-          </span>
+          {typeLabels[type] || type.replace('_', ' ').toUpperCase()}
           <span class="tl-chip-count">{count}</span>
         </button>
       {/each}
     </div>
   {/if}
 
-  <!-- Results count -->
-  <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
-    Showing {paginated.length} of {filtered.length} observations (page {currentPage + 1}/{totalPages})
+  <!-- Results summary -->
+  <div class="tl-summary">
+    Showing {paginated.length} of {filtered.length} observations
   </div>
 
   <!-- Observation Cards -->
   {#if paginated.length === 0}
     <div class="empty-state">
-      <div class="icon">{'\u{1F4C5}'}</div>
-      <p>No observations match the current filters</p>
+      <div class="tl-empty-icon">{'\u25A0'}</div>
+      <p style="font-family:var(--font-ui);font-size:13px">No observations match the current filters</p>
     </div>
   {:else}
     <div class="tl-list">
@@ -195,18 +193,17 @@
         {@const facts = getField(o, 'Facts', 'facts')}
         {@const concepts = getField(o, 'Concepts', 'concepts')}
         {@const files = getField(o, 'Files', 'files')}
-        <div class="card tl-card">
+        <div class="tl-card">
           <div class="tl-card-header">
             <div class="tl-card-title">
-              <span class="tl-type-icon">{typeIcons[obsType] || '\u{1F4C4}'}</span>
-              <span class="badge {typeColors[obsType] || 'badge-info'}">{obsType.replace('_', ' ')}</span>
+              <span class="badge {typeColors[obsType] || 'badge-info'}">{typeLabels[obsType] || obsType.replace('_', ' ').toUpperCase()}</span>
               <strong class="tl-title-text">{title}</strong>
               {#if importance}
-                <span class="mono tl-importance">{'\u2605'}{importance}</span>
+                <span class="tl-importance mono">{'\u2605'}{importance}</span>
               {/if}
             </div>
             {#if timestamp}
-              <span class="tl-time">{timeAgo(timestamp)}</span>
+              <span class="tl-time mono">{timeAgo(timestamp)}</span>
             {/if}
           </div>
 
@@ -244,107 +241,171 @@
   <!-- Pagination -->
   {#if totalPages > 1}
     <div class="tl-pagination">
-      <button class="btn" disabled={currentPage === 0} on:click={() => { currentPage--; }}>
-        {'\u2190'} Prev
+      <button class="tl-page-btn" disabled={currentPage === 0} on:click={() => { currentPage--; }}>
+        {'\u2039'}
       </button>
-      <span class="mono" style="color:var(--text-secondary)">{currentPage + 1} / {totalPages}</span>
-      <button class="btn" disabled={currentPage >= totalPages - 1} on:click={() => { currentPage++; }}>
-        Next {'\u2192'}
+      <span class="tl-page-info mono">Page {currentPage + 1} of {totalPages}</span>
+      <button class="tl-page-btn" disabled={currentPage >= totalPages - 1} on:click={() => { currentPage++; }}>
+        {'\u203A'}
       </button>
     </div>
   {/if}
 {/if}
 
 <style>
+  /* Loading */
+  .tl-loading {
+    padding: 40px 24px;
+  }
+  .tl-loading-label {
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.12em;
+    animation: pulse 1.4s infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+  .tl-empty-icon {
+    font-size: 28px;
+    color: var(--accent);
+    opacity: 0.2;
+    margin-bottom: 16px;
+  }
+
+  /* Controls bar */
   .tl-controls {
     display: flex;
-    gap: 24px;
+    gap: 32px;
     align-items: flex-end;
-    margin-bottom: 16px;
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
     flex-wrap: wrap;
   }
   .tl-control-group {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
   }
   .tl-label {
-    font-size: 11px;
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 700;
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.1em;
   }
-  .tl-range {
-    width: 180px;
-    accent-color: var(--accent);
+  .tl-select {
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    min-width: 300px;
+    transition: border-color 0.2s var(--ease);
+    appearance: none;
     cursor: pointer;
   }
+  .tl-select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .tl-range {
+    width: 200px;
+    accent-color: var(--accent);
+    cursor: pointer;
+    height: 4px;
+  }
+
+  /* Type filter chips — text-only, no background */
   .tl-chips {
     display: flex;
-    gap: 6px;
+    gap: 4px;
     flex-wrap: wrap;
-    margin-bottom: 12px;
+    margin-bottom: 20px;
   }
   .tl-chip {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 4px 10px;
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    background: var(--bg-card);
-    color: var(--text-secondary);
-    font-size: 12px;
+    padding: 8px 14px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.15s var(--ease);
+    border-bottom: 2px solid transparent;
   }
   .tl-chip:hover {
-    border-color: var(--border-hover);
-    background: var(--bg-hover);
+    color: var(--text-primary);
   }
   .tl-chip-active {
-    border-color: var(--accent);
-    background: var(--accent-muted);
-    color: var(--text-primary);
+    color: var(--accent);
+    border-bottom-color: var(--accent);
   }
   .tl-chip-count {
     font-family: var(--font-mono);
+    font-size: 10px;
+    opacity: 0.6;
+  }
+
+  /* Summary line */
+  .tl-summary {
+    font-family: var(--font-ui);
     font-size: 11px;
     color: var(--text-muted);
+    letter-spacing: 0.04em;
+    margin-bottom: 16px;
   }
+
+  /* Observation cards */
   .tl-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 4px;
   }
   .tl-card {
-    padding: 14px 18px;
+    padding: 18px 24px;
+    border-left: 2px solid var(--border);
+    transition: all 0.2s var(--ease);
+  }
+  .tl-card:hover {
+    border-left-color: var(--accent);
+    background: var(--bg-hover);
   }
   .tl-card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 6px;
-    gap: 12px;
+    margin-bottom: 8px;
+    gap: 16px;
   }
   .tl-card-title {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     flex-wrap: wrap;
     min-width: 0;
   }
-  .tl-type-icon {
-    font-size: 16px;
-    flex-shrink: 0;
-  }
   .tl-title-text {
+    font-family: var(--font-ui);
     font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .tl-importance {
     color: var(--accent);
+    font-size: 12px;
     flex-shrink: 0;
   }
   .tl-time {
@@ -354,33 +415,71 @@
     flex-shrink: 0;
   }
   .tl-narrative {
+    font-family: var(--font-ui);
     font-size: 13px;
     color: var(--text-secondary);
-    line-height: 1.5;
-    margin-bottom: 4px;
+    line-height: 1.6;
+    margin-bottom: 6px;
   }
   .tl-facts {
-    margin: 6px 0 4px 16px;
-    padding: 0;
+    margin: 8px 0 6px 0;
+    padding: 0 0 0 18px;
+    font-family: var(--font-ui);
     font-size: 13px;
     color: var(--text-secondary);
-    list-style: disc;
+    list-style: none;
   }
   .tl-facts li {
-    margin-bottom: 2px;
+    margin-bottom: 3px;
+    position: relative;
+  }
+  .tl-facts li::before {
+    content: '\u2014';
+    position: absolute;
+    left: -18px;
+    color: var(--text-muted);
   }
   .tl-tags {
     display: flex;
-    gap: 4px;
+    gap: 6px;
     flex-wrap: wrap;
-    margin-top: 8px;
+    margin-top: 10px;
   }
+
+  /* Pagination — minimal */
   .tl-pagination {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 16px;
-    margin-top: 16px;
-    padding: 12px 0;
+    gap: 20px;
+    margin-top: 24px;
+    padding: 20px 0;
+    border-top: 1px solid var(--border);
+  }
+  .tl-page-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 18px;
+    cursor: pointer;
+    transition: all 0.15s var(--ease);
+  }
+  .tl-page-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .tl-page-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+  .tl-page-info {
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
   }
 </style>

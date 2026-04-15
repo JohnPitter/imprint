@@ -74,7 +74,6 @@
         consolidationEnabled,
         contextTokenBudget,
       };
-      // Only send API keys if user typed new ones (not masked values)
       if (anthropicApiKey && !anthropicApiKey.includes('...')) {
         body.anthropicApiKey = anthropicApiKey;
       }
@@ -93,13 +92,23 @@
 </script>
 
 {#if loading}
-  <p style="color:var(--text-muted)">Loading...</p>
+  <div class="settings-loading">
+    {#each Array(3) as _}
+      <div class="skeleton-section">
+        <div class="skeleton-heading"></div>
+        <div class="skeleton-field"></div>
+        <div class="skeleton-field short"></div>
+      </div>
+    {/each}
+  </div>
 {:else}
   <div class="settings-grid">
     <!-- LLM Provider -->
-    <div class="card section">
-      <h3>LLM Provider</h3>
-      <p class="hint">Choose which model processes your observations and generates memories.</p>
+    <div class="settings-section">
+      <div class="section-accent"></div>
+      <div class="section-label">Configuration</div>
+      <h3 class="section-title">LLM Provider</h3>
+      <p class="section-hint">Choose which model processes your observations and generates memories.</p>
 
       <label class="field">
         <span class="field-label">Provider Priority</span>
@@ -107,104 +116,321 @@
         <span class="field-hint">Comma-separated. First available provider is used, others are fallbacks.</span>
       </label>
 
-      <div class="provider-section">
-        <h4>Anthropic</h4>
-        {#if anthropicAuth === 'oauth'}
-          <div class="badge badge-success" style="margin-bottom:8px">Claude Code OAuth (auto-detected)</div>
-        {/if}
-        <label class="field">
-          <span class="field-label">Model</span>
-          <select class="input" bind:value={anthropicModel}>
-            {#each anthropicModels as m}<option value={m}>{m}</option>{/each}
-          </select>
-        </label>
-        <label class="field">
-          <span class="field-label">API Key (optional if using OAuth)</span>
-          <input class="input mono" type="password" bind:value={anthropicApiKey} placeholder={settings?.llm?.anthropicApiKey || 'Not set'} />
-        </label>
-      </div>
-
-      <div class="provider-section">
-        <h4>OpenRouter</h4>
-        <label class="field">
-          <span class="field-label">Model</span>
-          <input class="input" bind:value={openrouterModel} placeholder="anthropic/claude-haiku-4-5-20251001" />
-        </label>
-        <label class="field">
-          <span class="field-label">API Key</span>
-          <input class="input mono" type="password" bind:value={openrouterApiKey} placeholder={settings?.llm?.openrouterApiKey || 'Not set'} />
-        </label>
-      </div>
-
-      <div class="provider-section">
-        <h4>llama.cpp</h4>
-        <label class="field">
-          <span class="field-label">Server URL</span>
-          <input class="input" bind:value={llamacppUrl} placeholder="http://localhost:8080" />
-        </label>
-        <label class="field">
-          <span class="field-label">Model (optional)</span>
-          <input class="input" bind:value={llamacppModel} placeholder="Server default" />
-        </label>
-      </div>
-    </div>
-
-    <!-- Search -->
-    <div class="card section">
-      <h3>Search</h3>
+      <!-- Anthropic -->
+      <div class="provider-divider"></div>
+      <h4 class="provider-heading">Anthropic</h4>
+      {#if anthropicAuth === 'oauth'}
+        <div class="badge badge-success" style="margin-bottom:12px">Claude Code OAuth (auto-detected)</div>
+      {/if}
       <label class="field">
-        <span class="field-label">BM25 Weight ({bm25Weight})</span>
-        <input type="range" min="0" max="1" step="0.1" bind:value={bm25Weight} />
+        <span class="field-label">Model</span>
+        <select class="input" bind:value={anthropicModel}>
+          {#each anthropicModels as m}<option value={m}>{m}</option>{/each}
+        </select>
       </label>
       <label class="field">
-        <span class="field-label">Vector Weight ({vectorWeight})</span>
-        <input type="range" min="0" max="1" step="0.1" bind:value={vectorWeight} />
+        <span class="field-label">API Key (optional if using OAuth)</span>
+        <input class="input mono" type="password" bind:value={anthropicApiKey} placeholder={settings?.llm?.anthropicApiKey || 'Not set'} />
+      </label>
+
+      <!-- OpenRouter -->
+      <div class="provider-divider"></div>
+      <h4 class="provider-heading">OpenRouter</h4>
+      <label class="field">
+        <span class="field-label">Model</span>
+        <input class="input" bind:value={openrouterModel} placeholder="anthropic/claude-haiku-4-5-20251001" />
+      </label>
+      <label class="field">
+        <span class="field-label">API Key</span>
+        <input class="input mono" type="password" bind:value={openrouterApiKey} placeholder={settings?.llm?.openrouterApiKey || 'Not set'} />
+      </label>
+
+      <!-- llama.cpp -->
+      <div class="provider-divider"></div>
+      <h4 class="provider-heading">llama.cpp</h4>
+      <label class="field">
+        <span class="field-label">Server URL</span>
+        <input class="input" bind:value={llamacppUrl} placeholder="http://localhost:8080" />
+      </label>
+      <label class="field">
+        <span class="field-label">Model (optional)</span>
+        <input class="input" bind:value={llamacppModel} placeholder="Server default" />
       </label>
     </div>
 
-    <!-- Pipeline -->
-    <div class="card section">
-      <h3>Pipeline</h3>
-      <label class="field">
-        <span class="field-label">Compression Workers</span>
-        <input class="input" type="number" min="1" max="16" bind:value={compressWorkers} />
-      </label>
-      <label class="field">
-        <span class="field-label">Context Token Budget</span>
-        <input class="input" type="number" min="500" max="10000" step="500" bind:value={contextTokenBudget} />
-      </label>
-      <label class="field checkbox">
-        <input type="checkbox" bind:checked={consolidationEnabled} />
-        <span>Enable memory consolidation</span>
-      </label>
+    <!-- Right column -->
+    <div class="settings-column-right">
+      <!-- Search -->
+      <div class="settings-section">
+        <div class="section-accent"></div>
+        <div class="section-label">Retrieval</div>
+        <h3 class="section-title">Search</h3>
+
+        <label class="field">
+          <span class="field-label">BM25 Weight</span>
+          <div class="range-row">
+            <input type="range" class="range-input" min="0" max="1" step="0.1" bind:value={bm25Weight} />
+            <span class="range-val mono">{bm25Weight}</span>
+          </div>
+        </label>
+        <label class="field">
+          <span class="field-label">Vector Weight</span>
+          <div class="range-row">
+            <input type="range" class="range-input" min="0" max="1" step="0.1" bind:value={vectorWeight} />
+            <span class="range-val mono">{vectorWeight}</span>
+          </div>
+        </label>
+      </div>
+
+      <!-- Pipeline -->
+      <div class="settings-section">
+        <div class="section-accent"></div>
+        <div class="section-label">Processing</div>
+        <h3 class="section-title">Pipeline</h3>
+
+        <label class="field">
+          <span class="field-label">Compression Workers</span>
+          <input class="input" type="number" min="1" max="16" bind:value={compressWorkers} />
+        </label>
+        <label class="field">
+          <span class="field-label">Context Token Budget</span>
+          <input class="input" type="number" min="500" max="10000" step="500" bind:value={contextTokenBudget} />
+        </label>
+        <label class="field checkbox-field">
+          <input type="checkbox" class="checkbox-input" bind:checked={consolidationEnabled} />
+          <span class="checkbox-text">Enable memory consolidation</span>
+        </label>
+      </div>
     </div>
   </div>
 
-  <div style="margin-top:20px;display:flex;align-items:center;gap:12px">
-    <button class="btn btn-primary" on:click={save} disabled={saving}>
+  <!-- Save bar -->
+  <div class="save-bar">
+    <button class="btn-save" on:click={save} disabled={saving}>
       {saving ? 'Saving...' : 'Save Settings'}
     </button>
     {#if message}
-      <span style="font-size:13px" class:success={!message.startsWith('Error')} class:error={message.startsWith('Error')}>{message}</span>
+      <span class="save-message" class:is-error={message.startsWith('Error')}>{message}</span>
     {/if}
   </div>
 {/if}
 
 <style>
-  .settings-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
-  @media (max-width: 900px) { .settings-grid { grid-template-columns:1fr; } }
-  .section h3 { font-size:16px; margin-bottom:4px; }
-  .section h4 { font-size:13px; color:var(--accent); margin:16px 0 8px; padding-top:12px; border-top:1px solid var(--border); }
-  .section h4:first-of-type { border-top:none; margin-top:12px; }
-  .hint { font-size:12px; color:var(--text-muted); margin-bottom:16px; }
-  .field { display:flex; flex-direction:column; gap:4px; margin-bottom:12px; }
-  .field-label { font-size:12px; font-weight:600; color:var(--text-secondary); }
-  .field-hint { font-size:11px; color:var(--text-muted); }
-  .checkbox { flex-direction:row; align-items:center; gap:8px; }
-  .checkbox input { width:auto; }
-  .provider-section { margin-left:0; }
-  select.input { appearance:auto; }
-  input[type="range"] { width:100%; accent-color:var(--accent); }
-  .success { color:var(--success); }
-  .error { color:var(--danger); }
+  /* Grid layout */
+  .settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+  @media (max-width: 900px) { .settings-grid { grid-template-columns: 1fr; } }
+
+  .settings-column-right {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  /* Section card */
+  .settings-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 24px;
+    position: relative;
+    transition: border-color 0.3s var(--ease), box-shadow 0.3s var(--ease);
+  }
+  .settings-section:hover {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-hover);
+  }
+  .section-accent {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--accent);
+  }
+  .section-label {
+    font-size: 10px;
+    font-family: var(--font-ui);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  .section-title {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin-bottom: 4px;
+    color: var(--text-primary);
+  }
+  .section-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+
+  /* Provider sections */
+  .provider-divider {
+    width: 40px;
+    height: 2px;
+    background: var(--accent);
+    margin: 20px 0 16px;
+    opacity: 0.5;
+  }
+  .provider-heading {
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+
+  /* Fields */
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .field-label {
+    font-size: 11px;
+    font-family: var(--font-ui);
+    font-weight: 700;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .field-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  /* Select styling */
+  select.input {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236a6a6e' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+  }
+
+  /* Range slider */
+  .range-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .range-input {
+    flex: 1;
+    accent-color: var(--accent);
+    height: 4px;
+  }
+  .range-val {
+    font-size: 13px;
+    color: var(--text-primary);
+    font-weight: 600;
+    min-width: 32px;
+    text-align: right;
+  }
+
+  /* Checkbox */
+  .checkbox-field {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+  .checkbox-input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    flex-shrink: 0;
+  }
+  .checkbox-text {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  /* Save bar */
+  .save-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 28px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+  .btn-save {
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 28px;
+    background: var(--accent);
+    color: #030303;
+    border: 1px solid var(--accent);
+    border-radius: 0;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: all 0.2s var(--ease);
+  }
+  .btn-save:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+  }
+  .btn-save:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .save-message {
+    font-size: 13px;
+    color: var(--success);
+  }
+  .save-message.is-error {
+    color: var(--danger);
+  }
+
+  /* Loading skeleton */
+  .settings-loading {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  @media (max-width: 900px) { .settings-loading { grid-template-columns: 1fr; } }
+  .skeleton-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-top: 2px solid var(--border-hover);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .skeleton-heading {
+    width: 50%;
+    height: 20px;
+    background: var(--bg-hover);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  .skeleton-field {
+    width: 100%;
+    height: 36px;
+    background: var(--bg-hover);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  .skeleton-field.short { width: 60%; }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.7; }
+  }
 </style>

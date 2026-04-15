@@ -10,18 +10,18 @@
   let actionLoading = '';
   let actionMessage = '';
 
-  const typeIcons: Record<string, string> = {
-    file_operation: '\u{1F4C4}',
-    command_execution: '\u26A1',
-    search: '\u{1F50D}',
-    error: '\u26A0\uFE0F',
-    decision: '\u{1F914}',
-    discovery: '\u{1F4A1}',
-    conversation: '\u{1F4AC}',
-    notification: '\u{1F514}',
-    subagent_event: '\u{1F916}',
-    task: '\u2611\uFE0F',
-    other: '\u{1F4C4}',
+  const typeLabels: Record<string, string> = {
+    file_operation: 'FILE',
+    command_execution: 'CMD',
+    search: 'SEARCH',
+    error: 'ERROR',
+    decision: 'DECISION',
+    discovery: 'DISCOVERY',
+    conversation: 'CONV',
+    notification: 'NOTIFY',
+    subagent_event: 'AGENT',
+    task: 'TASK',
+    other: 'OTHER',
   };
 
   const typeColors: Record<string, string> = {
@@ -93,10 +93,8 @@
     try {
       await api.endSession({ sessionId: getSessionId(selected) });
       actionMessage = 'Session ended successfully.';
-      // Refresh session list
       const r: any = await api.listSessions(100);
       sessions = r.sessions || [];
-      // Update selected with fresh data
       const fresh = sessions.find((s: any) => getSessionId(s) === getSessionId(selected));
       if (fresh) selected = fresh;
     } catch (e: any) {
@@ -120,40 +118,49 @@
 </script>
 
 {#if loading}
-  <p style="color:var(--text-muted)">Loading sessions...</p>
+  <div class="ss-loading">
+    <span class="ss-loading-text">Loading sessions</span>
+    <span class="ss-loading-dots">...</span>
+  </div>
 {:else if sessions.length === 0}
   <div class="empty-state">
-    <div class="icon">{'\u{1F4C2}'}</div>
-    <p>No sessions yet</p>
+    <div class="ss-empty-icon">{'\u25C6'}</div>
+    <p style="font-family:var(--font-ui);font-size:13px">No sessions recorded yet</p>
   </div>
 {:else}
   <div class="ss-layout">
-    <!-- Session List -->
+    <!-- Left: Session List -->
     <div class="ss-list">
-      {#each sessions as s}
-        {@const sid = getSessionId(s)}
-        {@const status = getStatus(s)}
-        {@const isActive = selected && getSessionId(selected) === sid}
-        <button
-          class="ss-item"
-          class:ss-item-active={isActive}
-          on:click={() => selectSession(s)}
-        >
-          <div class="ss-item-header">
-            <span class="ss-item-project">{s.Project || s.project || '\u2014'}</span>
-            <span class="badge {statusBadgeClass(status)}">{status}</span>
-          </div>
-          <div class="ss-item-id mono">{truncate(sid, 16)}</div>
-          <div class="ss-item-meta">
-            <span>{s.ObservationCount || s.observationCount || 0} obs</span>
-            <span>{'\u00B7'}</span>
-            <span>{timeAgo(s.StartedAt || s.startedAt || s.CreatedAt || s.createdAt)}</span>
-          </div>
-        </button>
-      {/each}
+      <div class="ss-list-header">
+        <span class="ss-list-label">SESSIONS</span>
+        <span class="ss-list-count">{sessions.length}</span>
+      </div>
+      <div class="ss-list-scroll">
+        {#each sessions as s}
+          {@const sid = getSessionId(s)}
+          {@const status = getStatus(s)}
+          {@const isActive = selected && getSessionId(selected) === sid}
+          <button
+            class="ss-item"
+            class:ss-item-active={isActive}
+            on:click={() => selectSession(s)}
+          >
+            <div class="ss-item-top">
+              <span class="ss-item-project">{s.Project || s.project || '\u2014'}</span>
+              <span class="badge {statusBadgeClass(status)}">{status}</span>
+            </div>
+            <span class="ss-item-id">{truncate(sid, 20)}</span>
+            <div class="ss-item-meta">
+              <span>{s.ObservationCount || s.observationCount || 0} obs</span>
+              <span class="ss-meta-sep">{'\u00B7'}</span>
+              <span>{timeAgo(s.StartedAt || s.startedAt || s.CreatedAt || s.createdAt)}</span>
+            </div>
+          </button>
+        {/each}
+      </div>
     </div>
 
-    <!-- Detail Panel -->
+    <!-- Right: Detail Panel -->
     <div class="ss-detail">
       {#if selected}
         {@const sid = getSessionId(selected)}
@@ -165,49 +172,51 @@
         {@const tags = selected.Tags || selected.tags}
         {@const obsCount = selected.ObservationCount || selected.observationCount || 0}
 
-        <div class="card ss-info-card">
-          <h3 style="margin-bottom:16px;font-size:16px">Session Details</h3>
+        <div class="ss-detail-card">
+          <div class="ss-detail-card-header">
+            <span class="ss-detail-title">SESSION DETAILS</span>
+          </div>
 
           <div class="ss-info-grid">
             <div class="ss-info-row">
-              <span class="ss-info-label">Session ID</span>
-              <span class="mono ss-info-value" style="font-size:11px;word-break:break-all">{sid}</span>
+              <span class="ss-info-label">SESSION ID</span>
+              <span class="ss-info-value ss-mono-small">{sid}</span>
             </div>
             {#if project}
               <div class="ss-info-row">
-                <span class="ss-info-label">Project</span>
+                <span class="ss-info-label">PROJECT</span>
                 <span class="ss-info-value">{project}</span>
               </div>
             {/if}
             {#if workDir}
               <div class="ss-info-row">
-                <span class="ss-info-label">Working Directory</span>
-                <span class="mono ss-info-value" style="font-size:11px">{workDir}</span>
+                <span class="ss-info-label">WORKING DIR</span>
+                <span class="ss-info-value ss-mono-small">{workDir}</span>
               </div>
             {/if}
             <div class="ss-info-row">
-              <span class="ss-info-label">Status</span>
+              <span class="ss-info-label">STATUS</span>
               <span class="badge {statusBadgeClass(status)}">{status}</span>
             </div>
             {#if startedAt}
               <div class="ss-info-row">
-                <span class="ss-info-label">Started</span>
+                <span class="ss-info-label">STARTED</span>
                 <span class="ss-info-value">{formatTimestamp(startedAt)}</span>
               </div>
             {/if}
             {#if endedAt}
               <div class="ss-info-row">
-                <span class="ss-info-label">Ended</span>
+                <span class="ss-info-label">ENDED</span>
                 <span class="ss-info-value">{formatTimestamp(endedAt)}</span>
               </div>
             {/if}
             <div class="ss-info-row">
-              <span class="ss-info-label">Observations</span>
+              <span class="ss-info-label">OBSERVATIONS</span>
               <span class="ss-info-value mono">{obsCount}</span>
             </div>
             {#if tags && tags.length > 0}
               <div class="ss-info-row">
-                <span class="ss-info-label">Tags</span>
+                <span class="ss-info-label">TAGS</span>
                 <div class="ss-tags">
                   {#each tags as tag}
                     <span class="badge badge-accent">{tag}</span>
@@ -220,11 +229,11 @@
           <!-- Action Buttons -->
           <div class="ss-actions">
             {#if status === 'active'}
-              <button class="btn btn-primary" on:click={endSession} disabled={actionLoading === 'end'}>
+              <button class="ss-btn-outlined" on:click={endSession} disabled={actionLoading === 'end'}>
                 {actionLoading === 'end' ? 'Ending...' : 'End Session'}
               </button>
             {/if}
-            <button class="btn" on:click={summarizeSession} disabled={actionLoading === 'summarize'}>
+            <button class="ss-btn-outlined" on:click={summarizeSession} disabled={actionLoading === 'summarize'}>
               {actionLoading === 'summarize' ? 'Summarizing...' : 'Summarize'}
             </button>
           </div>
@@ -237,66 +246,72 @@
         </div>
 
         <!-- Observations -->
-        <h3 style="margin:20px 0 12px;font-size:15px">Observations ({observations.length})</h3>
-        {#if observations.length === 0}
-          <p style="color:var(--text-muted)">No observations for this session.</p>
-        {:else}
-          <div class="ss-obs-list">
-            {#each observations as o}
-              {@const obsType = getField(o, 'Type', 'type') || 'other'}
-              {@const title = getField(o, 'Title', 'title', 'ToolName', 'toolName') || '\u2014'}
-              {@const importance = getField(o, 'Importance', 'importance')}
-              {@const timestamp = getField(o, 'Timestamp', 'timestamp')}
-              {@const narrative = getField(o, 'Narrative', 'narrative')}
-              {@const facts = getField(o, 'Facts', 'facts')}
-              {@const concepts = getField(o, 'Concepts', 'concepts')}
-              {@const files = getField(o, 'Files', 'files')}
-              <div class="card ss-obs-card">
-                <div class="ss-obs-header">
-                  <div class="ss-obs-title">
-                    <span>{typeIcons[obsType] || '\u{1F4C4}'}</span>
-                    <span class="badge {typeColors[obsType] || 'badge-info'}">{obsType.replace('_', ' ')}</span>
-                    <strong style="font-size:13px">{title}</strong>
-                    {#if importance}
-                      <span class="mono" style="color:var(--accent);font-size:12px">{'\u2605'}{importance}</span>
+        <div class="ss-obs-section">
+          <div class="ss-obs-header-bar">
+            <span class="ss-obs-label">OBSERVATIONS</span>
+            <span class="ss-obs-count">{observations.length}</span>
+          </div>
+          <div class="ss-obs-divider"></div>
+
+          {#if observations.length === 0}
+            <p class="ss-obs-empty">No observations for this session.</p>
+          {:else}
+            <div class="ss-obs-list">
+              {#each observations as o}
+                {@const obsType = getField(o, 'Type', 'type') || 'other'}
+                {@const title = getField(o, 'Title', 'title', 'ToolName', 'toolName') || '\u2014'}
+                {@const importance = getField(o, 'Importance', 'importance')}
+                {@const timestamp = getField(o, 'Timestamp', 'timestamp')}
+                {@const narrative = getField(o, 'Narrative', 'narrative')}
+                {@const facts = getField(o, 'Facts', 'facts')}
+                {@const concepts = getField(o, 'Concepts', 'concepts')}
+                {@const files = getField(o, 'Files', 'files')}
+                <div class="ss-obs-card">
+                  <div class="ss-obs-top">
+                    <div class="ss-obs-title">
+                      <span class="badge {typeColors[obsType] || 'badge-info'}">{typeLabels[obsType] || obsType.replace('_', ' ').toUpperCase()}</span>
+                      <strong class="ss-obs-name">{title}</strong>
+                      {#if importance}
+                        <span class="ss-obs-importance mono">{'\u2605'}{importance}</span>
+                      {/if}
+                    </div>
+                    {#if timestamp}
+                      <span class="ss-obs-time mono">{timeAgo(timestamp)}</span>
                     {/if}
                   </div>
-                  {#if timestamp}
-                    <span style="font-size:11px;color:var(--text-muted);white-space:nowrap">{timeAgo(timestamp)}</span>
+                  {#if narrative}
+                    <p class="ss-obs-narrative">{narrative}</p>
+                  {/if}
+                  {#if facts && facts.length > 0}
+                    <ul class="ss-obs-facts">
+                      {#each facts as fact}
+                        <li>{fact}</li>
+                      {/each}
+                    </ul>
+                  {/if}
+                  {#if (concepts && concepts.length > 0) || (files && files.length > 0)}
+                    <div class="ss-obs-badges">
+                      {#if concepts}
+                        {#each concepts as c}
+                          <span class="badge badge-accent">{c}</span>
+                        {/each}
+                      {/if}
+                      {#if files}
+                        {#each files as f}
+                          <span class="badge badge-info" title={f}>{truncate(f, 36)}</span>
+                        {/each}
+                      {/if}
+                    </div>
                   {/if}
                 </div>
-                {#if narrative}
-                  <p style="font-size:13px;color:var(--text-secondary);line-height:1.5">{narrative}</p>
-                {/if}
-                {#if facts && facts.length > 0}
-                  <ul class="ss-obs-facts">
-                    {#each facts as fact}
-                      <li>{fact}</li>
-                    {/each}
-                  </ul>
-                {/if}
-                {#if (concepts && concepts.length > 0) || (files && files.length > 0)}
-                  <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">
-                    {#if concepts}
-                      {#each concepts as c}
-                        <span class="badge badge-accent">{c}</span>
-                      {/each}
-                    {/if}
-                    {#if files}
-                      {#each files as f}
-                        <span class="badge badge-info" title={f}>{truncate(f, 36)}</span>
-                      {/each}
-                    {/if}
-                  </div>
-                {/if}
-              </div>
-            {/each}
-          </div>
-        {/if}
+              {/each}
+            </div>
+          {/if}
+        </div>
       {:else}
         <div class="empty-state">
-          <div class="icon">{'\u{1F449}'}</div>
-          <p>Select a session to view details</p>
+          <div class="ss-empty-icon">{'\u25C6'}</div>
+          <p style="font-family:var(--font-ui);font-size:13px;color:var(--text-muted)">Select a session to view details</p>
         </div>
       {/if}
     </div>
@@ -304,57 +319,101 @@
 {/if}
 
 <style>
+  /* Layout */
   .ss-layout {
     display: grid;
     grid-template-columns: 320px 1fr;
-    gap: 20px;
+    gap: 0;
     height: calc(100vh - 160px);
   }
+
+  /* Loading */
+  .ss-loading {
+    padding: 40px 24px;
+    color: var(--text-muted);
+    font-family: var(--font-ui);
+    font-size: 13px;
+  }
+  .ss-loading-text { letter-spacing: 0.08em; text-transform: uppercase; font-size: 10px; }
+  .ss-loading-dots { animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+  .ss-empty-icon {
+    font-size: 32px;
+    color: var(--accent);
+    opacity: 0.3;
+    margin-bottom: 16px;
+  }
+
+  /* Left panel: session list */
   .ss-list {
-    overflow-y: auto;
+    border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding-right: 4px;
   }
-  .ss-detail {
+  .ss-list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ss-list-label {
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+  .ss-list-count {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .ss-list-scroll {
     overflow-y: auto;
-    padding-right: 4px;
+    flex: 1;
   }
+
   .ss-item {
     text-align: left;
-    padding: 12px 14px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--bg-card);
+    width: 100%;
+    padding: 16px 24px;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    border-left: 3px solid transparent;
+    background: transparent;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.15s var(--ease);
     display: flex;
     flex-direction: column;
     gap: 4px;
+    color: var(--text-primary);
   }
   .ss-item:hover {
-    border-color: var(--border-hover);
     background: var(--bg-hover);
   }
   .ss-item-active {
-    border-color: var(--accent);
+    border-left-color: var(--accent);
     background: var(--accent-muted);
   }
-  .ss-item-header {
+  .ss-item-top {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 8px;
   }
   .ss-item-project {
+    font-family: var(--font-ui);
     font-weight: 600;
-    font-size: 13px;
+    font-size: 14px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .ss-item-id {
+    font-family: var(--font-mono);
     font-size: 11px;
     color: var(--text-muted);
   }
@@ -363,90 +422,233 @@
     gap: 6px;
     font-size: 12px;
     color: var(--text-muted);
+    font-family: var(--font-ui);
+  }
+  .ss-meta-sep { opacity: 0.4; }
+
+  /* Right panel: detail */
+  .ss-detail {
+    overflow-y: auto;
+    padding: 24px;
   }
 
-  /* Detail panel */
-  .ss-info-card {
-    padding: 20px;
+  .ss-detail-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-top: 2px solid var(--accent);
+    padding: 24px;
+    transition: box-shadow 0.3s var(--ease);
   }
+  .ss-detail-card:hover {
+    box-shadow: var(--shadow-hover);
+  }
+  .ss-detail-card-header {
+    margin-bottom: 20px;
+  }
+  .ss-detail-title {
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+
   .ss-info-grid {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 14px;
   }
   .ss-info-row {
-    display: flex;
-    gap: 12px;
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 16px;
     align-items: baseline;
   }
   .ss-info-label {
-    font-size: 11px;
+    font-family: var(--font-ui);
+    font-size: 10px;
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    min-width: 120px;
-    flex-shrink: 0;
+    letter-spacing: 0.1em;
+    font-weight: 600;
   }
   .ss-info-value {
     color: var(--text-primary);
+    font-family: var(--font-ui);
     font-size: 13px;
+  }
+  .ss-mono-small {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    word-break: break-all;
+    color: var(--text-dim);
   }
   .ss-tags {
     display: flex;
-    gap: 4px;
+    gap: 6px;
     flex-wrap: wrap;
   }
+
+  /* Action buttons — outlined, no fill */
   .ss-actions {
     display: flex;
-    gap: 8px;
-    margin-top: 20px;
-    padding-top: 16px;
+    gap: 10px;
+    margin-top: 24px;
+    padding-top: 20px;
     border-top: 1px solid var(--border);
   }
+  .ss-btn-outlined {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: all 0.2s var(--ease);
+  }
+  .ss-btn-outlined:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: var(--shadow-hover);
+  }
+  .ss-btn-outlined:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
   .ss-action-msg {
-    margin-top: 10px;
+    margin-top: 12px;
+    font-family: var(--font-ui);
     font-size: 12px;
     color: var(--success);
-    padding: 8px 12px;
-    background: rgba(34, 197, 94, 0.1);
-    border-radius: var(--radius);
+    padding: 10px 14px;
+    background: rgba(34, 197, 94, 0.06);
+    border: 1px solid rgba(34, 197, 94, 0.15);
   }
   .ss-msg-error {
     color: var(--danger);
-    background: rgba(239, 68, 68, 0.1);
+    background: rgba(239, 68, 68, 0.06);
+    border-color: rgba(239, 68, 68, 0.15);
   }
 
-  /* Observations list */
+  /* Observations section */
+  .ss-obs-section {
+    margin-top: 32px;
+  }
+  .ss-obs-header-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .ss-obs-label {
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+  .ss-obs-count {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .ss-obs-divider {
+    width: 40px;
+    height: 2px;
+    background: var(--accent);
+    margin-bottom: 20px;
+  }
+  .ss-obs-empty {
+    color: var(--text-muted);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    padding: 20px 0;
+  }
+
   .ss-obs-list {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 2px;
   }
   .ss-obs-card {
-    padding: 12px 14px;
+    padding: 16px 20px;
+    border-left: 2px solid var(--border);
+    transition: border-color 0.2s var(--ease);
   }
-  .ss-obs-header {
+  .ss-obs-card:hover {
+    border-left-color: var(--accent);
+    background: var(--bg-hover);
+  }
+  .ss-obs-top {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 4px;
-    gap: 8px;
+    margin-bottom: 6px;
+    gap: 12px;
   }
   .ss-obs-title {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     flex-wrap: wrap;
     min-width: 0;
   }
-  .ss-obs-facts {
-    margin: 6px 0 2px 16px;
-    padding: 0;
+  .ss-obs-name {
+    font-family: var(--font-ui);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .ss-obs-importance {
+    color: var(--accent);
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .ss-obs-time {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .ss-obs-narrative {
+    font-family: var(--font-ui);
     font-size: 13px;
     color: var(--text-secondary);
-    list-style: disc;
+    line-height: 1.6;
+    margin-bottom: 6px;
+  }
+  .ss-obs-facts {
+    margin: 8px 0 6px 0;
+    padding: 0 0 0 18px;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    color: var(--text-secondary);
+    list-style: none;
   }
   .ss-obs-facts li {
-    margin-bottom: 2px;
+    margin-bottom: 3px;
+    position: relative;
+  }
+  .ss-obs-facts li::before {
+    content: '\u2014';
+    position: absolute;
+    left: -18px;
+    color: var(--text-muted);
+  }
+  .ss-obs-badges {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 8px;
   }
 </style>

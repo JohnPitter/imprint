@@ -45,12 +45,12 @@
   });
   onDestroy(() => clearInterval(interval));
 
-  function statusColor(status: string): string {
-    if (!status) return '';
+  function healthStatusDot(status: string): string {
+    if (!status) return 'idle';
     const s = status.toLowerCase();
-    if (s === 'healthy' || s === 'ok') return 'badge-success';
-    if (s === 'degraded' || s === 'warning') return 'badge-warning';
-    return 'badge-danger';
+    if (s === 'healthy' || s === 'ok') return 'active';
+    if (s === 'degraded' || s === 'warning') return 'warning';
+    return 'error';
   }
 
   function sessionStatusBadge(status: string): string {
@@ -88,77 +88,88 @@
 {#if loading}
   <div class="loading-grid">
     {#each Array(6) as _}
-      <div class="card skeleton-card"><div class="skeleton-value"></div><div class="skeleton-label"></div></div>
+      <div class="stat-card-shell">
+        <div class="skeleton-value"></div>
+        <div class="skeleton-label"></div>
+      </div>
     {/each}
   </div>
 {:else}
+  <!-- Last updated -->
+  <div class="refresh-row">
+    <span class="refresh-text mono">Last updated: {lastRefresh}</span>
+  </div>
+
   <!-- Stats Grid -->
   <div class="stats-grid">
-    <div class="card stat-card">
-      <div class="stat-icon">📋</div>
+    <div class="stat-card">
       <div class="stat-value">{formatNumber(sessions.length)}</div>
       <div class="stat-label">Sessions</div>
     </div>
-    <div class="card stat-card">
-      <div class="stat-icon">🧠</div>
+    <div class="stat-card">
       <div class="stat-value">{formatNumber(memoriesCount)}</div>
       <div class="stat-label">Memories</div>
     </div>
-    <div class="card stat-card">
-      <div class="stat-icon">📖</div>
+    <div class="stat-card">
       <div class="stat-value">{formatNumber(lessonsCount)}</div>
       <div class="stat-label">Lessons</div>
     </div>
-    <div class="card stat-card">
-      <div class="stat-icon">💎</div>
+    <div class="stat-card">
       <div class="stat-value">{formatNumber(crystalsCount)}</div>
       <div class="stat-label">Crystals</div>
     </div>
-    <div class="card stat-card">
-      <div class="stat-icon">🔗</div>
+    <div class="stat-card">
       <div class="stat-value">{formatNumber(graph?.totalNodes || graph?.nodes || 0)}</div>
       <div class="stat-label">Graph Nodes</div>
     </div>
-    <div class="card stat-card">
-      <div class="stat-icon">↔️</div>
+    <div class="stat-card">
       <div class="stat-value">{formatNumber(graph?.totalEdges || graph?.edges || 0)}</div>
       <div class="stat-label">Graph Edges</div>
     </div>
   </div>
 
+  <!-- Gold separator -->
+  <div class="gold-line"></div>
+
   <!-- System Health -->
-  <div class="card health-card">
-    <div class="section-header">
-      <h3>System Health</h3>
-      <span class="refresh-info mono">Auto-refresh 30s · Last: {lastRefresh}</span>
-    </div>
+  <div class="section-block">
+    <h3 class="section-heading">System Health</h3>
     {#if health}
-      <div class="health-grid">
-        <div class="health-item">
+      <div class="health-bar">
+        <div class="health-pair">
           <span class="health-key">Status</span>
-          <span class="badge {statusColor(health.status)}">{health.status || 'unknown'}</span>
+          <span class="health-val">
+            <span class="status-dot" data-status={healthStatusDot(health.status)}></span>
+            {health.status || 'unknown'}
+          </span>
         </div>
-        <div class="health-item">
+        <div class="health-divider"></div>
+        <div class="health-pair">
           <span class="health-key">Uptime</span>
           <span class="health-val mono">{formatUptime(health.uptime || health.uptimeSeconds)}</span>
         </div>
-        <div class="health-item">
+        <div class="health-divider"></div>
+        <div class="health-pair">
           <span class="health-key">Go Version</span>
           <span class="health-val mono">{health.goVersion || '—'}</span>
         </div>
-        <div class="health-item">
+        <div class="health-divider"></div>
+        <div class="health-pair">
           <span class="health-key">Goroutines</span>
           <span class="health-val mono">{health.goroutines ?? '—'}</span>
         </div>
-        <div class="health-item">
-          <span class="health-key">Alloc Memory</span>
+        <div class="health-divider"></div>
+        <div class="health-pair">
+          <span class="health-key">Alloc</span>
           <span class="health-val mono">{health.memory?.allocMB?.toFixed(1) ?? '—'} MB</span>
         </div>
-        <div class="health-item">
-          <span class="health-key">Sys Memory</span>
+        <div class="health-divider"></div>
+        <div class="health-pair">
+          <span class="health-key">Sys</span>
           <span class="health-val mono">{health.memory?.sysMB?.toFixed(1) ?? '—'} MB</span>
         </div>
-        <div class="health-item">
+        <div class="health-divider"></div>
+        <div class="health-pair">
           <span class="health-key">GC Cycles</span>
           <span class="health-val mono">{health.memory?.numGC ?? '—'}</span>
         </div>
@@ -168,14 +179,14 @@
     {/if}
   </div>
 
-  <!-- Bottom row: Sessions + Audit side by side -->
+  <!-- Gold separator -->
+  <div class="gold-line"></div>
+
+  <!-- Bottom row: Sessions + Audit -->
   <div class="bottom-grid">
     <!-- Recent Sessions -->
-    <div class="card">
-      <div class="section-header">
-        <h3>Recent Sessions</h3>
-        <span class="badge badge-info">{sessions.length}</span>
-      </div>
+    <div class="section-block">
+      <h3 class="section-heading">Recent Sessions</h3>
       {#if sessions.length > 0}
         <table>
           <thead>
@@ -191,22 +202,22 @@
                   </span>
                 </td>
                 <td class="mono">{s.ObservationCount || s.observationCount || 0}</td>
-                <td style="color:var(--text-muted);font-size:12px">{timeAgo(s.StartedAt || s.startedAt || s.createdAt)}</td>
+                <td class="cell-muted">{timeAgo(s.StartedAt || s.startedAt || s.createdAt)}</td>
               </tr>
             {/each}
           </tbody>
         </table>
       {:else}
-        <p class="no-data">No sessions yet</p>
+        <div class="empty-state">
+          <div class="icon">—</div>
+          <p>No sessions yet</p>
+        </div>
       {/if}
     </div>
 
     <!-- Recent Audit Feed -->
-    <div class="card">
-      <div class="section-header">
-        <h3>Recent Audit</h3>
-        <span class="badge badge-purple">{auditEntries.length}</span>
-      </div>
+    <div class="section-block">
+      <h3 class="section-heading">Recent Audit</h3>
       {#if auditEntries.length > 0}
         <div class="audit-feed">
           {#each auditEntries as entry}
@@ -222,92 +233,137 @@
           {/each}
         </div>
       {:else}
-        <p class="no-data">No audit entries</p>
+        <div class="empty-state">
+          <div class="icon">—</div>
+          <p>No audit entries</p>
+        </div>
       {/if}
     </div>
   </div>
 {/if}
 
 <style>
+  /* Refresh row */
+  .refresh-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 24px;
+  }
+  .refresh-text {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+  }
+
+  /* Stats Grid */
   .stats-grid {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
     gap: 16px;
-    margin-bottom: 20px;
+    margin-bottom: 32px;
   }
   @media (max-width: 1200px) { .stats-grid { grid-template-columns: repeat(3, 1fr); } }
   @media (max-width: 640px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
 
   .stat-card {
-    text-align: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-top: 2px solid var(--accent);
     padding: 24px 16px;
+    text-align: center;
+    transition: border-color 0.3s var(--ease), box-shadow 0.3s var(--ease);
   }
-  .stat-icon {
-    font-size: 20px;
+  .stat-card:hover {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-hover);
+  }
+
+  /* Section blocks */
+  .section-block {
     margin-bottom: 8px;
-    opacity: 0.7;
   }
-
-  .section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 16px;
-  }
-  .section-header h3 {
-    font-size: 15px;
+  .section-heading {
+    font-family: var(--font-display);
+    font-size: 18px;
     font-weight: 600;
-  }
-  .refresh-info {
-    font-size: 11px;
-    color: var(--text-muted);
+    letter-spacing: -0.03em;
+    margin-bottom: 16px;
+    color: var(--text-primary);
   }
 
-  .health-card {
-    margin-bottom: 20px;
+  /* Gold line */
+  .gold-line {
+    width: 40px;
+    height: 2px;
+    background: var(--accent);
+    margin: 32px 0;
   }
-  .health-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 12px;
-  }
-  .health-item {
+
+  /* Health bar */
+  .health-bar {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 8px 12px;
-    background: var(--bg-secondary);
-    border-radius: var(--radius);
+    gap: 0;
+    padding: 16px 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    overflow-x: auto;
   }
+  .health-pair {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0 20px;
+    white-space: nowrap;
+  }
+  .health-pair:first-child { padding-left: 0; }
+  .health-pair:last-child { padding-right: 0; }
   .health-key {
-    font-size: 12px;
+    font-size: 10px;
+    font-family: var(--font-ui);
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.1em;
+    font-weight: 600;
   }
   .health-val {
     font-size: 13px;
     font-weight: 600;
     color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .health-divider {
+    width: 1px;
+    height: 32px;
+    background: var(--border);
+    flex-shrink: 0;
   }
 
+  /* Bottom grid */
   .bottom-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 20px;
+    gap: 32px;
   }
   @media (max-width: 900px) { .bottom-grid { grid-template-columns: 1fr; } }
 
+  .cell-muted {
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+
+  /* Audit feed */
   .audit-feed {
     display: flex;
     flex-direction: column;
-    gap: 8px;
   }
   .audit-item {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 8px 0;
+    gap: 12px;
+    padding: 10px 0;
     border-bottom: 1px solid var(--border);
     font-size: 13px;
   }
@@ -330,37 +386,40 @@
     color: var(--text-muted);
     font-size: 13px;
     text-align: center;
-    padding: 20px 0;
+    padding: 24px 0;
   }
 
+  /* Loading skeleton */
   .loading-grid {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
     gap: 16px;
   }
   @media (max-width: 1200px) { .loading-grid { grid-template-columns: repeat(3, 1fr); } }
-  .skeleton-card {
+
+  .stat-card-shell {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-top: 2px solid var(--border-hover);
     padding: 24px 16px;
     text-align: center;
   }
   .skeleton-value {
     width: 60px;
-    height: 28px;
+    height: 32px;
     background: var(--bg-hover);
-    border-radius: 4px;
     margin: 0 auto 8px;
     animation: pulse 1.5s ease-in-out infinite;
   }
   .skeleton-label {
     width: 80px;
-    height: 12px;
+    height: 10px;
     background: var(--bg-hover);
-    border-radius: 4px;
     margin: 0 auto;
     animation: pulse 1.5s ease-in-out infinite;
   }
   @keyframes pulse {
-    0%, 100% { opacity: 0.4; }
-    50% { opacity: 0.8; }
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.7; }
   }
 </style>
