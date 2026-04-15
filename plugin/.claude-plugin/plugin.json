@@ -3,12 +3,14 @@
   "version": "1.0.0",
   "description": "Persistent memory for AI coding agents. Captures observations, compresses with LLM, builds a knowledge graph, and injects relevant context into new sessions.",
   "author": {
-    "name": "joaop",
+    "name": "JohnPitter",
     "email": "joaopedro.ts16@gmail.com"
   },
-  "homepage": "https://github.com/joaop/imprint",
+  "homepage": "https://github.com/JohnPitter/imprint",
+  "repository": "https://github.com/JohnPitter/imprint",
   "license": "MIT",
-  "keywords": ["memory", "persistent", "knowledge-graph", "context"],
+  "keywords": ["memory", "persistent", "knowledge-graph", "mcp-server"],
   "hooks": "../hooks/hooks.json",
-  "mcpServers": "../.mcp.json"
+  "mcpServers": "../.mcp.json",
+  "postInstall": "echo 'Run: cd $(dirname $0)/.. && go run ../../cmd/install --build-only' to build binaries"
 }

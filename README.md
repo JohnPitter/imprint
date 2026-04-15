@@ -102,7 +102,23 @@ graph TD
 - Go 1.25+
 - Node.js 18+ (for frontend build)
 
-### One-Command Install
+### Option 1: Claude Code Plugin Marketplace
+
+```bash
+# Add the marketplace (one time)
+/plugin marketplace add JohnPitter/imprint
+
+# Install the plugin
+/plugin install imprint@imprint-tools
+```
+
+Then build the binaries:
+```bash
+cd ~/.claude/plugins/cache/imprint-tools/imprint/1.0.0
+go run ./cmd/install
+```
+
+### Option 2: Clone and Install
 
 ```bash
 git clone https://github.com/JohnPitter/imprint.git
@@ -110,11 +126,20 @@ cd imprint
 go run ./cmd/install
 ```
 
-This builds all binaries, registers hooks and MCP server in Claude Code settings, and sets up auto-start.
+This builds all binaries (server, 12 hooks, MCP server), registers hooks and MCP in Claude Code settings, and sets up auto-start.
+
+### What Happens After Install
+
+1. Open a new Claude Code session
+2. The **SessionStart** hook auto-starts the Imprint server
+3. Every tool use is captured automatically
+4. Open **http://localhost:3111** to see the dashboard
+5. MCP tools (`memory_recall`, `memory_save`, etc.) are available to Claude
 
 ### Uninstall
 
 ```bash
+cd imprint
 go run ./cmd/install --uninstall
 ```
 

@@ -1,0 +1,27 @@
+{
+  "name": "imprint-tools",
+  "owner": {
+    "name": "JohnPitter",
+    "email": "joaopedro.ts16@gmail.com"
+  },
+  "metadata": {
+    "description": "Persistent memory tools for AI coding agents",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "imprint",
+      "source": "./plugin",
+      "description": "Persistent memory for AI coding agents. Auto-captures observations, compresses with LLM, builds a knowledge graph, and injects context into new sessions.",
+      "version": "1.0.0",
+      "author": {
+        "name": "JohnPitter",
+        "email": "joaopedro.ts16@gmail.com"
+      },
+      "homepage": "https://github.com/JohnPitter/imprint",
+      "repository": "https://github.com/JohnPitter/imprint",
+      "license": "MIT",
+      "keywords": ["memory", "persistent", "knowledge-graph", "mcp-server", "hooks", "context"]
+    }
+  ]
+}
