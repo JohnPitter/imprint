@@ -79,9 +79,9 @@
     </div>
 
     <div class="pagination">
-      <button class="pagination-btn" on:click={prev} disabled={offset === 0}>\u2190 PREV</button>
+      <button class="pagination-btn" on:click={prev} disabled={offset === 0}>← PREV</button>
       <span class="pagination-info">PAGE {currentPage} OF {totalPages}</span>
-      <button class="pagination-btn" on:click={next} disabled={entries.length < limit}>NEXT \u2192</button>
+      <button class="pagination-btn" on:click={next} disabled={entries.length < limit}>NEXT →</button>
     </div>
   {/if}
 </div>
