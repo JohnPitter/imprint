@@ -64,7 +64,7 @@
     }
 
     // Build nodes with random positions
-    const w = 800, h = 600;
+    const w = 1000, h = 800;
     nodes = rawNodes.map((n: any, i: number) => {
       const id = n.id || n.ID || '';
       nodeMap.set(id, i);
@@ -91,17 +91,17 @@
 
   function startSimulation() {
     let iteration = 0;
-    const maxIterations = 300;
+    const maxIterations = 500;
 
     function tick() {
       if (iteration > maxIterations) { draw(); return; }
       iteration++;
 
-      const repulsion = 800;
-      const attraction = 0.005;
-      const damping = 0.92;
-      const centerGravity = 0.01;
-      const cx = 400, cy = 300;
+      const repulsion = 3000;
+      const attraction = 0.003;
+      const damping = 0.9;
+      const centerGravity = 0.003;
+      const cx = 500, cy = 400;
 
       // Repulsion (node-node)
       for (let i = 0; i < nodes.length; i++) {
@@ -154,7 +154,7 @@
     ctx.save();
     ctx.translate(panX + w/2, panY + h/2);
     ctx.scale(zoom, zoom);
-    ctx.translate(-400, -300);
+    ctx.translate(-500, -400);
 
     // Draw edges
     ctx.lineWidth = 0.5;
@@ -197,8 +197,8 @@
     }
     // Hit test for hover
     const rect = canvas.getBoundingClientRect();
-    const mx = (e.clientX - rect.left - panX - canvas.width/2) / zoom + 400;
-    const my = (e.clientY - rect.top - panY - canvas.height/2) / zoom + 300;
+    const mx = (e.clientX - rect.left - panX - canvas.width/2) / zoom + 500;
+    const my = (e.clientY - rect.top - panY - canvas.height/2) / zoom + 400;
     hoveredNode = null;
     for (const n of nodes) {
       const dx = n.x - mx, dy = n.y - my;
@@ -252,7 +252,7 @@
     <div class="canvas-wrapper">
       <canvas
         bind:this={canvas}
-        width={900} height={600}
+        width={1000} height={800}
         on:mousemove={onMouseMove}
         on:mousedown={onMouseDown}
         on:mouseup={onMouseUp}
@@ -338,10 +338,10 @@
     overflow: hidden;
   }
   .canvas-wrapper:hover { border-color: var(--accent); }
-  canvas { display: block; width: 100%; height: 500px; cursor: grab; background: #050505; }
+  canvas { display: block; width: 100%; height: 700px; cursor: grab; background: #050505; }
   canvas:active { cursor: grabbing; }
 
-  .canvas-shell { width: 100%; height: 500px; background: var(--bg-card); border: 1px solid var(--border); }
+  .canvas-shell { width: 100%; height: 700px; background: var(--bg-card); border: 1px solid var(--border); }
   .skeleton { animation: pulse 1.5s ease-in-out infinite; }
   @keyframes pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.6; } }
 
