@@ -2,15 +2,17 @@
   import { onMount, onDestroy } from 'svelte';
   import { api } from '../../lib/api';
 
-  let canvas: HTMLCanvasElement;
+  let canvasEl: HTMLCanvasElement;
+  let wrapper: HTMLDivElement;
   let stats: any = null;
   let loading = true;
   let nodeCount = 0;
   let edgeCount = 0;
   let hoveredNode: any = null;
   let animFrame: number;
+  let dpr = 1;
+  let W = 0, H = 0;
 
-  // Physics simulation
   interface SimNode {
     id: string; type: string; name: string;
     x: number; y: number; vx: number; vy: number;
@@ -28,21 +30,22 @@
 
   const typeColors: Record<string, string> = {
     concept: '#e8a065', file: '#5ba3d9', function: '#4ecdc4', error: '#ef4444',
-    decision: '#eab308', pattern: '#a78bfa', library: '#f472b6', person: '#22c55e',
+    decision: '#eab308', pattern: '#a78bfa', library: '#f472b6', person: '#34d399',
     project: '#c8933a', component: '#38bdf8', process: '#8b5cf6',
   };
 
-  function getColor(type: string): string { return typeColors[type] || '#6a6a6e'; }
+  function getColor(type: string): string { return typeColors[type] || '#555'; }
 
   onMount(async () => {
+    dpr = window.devicePixelRatio || 1;
     try {
       const [s, g] = await Promise.all([api.graphStats(), api.graphAll()]) as any[];
       stats = s;
       nodeCount = s?.totalNodes || 0;
       edgeCount = s?.totalEdges || 0;
-
       if (g?.nodes?.length > 0) {
         buildSimulation(g.nodes, g.edges || []);
+        resizeCanvas();
         startSimulation();
       }
     } catch (e) { console.error(e); }
@@ -51,11 +54,23 @@
 
   onDestroy(() => { if (animFrame) cancelAnimationFrame(animFrame); });
 
+  function resizeCanvas() {
+    if (!canvasEl || !wrapper) return;
+    const rect = wrapper.getBoundingClientRect();
+    W = rect.width;
+    H = 700;
+    canvasEl.width = W * dpr;
+    canvasEl.height = H * dpr;
+    canvasEl.style.width = W + 'px';
+    canvasEl.style.height = H + 'px';
+    const ctx = canvasEl.getContext('2d');
+    if (ctx) ctx.scale(dpr, dpr);
+  }
+
   function buildSimulation(rawNodes: any[], rawEdges: any[]) {
     const nodeMap = new Map<string, number>();
     const edgeCounts = new Map<string, number>();
 
-    // Count edges per node
     for (const e of rawEdges) {
       const s = e.sourceNodeId || e.SourceNodeID || '';
       const t = e.targetNodeId || e.TargetNodeID || '';
@@ -63,22 +78,19 @@
       edgeCounts.set(t, (edgeCounts.get(t) || 0) + 1);
     }
 
-    // Build nodes with random positions
-    const w = 1000, h = 800;
     nodes = rawNodes.map((n: any, i: number) => {
       const id = n.id || n.ID || '';
       nodeMap.set(id, i);
       const ec = edgeCounts.get(id) || 0;
       return {
         id, type: n.type || n.Type || 'other', name: n.name || n.Name || id,
-        x: w/2 + (Math.random() - 0.5) * w * 0.8,
-        y: h/2 + (Math.random() - 0.5) * h * 0.8,
+        x: 500 + (Math.random() - 0.5) * 800,
+        y: 400 + (Math.random() - 0.5) * 600,
         vx: 0, vy: 0, edges: ec,
-        radius: Math.max(3, Math.min(16, 3 + ec * 1.5)),
+        radius: Math.max(3, Math.min(20, 3 + ec * 2)),
       };
     });
 
-    // Build edges
     edges = [];
     for (const e of rawEdges) {
       const si = nodeMap.get(e.sourceNodeId || e.SourceNodeID || '');
@@ -91,19 +103,19 @@
 
   function startSimulation() {
     let iteration = 0;
-    const maxIterations = 500;
+    const maxIterations = 600;
 
     function tick() {
       if (iteration > maxIterations) { draw(); return; }
       iteration++;
 
-      const repulsion = 3000;
-      const attraction = 0.003;
-      const damping = 0.9;
-      const centerGravity = 0.003;
-      const cx = 500, cy = 400;
+      const repulsion = 5000;
+      const attraction = 0.002;
+      const damping = 0.88;
+      const centerGravity = 0.002;
+      const cx = 500, cy = 350;
 
-      // Repulsion (node-node)
+      // Repulsion
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
           const dx = nodes[j].x - nodes[i].x;
@@ -117,19 +129,19 @@
         }
       }
 
-      // Attraction (edges)
+      // Attraction
       for (const e of edges) {
         const s = nodes[e.source], t = nodes[e.target];
         const dx = t.x - s.x, dy = t.y - s.y;
-        const dist = Math.sqrt(dx*dx + dy*dy);
+        const dist = Math.max(1, Math.sqrt(dx*dx + dy*dy));
         const force = dist * attraction;
-        const fx = (dx / Math.max(1, dist)) * force;
-        const fy = (dy / Math.max(1, dist)) * force;
+        const fx = (dx / dist) * force;
+        const fy = (dy / dist) * force;
         s.vx += fx; s.vy += fy;
         t.vx -= fx; t.vy -= fy;
       }
 
-      // Center gravity + apply velocity
+      // Apply
       for (const n of nodes) {
         n.vx += (cx - n.x) * centerGravity;
         n.vy += (cy - n.y) * centerGravity;
@@ -145,68 +157,105 @@
   }
 
   function draw() {
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    if (!canvasEl) return;
+    const ctx = canvasEl.getContext('2d');
     if (!ctx) return;
-    const w = canvas.width, h = canvas.height;
 
-    ctx.clearRect(0, 0, w, h);
     ctx.save();
-    ctx.translate(panX + w/2, panY + h/2);
-    ctx.scale(zoom, zoom);
-    ctx.translate(-500, -400);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // reset for HiDPI
+    ctx.clearRect(0, 0, W, H);
 
-    // Draw edges
-    ctx.lineWidth = 0.5;
-    ctx.strokeStyle = 'rgba(100,100,100,0.25)';
-    ctx.beginPath();
+    ctx.save();
+    ctx.translate(panX + W/2, panY + H/2);
+    ctx.scale(zoom, zoom);
+    ctx.translate(-500, -350);
+
+    // Edges — thin glowing lines
     for (const e of edges) {
       const s = nodes[e.source], t = nodes[e.target];
+      ctx.beginPath();
       ctx.moveTo(s.x, s.y);
       ctx.lineTo(t.x, t.y);
+      ctx.strokeStyle = 'rgba(200, 147, 58, 0.08)';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
     }
-    ctx.stroke();
 
-    // Draw nodes
+    // Highlight edges for hovered node
+    if (hoveredNode) {
+      const hi = nodes.indexOf(hoveredNode);
+      for (const e of edges) {
+        if (e.source === hi || e.target === hi) {
+          const s = nodes[e.source], t = nodes[e.target];
+          ctx.beginPath();
+          ctx.moveTo(s.x, s.y);
+          ctx.lineTo(t.x, t.y);
+          ctx.strokeStyle = 'rgba(200, 147, 58, 0.5)';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Nodes — glowing circles
     for (const n of nodes) {
+      const isHovered = n === hoveredNode;
+      const color = getColor(n.type);
+
+      // Glow
+      if (n.radius > 5 || isHovered) {
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.radius * (isHovered ? 3 : 2), 0, Math.PI * 2);
+        const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.radius * (isHovered ? 3 : 2));
+        grad.addColorStop(0, color + (isHovered ? '40' : '15'));
+        grad.addColorStop(1, color + '00');
+        ctx.fillStyle = grad;
+        ctx.fill();
+      }
+
+      // Core
       ctx.beginPath();
       ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
-      ctx.fillStyle = getColor(n.type);
-      ctx.globalAlpha = n === hoveredNode ? 1 : 0.85;
+      ctx.fillStyle = color;
+      ctx.globalAlpha = isHovered ? 1 : 0.9;
       ctx.fill();
       ctx.globalAlpha = 1;
 
-      // Label for large nodes or hovered
-      if (n.radius > 6 || n === hoveredNode) {
+      // Label
+      if (n.radius > 7 || isHovered) {
         ctx.fillStyle = '#f4f4f5';
-        ctx.font = `${Math.max(8, n.radius * 0.9)}px Manrope, sans-serif`;
+        ctx.font = `600 ${Math.max(9, n.radius)}px Manrope, sans-serif`;
         ctx.textAlign = 'center';
-        ctx.fillText(n.name.length > 20 ? n.name.slice(0, 18) + '..' : n.name, n.x, n.y - n.radius - 4);
+        ctx.textBaseline = 'bottom';
+        const label = n.name.length > 24 ? n.name.slice(0, 22) + '..' : n.name;
+        ctx.fillText(label, n.x, n.y - n.radius - 5);
       }
     }
 
     ctx.restore();
+    ctx.restore();
   }
 
   function onMouseMove(e: MouseEvent) {
+    if (!canvasEl) return;
     if (dragging) {
       panX = panStartX + (e.clientX - dragStartX);
       panY = panStartY + (e.clientY - dragStartY);
       draw();
       return;
     }
-    // Hit test for hover
-    const rect = canvas.getBoundingClientRect();
-    const mx = (e.clientX - rect.left - panX - canvas.width/2) / zoom + 500;
-    const my = (e.clientY - rect.top - panY - canvas.height/2) / zoom + 400;
+    const rect = canvasEl.getBoundingClientRect();
+    const mx = (e.clientX - rect.left - panX - W/2) / zoom + 500;
+    const my = (e.clientY - rect.top - panY - H/2) / zoom + 350;
     hoveredNode = null;
     for (const n of nodes) {
       const dx = n.x - mx, dy = n.y - my;
-      if (dx*dx + dy*dy < (n.radius + 4) * (n.radius + 4)) {
+      if (dx*dx + dy*dy < (n.radius + 5) * (n.radius + 5)) {
         hoveredNode = n;
         break;
       }
     }
+    if (canvasEl) canvasEl.style.cursor = hoveredNode ? 'pointer' : 'grab';
     draw();
   }
 
@@ -220,14 +269,14 @@
   function onWheel(e: WheelEvent) {
     e.preventDefault();
     zoom *= e.deltaY > 0 ? 0.92 : 1.08;
-    zoom = Math.max(0.2, Math.min(5, zoom));
+    zoom = Math.max(0.1, Math.min(8, zoom));
     draw();
   }
 
   function resetView() { zoom = 1; panX = 0; panY = 0; draw(); }
 </script>
 
-<div class="graph-container">
+<div class="graph-page">
   <div class="graph-header">
     <div>
       <div class="gold-line"></div>
@@ -248,16 +297,14 @@
       <p>No graph data yet</p>
     </div>
   {:else}
-    <!-- Canvas -->
-    <div class="canvas-wrapper">
+    <div class="canvas-wrapper" bind:this={wrapper}>
       <canvas
-        bind:this={canvas}
-        width={1000} height={800}
+        bind:this={canvasEl}
         on:mousemove={onMouseMove}
         on:mousedown={onMouseDown}
         on:mouseup={onMouseUp}
         on:mouseleave={onMouseUp}
-        on:wheel={onWheel}
+        on:wheel|preventDefault={onWheel}
       ></canvas>
 
       {#if hoveredNode}
@@ -269,7 +316,6 @@
       {/if}
     </div>
 
-    <!-- Legend -->
     <div class="legend">
       {#each Object.entries(typeColors) as [type, color]}
         <div class="legend-item">
@@ -279,7 +325,6 @@
       {/each}
     </div>
 
-    <!-- Breakdown Tables -->
     <div class="breakdown-grid">
       {#if stats?.nodesByType && Object.keys(stats.nodesByType).length > 0}
         <div class="breakdown-card">
@@ -324,21 +369,21 @@
 </div>
 
 <style>
-  .graph-container { display: flex; flex-direction: column; }
-  .graph-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
-  .graph-header h3 { font-family: var(--font-display); font-size: 16px; font-weight: 600; letter-spacing: -0.02em; }
+  .graph-page { display: flex; flex-direction: column; }
+  .graph-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+  .graph-header h3 { font-family: var(--font-display); font-size: 16px; font-weight: 600; }
   .graph-controls { display: flex; align-items: center; gap: 12px; }
   .stat-mini { font-size: 11px; color: var(--text-muted); }
 
   .canvas-wrapper {
     position: relative;
-    background: var(--bg-card);
+    background: #030303;
     border: 1px solid var(--border);
-    margin-bottom: 20px;
+    margin-bottom: 16px;
     overflow: hidden;
   }
   .canvas-wrapper:hover { border-color: var(--accent); }
-  canvas { display: block; width: 100%; height: 700px; cursor: grab; background: #050505; }
+  canvas { display: block; cursor: grab; }
   canvas:active { cursor: grabbing; }
 
   .canvas-shell { width: 100%; height: 700px; background: var(--bg-card); border: 1px solid var(--border); }
@@ -348,23 +393,24 @@
   .tooltip {
     position: absolute;
     top: 12px; left: 12px;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border);
-    padding: 8px 14px;
+    background: rgba(3,3,3,0.9);
+    border: 1px solid var(--accent);
+    padding: 10px 16px;
     display: flex; flex-direction: column; gap: 2px;
     pointer-events: none;
+    backdrop-filter: blur(4px);
   }
-  .tooltip-type { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--font-ui); }
-  .tooltip-name { font-size: 14px; font-weight: 600; color: var(--text-primary); font-family: var(--font-body); }
+  .tooltip-type { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; font-family: var(--font-ui); }
+  .tooltip-name { font-size: 15px; font-weight: 600; color: var(--text-primary); font-family: var(--font-display); }
   .tooltip-edges { font-size: 11px; color: var(--text-muted); }
 
   .legend {
-    display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 24px;
-    padding: 12px 16px;
+    display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 20px;
+    padding: 10px 16px;
     background: var(--bg-card); border: 1px solid var(--border);
   }
-  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); font-family: var(--font-ui); text-transform: uppercase; letter-spacing: 0.06em; }
-  .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text-muted); font-family: var(--font-ui); text-transform: uppercase; letter-spacing: 0.06em; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
   .legend-dot-inline { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; }
 
   .breakdown-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
