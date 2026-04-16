@@ -113,6 +113,36 @@ func (h *ActionHandler) HandleGetAction(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
+// HandleFromTask handles POST /actions/from-task.
+// Creates or updates an action from a Claude Code task completion event.
+func (h *ActionHandler) HandleFromTask(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		SessionID   string `json:"sessionId"`
+		Title       string `json:"title"`
+		Description string `json:"description"`
+		Status      string `json:"status"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Title == "" {
+		writeError(w, http.StatusBadRequest, "title is required")
+		return
+	}
+	if req.Status == "" {
+		req.Status = "done"
+	}
+
+	action, err := h.svc.UpsertFromTask(req.Title, req.Description, req.Status, req.SessionID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"action": action})
+}
+
 // HandleCreateEdge handles POST /actions/edges.
 func (h *ActionHandler) HandleCreateEdge(w http.ResponseWriter, r *http.Request) {
 	var req struct {

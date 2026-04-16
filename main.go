@@ -128,6 +128,10 @@ func main() {
 	}
 	log.Printf("[app] Imprint running on http://localhost:%d", cfg.Port)
 
+	// Start background pipeline scheduler
+	scheduler := service.NewScheduler(pipelineSvc, sessionSvc, cfg.PipelineIntervalMin)
+	scheduler.Start()
+
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -135,7 +139,8 @@ func main() {
 
 	log.Println("[app] Shutting down...")
 
-	// Stop worker pool first (drain pending jobs)
+	// Stop scheduler and worker pool first (drain pending jobs)
+	scheduler.Stop()
 	worker.Stop()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

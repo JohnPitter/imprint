@@ -252,51 +252,6 @@ func (s *AdvancedService) GarbageCollectSketches() (int64, error) {
 }
 
 // ---------------------------------------------------------------------------
-// Crystals
-// ---------------------------------------------------------------------------
-
-// CreateCrystal creates a new crystal (distilled knowledge from actions).
-func (s *AdvancedService) CreateCrystal(narrative string, keyOutcomes, filesAffected, lessons, sourceActionIDs []string, sessionID, project *string) (*store.CrystalRow, error) {
-	if narrative == "" {
-		return nil, fmt.Errorf("narrative is required")
-	}
-
-	id := "cry_" + uuid.New().String()[:8]
-
-	row := &store.CrystalRow{
-		ID:              id,
-		Narrative:       narrative,
-		KeyOutcomes:     marshalStringSlice(keyOutcomes),
-		FilesAffected:   marshalStringSlice(filesAffected),
-		Lessons:         marshalStringSlice(lessons),
-		SourceActionIDs: marshalStringSlice(sourceActionIDs),
-		SessionID:       sessionID,
-		Project:         project,
-	}
-
-	if err := s.c.Crystals.Create(row); err != nil {
-		return nil, fmt.Errorf("create crystal: %w", err)
-	}
-	return row, nil
-}
-
-// ListCrystals returns crystals with optional project filter.
-func (s *AdvancedService) ListCrystals(project string, limit int) ([]store.CrystalRow, error) {
-	if limit <= 0 {
-		limit = 50
-	}
-	return s.c.Crystals.List(project, limit)
-}
-
-// AutoCrystallize creates a crystal from completed actions in a session.
-func (s *AdvancedService) AutoCrystallize(sessionID string) (*store.CrystalRow, error) {
-	if sessionID == "" {
-		return nil, fmt.Errorf("sessionId is required")
-	}
-	return s.c.Crystals.AutoCrystallize(sessionID)
-}
-
-// ---------------------------------------------------------------------------
 // Lessons
 // ---------------------------------------------------------------------------
 

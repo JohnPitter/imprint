@@ -22,8 +22,7 @@ type transcriptEntry struct {
 
 func main() {
 	cfg := hooks.LoadConfig()
-	// Use longer timeout for stop hook since it processes transcript + triggers pipelines
-	cfg.Timeout = 120 * time.Second
+	cfg.Timeout = 30 * time.Second
 
 	input, err := hooks.ReadStdin()
 	if err != nil {
@@ -35,35 +34,31 @@ func main() {
 		os.Exit(0)
 	}
 
-	// 1. Summarize the session (existing behavior)
-	hooks.Post(cfg, "/imprint/summarize", map[string]string{"sessionId": sessionID})
-
-	// 2. Read and process the transcript JSONL if available
+	// Process transcript JSONL to capture any missed observations.
+	// This is lightweight: just POSTs raw observations that the compression
+	// worker will handle asynchronously.
 	transcriptPath := hooks.GetString(input, "transcript_path")
 	if transcriptPath != "" {
 		processTranscript(cfg, transcriptPath, sessionID)
 	}
 
-	// 3. Trigger consolidation pipeline
-	hooks.Post(cfg, "/imprint/consolidate-pipeline", map[string]string{"sessionId": sessionID})
+	// The background scheduler already handles summarize + consolidate
+	// during the session. No heavy pipeline calls needed here.
 }
 
 // processTranscript reads the Claude Code JSONL transcript, extracts tool_use
-// entries, and POSTs each as an observation. This processes the session transcript
-// silently without spending MCP tokens.
+// entries, and POSTs each as an observation.
 func processTranscript(cfg hooks.Config, transcriptPath, sessionID string) {
 	f, err := os.Open(transcriptPath)
 	if err != nil {
-		return // silently skip if file not readable
+		return
 	}
 	defer f.Close()
 
-	// Use a shorter timeout for individual observe calls
 	observeCfg := cfg
 	observeCfg.Timeout = 10 * time.Second
 
 	scanner := bufio.NewScanner(f)
-	// Allow large lines (transcripts can have big tool outputs)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 
 	for scanner.Scan() {
@@ -77,7 +72,6 @@ func processTranscript(cfg hooks.Config, transcriptPath, sessionID string) {
 			continue
 		}
 
-		// Only process tool_use result entries
 		if entry.Type != "result" || entry.Subtype != "tool_use" {
 			continue
 		}
@@ -85,7 +79,6 @@ func processTranscript(cfg hooks.Config, transcriptPath, sessionID string) {
 			continue
 		}
 
-		// Extract tool output as string
 		toolOutput := extractToolOutput(entry.ToolResponse)
 		if len(toolOutput) > 8000 {
 			toolOutput = toolOutput[:8000]
@@ -100,12 +93,10 @@ func processTranscript(cfg hooks.Config, transcriptPath, sessionID string) {
 			"tool_output": toolOutput,
 		}
 
-		// POST silently; ignore failures
 		hooks.Post(observeCfg, "/imprint/observe", payload)
 	}
 }
 
-// extractToolOutput converts the tool_response JSON to a string.
 func extractToolOutput(raw json.RawMessage) string {
 	if len(raw) == 0 {
 		return ""

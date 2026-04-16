@@ -9,6 +9,7 @@ const (
 	HookPreToolUse      HookType = "pre_tool_use"
 	HookPostToolUse     HookType = "post_tool_use"
 	HookPostToolFailure HookType = "post_tool_failure"
+	HookToolError       HookType = "tool_error"
 	HookPreCompact      HookType = "pre_compact"
 	HookSubagentStart   HookType = "subagent_start"
 	HookSubagentStop    HookType = "subagent_stop"

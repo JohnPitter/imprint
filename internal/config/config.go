@@ -41,6 +41,7 @@ type Config struct {
 	CompressWorkers      int  // COMPRESS_WORKERS, default 4
 	ConsolidationEnabled bool // CONSOLIDATION_ENABLED, default true
 	ClaudeBridgeEnabled  bool // CLAUDE_MEMORY_BRIDGE, default false
+	PipelineIntervalMin  int  // PIPELINE_INTERVAL_MIN, default 5 (0 = disabled)
 
 	// Limits
 	MaxObservationsPerSession int // MAX_OBS_PER_SESSION, default 500
@@ -89,6 +90,7 @@ func Load() (*Config, error) {
 		CompressWorkers:      envInt("COMPRESS_WORKERS", 4),
 		ConsolidationEnabled: envBool("CONSOLIDATION_ENABLED", true),
 		ClaudeBridgeEnabled:  envBool("CLAUDE_MEMORY_BRIDGE", false),
+		PipelineIntervalMin:  envInt("PIPELINE_INTERVAL_MIN", 5),
 
 		MaxObservationsPerSession: envInt("MAX_OBS_PER_SESSION", 500),
 		ContextTokenBudget:        envInt("CONTEXT_TOKEN_BUDGET", 2000),

@@ -20,6 +20,63 @@ func NewActionService(c *Container) *ActionService {
 	return &ActionService{c: c}
 }
 
+// UpsertFromTask creates or updates an action from a Claude Code task completion.
+// If an action with the same title exists, updates its status. Otherwise creates a new one.
+func (s *ActionService) UpsertFromTask(title, description, status, sessionID string) (*store.ActionRow, error) {
+	if title == "" {
+		return nil, fmt.Errorf("title is required")
+	}
+	if status == "" {
+		status = "done"
+	}
+
+	// Try to find existing action by title
+	existing, err := s.c.Actions.List("", "", 200, 0)
+	if err == nil {
+		for _, a := range existing {
+			if a.Title == title {
+				a.Status = status
+				a.Description = description
+				a.UpdatedAt = store.TimeToString(time.Now())
+				if err := s.c.Actions.Update(&a); err != nil {
+					return nil, fmt.Errorf("update action: %w", err)
+				}
+				return &a, nil
+			}
+		}
+	}
+
+	// Create new action
+	id := "act_" + uuid.New().String()[:8]
+	now := store.TimeToString(time.Now())
+
+	// Get project from session if available
+	var project *string
+	if sessionID != "" {
+		if sess, err := s.c.Sessions.GetByID(sessionID); err == nil {
+			project = &sess.Project
+		}
+	}
+
+	row := &store.ActionRow{
+		ID:          id,
+		Title:       title,
+		Description: description,
+		Status:      status,
+		Priority:    7,
+		Project:     project,
+		Tags:        json.RawMessage("[]"),
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	if err := s.c.Actions.Create(row); err != nil {
+		return nil, fmt.Errorf("create action from task: %w", err)
+	}
+
+	return row, nil
+}
+
 // CreateAction creates a new action.
 func (s *ActionService) CreateAction(title, description, status string, priority int, project *string, tags []string) (*store.ActionRow, error) {
 	if title == "" {

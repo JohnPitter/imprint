@@ -9,7 +9,7 @@ import (
 
 func main() {
 	cfg := hooks.LoadConfig()
-	cfg.Timeout = 300 * time.Second // Full pipeline needs time
+	cfg.Timeout = 60 * time.Second
 
 	input, err := hooks.ReadStdin()
 	if err != nil {
@@ -21,9 +21,13 @@ func main() {
 		os.Exit(0)
 	}
 
-	// 1. End the session
+	// End the session — the background scheduler already handles
+	// summarize + consolidate during the session lifetime.
+	// We only need to mark the session as completed here.
 	hooks.Post(cfg, "/imprint/session/end", map[string]string{"sessionId": sessionID})
 
-	// 2. Run full pipeline (summarize + consolidate + graph + actions + crystal + reflect)
-	hooks.Post(cfg, "/imprint/consolidate", map[string]string{"sessionId": sessionID})
+	// Run a final lightweight pipeline pass for things the scheduler doesn't cover:
+	// graph extraction, actions, crystal, reflect.
+	// This is much faster than the old full pipeline.
+	hooks.Post(cfg, "/imprint/finalize", map[string]string{"sessionId": sessionID})
 }

@@ -84,3 +84,27 @@ func (h *PipelineHandler) HandleFullPipeline(w http.ResponseWriter, r *http.Requ
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
+
+// HandleFinalize handles POST /imprint/finalize.
+// Runs only the final-pass stages (graph, actions, crystal, reflect) that are
+// not covered by the periodic scheduler. Called by the session-end hook.
+func (h *PipelineHandler) HandleFinalize(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		SessionID string `json:"sessionId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.SessionID == "" {
+		writeError(w, http.StatusBadRequest, "sessionId is required")
+		return
+	}
+
+	if err := h.svc.RunFinalize(r.Context(), req.SessionID); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}

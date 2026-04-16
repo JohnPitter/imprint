@@ -21,6 +21,7 @@
   let compressWorkers = 4;
   let consolidationEnabled = true;
   let contextTokenBudget = 2000;
+  let pipelineIntervalMin = 5;
 
   const anthropicModels = [
     'claude-haiku-4-5-20251001',
@@ -55,6 +56,7 @@
     compressWorkers = pipeline.compressWorkers ?? 4;
     consolidationEnabled = pipeline.consolidationEnabled ?? true;
     contextTokenBudget = pipeline.contextTokenBudget ?? 2000;
+    pipelineIntervalMin = pipeline.pipelineIntervalMin ?? 5;
   }
 
   async function save() {
@@ -73,6 +75,7 @@
         compressWorkers,
         consolidationEnabled,
         contextTokenBudget,
+        pipelineIntervalMin,
       };
       if (anthropicApiKey && !anthropicApiKey.includes('...')) {
         body.anthropicApiKey = anthropicApiKey;
@@ -195,6 +198,11 @@
         <label class="field">
           <span class="field-label">Context Token Budget</span>
           <input class="input" type="number" min="500" max="10000" step="500" bind:value={contextTokenBudget} />
+        </label>
+        <label class="field">
+          <span class="field-label">Pipeline Interval (minutes)</span>
+          <input class="input" type="number" min="0" max="60" step="1" bind:value={pipelineIntervalMin} />
+          <span class="field-hint">How often to run summarize + consolidate during active sessions. 0 = disabled.</span>
         </label>
         <label class="field checkbox-field">
           <input type="checkbox" class="checkbox-input" bind:checked={consolidationEnabled} />

@@ -154,6 +154,29 @@ func (s *ActionStore) Delete(id string) error {
 	return nil
 }
 
+// ExistsByTitle checks if an action with the given title already exists.
+func (s *ActionStore) ExistsByTitle(title string) (bool, error) {
+	var count int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM actions WHERE title = ?`, title).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("exists by title: %w", err)
+	}
+	return count > 0, nil
+}
+
+// CompleteInProgress marks all in_progress actions for a project as done.
+func (s *ActionStore) CompleteInProgress(project string) (int64, error) {
+	now := TimeToString(time.Now())
+	res, err := s.db.Exec(
+		`UPDATE actions SET status = 'done', updated_at = ? WHERE status = 'in_progress' AND project = ?`,
+		now, project,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("complete in_progress: %w", err)
+	}
+	return res.RowsAffected()
+}
+
 // --- Action Edges ---
 
 // CreateEdge inserts an action edge.

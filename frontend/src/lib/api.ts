@@ -45,9 +45,6 @@ export const api = {
   createAction: (data: Record<string, unknown>) => request<unknown>('POST', '/actions', data),
   frontier: () => request<unknown>('GET', '/frontier'),
 
-  // Crystals
-  listCrystals: (limit = 20) => request<unknown>('GET', `/crystals?limit=${limit}`),
-
   // Lessons
   listLessons: (limit = 50) => request<unknown>('GET', `/lessons?limit=${limit}`),
   searchLessons: (query: string) => request<unknown>('POST', '/lessons/search', { query }),

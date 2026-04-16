@@ -7,7 +7,6 @@
   import Memories from './components/tabs/Memories.svelte';
   import Graph from './components/tabs/Graph.svelte';
   import Actions from './components/tabs/Actions.svelte';
-  import Crystals from './components/tabs/Crystals.svelte';
   import Lessons from './components/tabs/Lessons.svelte';
   import Profile from './components/tabs/Profile.svelte';
   import Activity from './components/tabs/Activity.svelte';
@@ -34,7 +33,6 @@
     {:else if activeTab === 'memories'}<Memories />
     {:else if activeTab === 'graph'}<Graph />
     {:else if activeTab === 'actions'}<Actions />
-    {:else if activeTab === 'crystals'}<Crystals />
     {:else if activeTab === 'lessons'}<Lessons />
     {:else if activeTab === 'profile'}<Profile />
     {:else if activeTab === 'activity'}<Activity />

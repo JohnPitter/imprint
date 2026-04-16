@@ -7,7 +7,6 @@
     { id: 'memories', label: 'Memories' },
     { id: 'graph', label: 'Graph' },
     { id: 'actions', label: 'Actions' },
-    { id: 'crystals', label: 'Crystals' },
     { id: 'lessons', label: 'Lessons' },
     { id: 'profile', label: 'Profile' },
     { id: 'activity', label: 'Activity' },

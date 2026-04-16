@@ -9,21 +9,19 @@
   let auditEntries: any[] = [];
   let memoriesCount = 0;
   let lessonsCount = 0;
-  let crystalsCount = 0;
   let loading = true;
   let lastRefresh = '';
   let interval: ReturnType<typeof setInterval>;
 
   async function refresh() {
     try {
-      const [h, s, g, a, m, l, c] = await Promise.all([
+      const [h, s, g, a, m, l] = await Promise.all([
         api.health().catch(() => null),
         api.listSessions(5).catch(() => ({ sessions: [] })),
         api.graphStats().catch(() => null),
         api.listAudit(5, 0).catch(() => ({ entries: [] })),
         api.listMemories('', 0).catch(() => ({ memories: [], total: 0 })),
         api.listLessons(0).catch(() => ({ lessons: [], total: 0 })),
-        api.listCrystals(0).catch(() => ({ crystals: [], total: 0 })),
       ]);
       health = h;
       sessions = (s as any).sessions || [];
@@ -31,7 +29,6 @@
       auditEntries = (a as any).entries || (a as any).audit || [];
       memoriesCount = (m as any).total ?? ((m as any).memories?.length || 0);
       lessonsCount = (l as any).total ?? ((l as any).lessons?.length || 0);
-      crystalsCount = (c as any).total ?? ((c as any).crystals?.length || 0);
     } catch (e) {
       console.error('Dashboard refresh error:', e);
     }
@@ -125,10 +122,6 @@
     <div class="stat-card">
       <div class="stat-value">{formatNumber(lessonsCount)}</div>
       <div class="stat-label">Lessons</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value">{formatNumber(crystalsCount)}</div>
-      <div class="stat-label">Crystals</div>
     </div>
     <div class="stat-card">
       <div class="stat-value">{formatNumber(graph?.totalNodes || graph?.nodes || 0)}</div>
@@ -270,7 +263,7 @@
   /* Stats Grid */
   .stats-grid {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 16px;
     margin-bottom: 32px;
   }
@@ -404,7 +397,7 @@
   /* Loading skeleton */
   .loading-grid {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 16px;
   }
   @media (max-width: 1200px) { .loading-grid { grid-template-columns: repeat(3, 1fr); } }

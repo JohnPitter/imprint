@@ -14,7 +14,9 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Claude Code sends "tool_response" (can be string or object)
+	toolName := hooks.GetString(input, "tool_name")
+
+	// Extract tool response (can be string or object)
 	toolOutput := ""
 	if v, ok := input["tool_response"]; ok {
 		switch t := v.(type) {
@@ -26,11 +28,21 @@ func main() {
 		}
 	}
 
+	// Extract tool input for error context
+	var toolInput json.RawMessage
+	if v, ok := input["tool_input"]; ok {
+		b, _ := json.Marshal(v)
+		toolInput = b
+	}
+
+	// Failures get a distinct hook_type so the pipeline can detect
+	// repeated error patterns and auto-generate lessons.
+	// The error output is the key signal for learning.
 	hooks.Post(cfg, "/imprint/observe", map[string]any{
 		"session_id":  hooks.GetString(input, "session_id"),
-		"hook_type":   "post_tool_failure",
-		"tool_name":   hooks.GetString(input, "tool_name"),
-		"tool_input":  input["tool_input"],
-		"tool_output": toolOutput,
+		"hook_type":   "tool_error",
+		"tool_name":   &toolName,
+		"tool_input":  toolInput,
+		"tool_output": "ERROR: " + toolOutput,
 	})
 }

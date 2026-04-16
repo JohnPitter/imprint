@@ -30,6 +30,7 @@ type UserSettings struct {
 	CompressWorkers      *int  `json:"compressWorkers,omitempty"`
 	ConsolidationEnabled *bool `json:"consolidationEnabled,omitempty"`
 	ContextTokenBudget   *int  `json:"contextTokenBudget,omitempty"`
+	PipelineIntervalMin  *int  `json:"pipelineIntervalMin,omitempty"` // periodic pipeline interval in minutes (0 = disabled)
 }
 
 var (
@@ -130,6 +131,9 @@ func ApplyUserSettings(cfg *Config, s *UserSettings) {
 	if s.ContextTokenBudget != nil {
 		cfg.ContextTokenBudget = *s.ContextTokenBudget
 	}
+	if s.PipelineIntervalMin != nil {
+		cfg.PipelineIntervalMin = *s.PipelineIntervalMin
+	}
 }
 
 // ConfigToPublicView returns a sanitized view of the config for the UI.
@@ -165,6 +169,7 @@ func ConfigToPublicView(cfg *Config) map[string]any {
 			"compressWorkers":      cfg.CompressWorkers,
 			"consolidationEnabled": cfg.ConsolidationEnabled,
 			"contextTokenBudget":   cfg.ContextTokenBudget,
+			"pipelineIntervalMin":  cfg.PipelineIntervalMin,
 		},
 		"server": map[string]any{
 			"port":    cfg.Port,

@@ -323,65 +323,6 @@ func (h *AdvancedHandler) HandleGarbageCollectSketches(w http.ResponseWriter, r 
 }
 
 // ---------------------------------------------------------------------------
-// Crystals
-// ---------------------------------------------------------------------------
-
-// HandleCreateCrystal handles POST /crystals/create.
-func (h *AdvancedHandler) HandleCreateCrystal(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Narrative       string   `json:"narrative"`
-		KeyOutcomes     []string `json:"keyOutcomes"`
-		FilesAffected   []string `json:"filesAffected"`
-		Lessons         []string `json:"lessons"`
-		SourceActionIDs []string `json:"sourceActionIds"`
-		SessionID       *string  `json:"sessionId"`
-		Project         *string  `json:"project"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-
-	cry, err := h.svc.CreateCrystal(req.Narrative, req.KeyOutcomes, req.FilesAffected, req.Lessons, req.SourceActionIDs, req.SessionID, req.Project)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusCreated, cry)
-}
-
-// HandleListCrystals handles GET /crystals.
-func (h *AdvancedHandler) HandleListCrystals(w http.ResponseWriter, r *http.Request) {
-	project := r.URL.Query().Get("project")
-	limit := queryInt(r, "limit", 50)
-
-	crystals, err := h.svc.ListCrystals(project, limit)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"crystals": orEmpty(crystals)})
-}
-
-// HandleAutoCrystallize handles POST /crystals/auto.
-func (h *AdvancedHandler) HandleAutoCrystallize(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		SessionID string `json:"sessionId"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-
-	cry, err := h.svc.AutoCrystallize(req.SessionID)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusCreated, cry)
-}
-
-// ---------------------------------------------------------------------------
 // Lessons
 // ---------------------------------------------------------------------------
 
