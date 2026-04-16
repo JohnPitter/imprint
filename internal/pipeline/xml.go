@@ -7,7 +7,8 @@ import (
 )
 
 // unicodeBulletPattern removes bullet/arrow symbols and literal \uXXXX escapes from LLM fact text.
-var unicodeBulletPattern = regexp.MustCompile(`\\u[0-9a-fA-F]{4}\s?|[\x{2022}\x{2023}\x{2013}\x{2014}\x{25CF}\x{25CB}\x{2190}\x{2191}\x{2192}\x{2193}\x{25A0}-\x{25FF}\x{2600}-\x{26FF}]+\s?`)
+// Matches: \uXXXX (with backslash), bare uXXXX at word boundary, and actual unicode symbols.
+var unicodeBulletPattern = regexp.MustCompile(`\\?u[0-9a-fA-F]{4}\s?|[\x{2022}\x{2023}\x{2013}\x{2014}\x{25CF}\x{25CB}\x{2190}\x{2191}\x{2192}\x{2193}\x{25A0}-\x{25FF}\x{2600}-\x{26FF}]+\s?`)
 
 // leadingSymbolPattern removes any non-letter/non-digit at the start of a string
 var leadingSymbolPattern = regexp.MustCompile(`^[^\p{L}\p{N}(]+`)

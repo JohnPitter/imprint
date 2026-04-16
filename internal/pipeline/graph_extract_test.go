@@ -94,8 +94,8 @@ func TestGraphExtractor_Extract(t *testing.T) {
 		t.Errorf("edge 1: expected weight 0.7, got %f", result.Edges[1].Weight)
 	}
 
-	if mock.calls != 1 {
-		t.Errorf("expected 1 LLM call, got %d", mock.calls)
+	if mock.calls.Load() != 1 {
+		t.Errorf("expected 1 LLM call, got %d", mock.calls.Load())
 	}
 }
 
@@ -125,7 +125,7 @@ func TestGraphExtractor_Extract_EmptyResponse(t *testing.T) {
 		t.Errorf("expected 0 edges for empty response, got %d", len(result.Edges))
 	}
 
-	if mock.calls != 1 {
-		t.Errorf("expected 1 LLM call, got %d", mock.calls)
+	if mock.calls.Load() != 1 {
+		t.Errorf("expected 1 LLM call, got %d", mock.calls.Load())
 	}
 }

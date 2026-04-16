@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"encoding/json"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,13 +16,13 @@ import (
 type mockLLMProvider struct {
 	response string
 	err      error
-	calls    int
+	calls    atomic.Int32
 }
 
 func (m *mockLLMProvider) Name() string      { return "mock" }
 func (m *mockLLMProvider) Available() bool    { return true }
 func (m *mockLLMProvider) Complete(_ context.Context, _ llm.CompletionRequest) (string, error) {
-	m.calls++
+	m.calls.Add(1)
 	return m.response, m.err
 }
 
@@ -174,8 +175,8 @@ func TestCompressor_Compress(t *testing.T) {
 	if compressed.SourceObservationID == nil || *compressed.SourceObservationID != "raw-001" {
 		t.Fatal("expected source observation ID to be 'raw-001'")
 	}
-	if mock.calls != 1 {
-		t.Fatalf("expected 1 LLM call, got %d", mock.calls)
+	if mock.calls.Load() != 1 {
+		t.Fatalf("expected 1 LLM call, got %d", mock.calls.Load())
 	}
 }
 
@@ -252,8 +253,8 @@ func TestSummarizer_Summarize(t *testing.T) {
 		t.Fatalf("expected 2 concepts, got %d", len(concepts))
 	}
 
-	if mock.calls != 1 {
-		t.Fatalf("expected 1 LLM call, got %d", mock.calls)
+	if mock.calls.Load() != 1 {
+		t.Fatalf("expected 1 LLM call, got %d", mock.calls.Load())
 	}
 }
 
@@ -326,8 +327,8 @@ func TestWorker_ProcessesJobs(t *testing.T) {
 	if len(compressed) != 3 {
 		t.Fatalf("expected 3 compressed observations, got %d", len(compressed))
 	}
-	if mock.calls != 3 {
-		t.Fatalf("expected 3 LLM calls, got %d", mock.calls)
+	if mock.calls.Load() != 3 {
+		t.Fatalf("expected 3 LLM calls, got %d", mock.calls.Load())
 	}
 }
 

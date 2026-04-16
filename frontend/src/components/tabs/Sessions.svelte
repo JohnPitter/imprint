@@ -49,8 +49,8 @@
     return s
       // Strip any non-printable or symbol char at the very start of the string
       .replace(/^[\s\u2000-\u2BFF\u0080-\u00BF•·–—►▸▶→←↑↓\-]+/, '')
-      // Strip literal \uXXXX escape sequences
-      .replace(/\\u[0-9a-fA-F]{4}\s?/g, '')
+      // Strip literal \uXXXX escape sequences (with or without backslash)
+      .replace(/\\?u[0-9a-fA-F]{4}\s?/g, '')
       // Strip any run of unicode symbols throughout
       .replace(/[\u2022\u2023\u2013\u2014\u2190\u2192\u2193\u2194\u25a0-\u25FF\u2600-\u26FF]+\s?/g, '')
       .trim();
