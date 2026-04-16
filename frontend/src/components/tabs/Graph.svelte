@@ -149,9 +149,9 @@
     ctx.translate(panX + CW / 2 - (SIM_W / 2) * zoom, panY + CH / 2 - (SIM_H / 2) * zoom);
     ctx.scale(zoom, zoom);
 
-    // Edges
-    ctx.lineWidth = 0.7;
-    ctx.strokeStyle = 'rgba(200,147,58,0.1)';
+    // Edges — always visible
+    ctx.lineWidth = 0.9;
+    ctx.strokeStyle = 'rgba(200,147,58,0.35)';
     ctx.beginPath();
     for (const e of edges) {
       const s = nodes[e.source], t = nodes[e.target];
