@@ -13,22 +13,24 @@ import (
 	"github.com/google/uuid"
 )
 
-// PipelineService orchestrates summarization, consolidation, reflection, and lesson extraction.
+// PipelineService orchestrates summarization, consolidation, reflection, graph extraction, and lesson extraction.
 type PipelineService struct {
 	c            *Container
 	summarizer   *pipeline.Summarizer
 	consolidator *pipeline.Consolidator
 	reflector    *pipeline.Reflector
+	graphSvc     *GraphService
 	patterns     *pipeline.PatternDetector
 }
 
 // NewPipelineService creates a new PipelineService.
-func NewPipelineService(c *Container, summarizer *pipeline.Summarizer, consolidator *pipeline.Consolidator, reflector *pipeline.Reflector) *PipelineService {
+func NewPipelineService(c *Container, summarizer *pipeline.Summarizer, consolidator *pipeline.Consolidator, reflector *pipeline.Reflector, graphSvc *GraphService) *PipelineService {
 	return &PipelineService{
 		c:            c,
 		summarizer:   summarizer,
 		consolidator: consolidator,
 		reflector:    reflector,
+		graphSvc:     graphSvc,
 		patterns:     pipeline.NewPatternDetector(),
 	}
 }
@@ -239,7 +241,37 @@ func (s *PipelineService) Reflect(ctx context.Context, sessionID string) (int, e
 	return created, nil
 }
 
-// RunFullPipeline runs summarize + consolidate + reflect for a session end.
+// ExtractGraph processes compressed observations to build the knowledge graph.
+func (s *PipelineService) ExtractGraph(ctx context.Context, sessionID string) (int, error) {
+	obs, err := s.c.Observations.ListCompressed(sessionID, 50, 0)
+	if err != nil {
+		return 0, fmt.Errorf("list observations: %w", err)
+	}
+
+	if len(obs) == 0 || s.graphSvc == nil {
+		return 0, nil
+	}
+
+	// Process up to 10 observations (each makes an LLM call)
+	processed := 0
+	limit := min(len(obs), 10)
+	for i := range limit {
+		if err := s.graphSvc.ExtractAndStore(ctx, &obs[i]); err != nil {
+			log.Printf("[pipeline] Graph extraction failed for obs %s: %v", obs[i].ID, err)
+			continue
+		}
+		processed++
+	}
+
+	if processed > 0 {
+		s.c.LogAudit("graph.extract", sessionID, "session", map[string]any{"processed": processed})
+		log.Printf("[pipeline] Extracted graph entities from %d observations", processed)
+	}
+
+	return processed, nil
+}
+
+// RunFullPipeline runs summarize + consolidate + graph + reflect for a session end.
 func (s *PipelineService) RunFullPipeline(ctx context.Context, sessionID string) error {
 	sid := sessionID[:min(12, len(sessionID))]
 
@@ -253,7 +285,12 @@ func (s *PipelineService) RunFullPipeline(ctx context.Context, sessionID string)
 		log.Printf("[pipeline] Consolidate failed for %s: %v", sid, err)
 	}
 
-	// 3. Reflect (generate insights from memories + observations)
+	// 3. Extract knowledge graph entities
+	if _, err := s.ExtractGraph(ctx, sessionID); err != nil {
+		log.Printf("[pipeline] Graph extraction failed for %s: %v", sid, err)
+	}
+
+	// 4. Reflect (generate insights from memories + observations)
 	if _, err := s.Reflect(ctx, sessionID); err != nil {
 		log.Printf("[pipeline] Reflect failed for %s: %v", sid, err)
 	}

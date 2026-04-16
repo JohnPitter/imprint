@@ -101,7 +101,7 @@ func main() {
 	summarizer := pipeline.NewSummarizer(llmProvider)
 	consolidator := pipeline.NewConsolidator(llmProvider)
 	reflector := pipeline.NewReflector(llmProvider)
-	pipelineSvc := service.NewPipelineService(container, summarizer, consolidator, reflector)
+	pipelineSvc := service.NewPipelineService(container, summarizer, consolidator, reflector, graphSvc)
 
 	// Create advanced services
 	actionSvc := service.NewActionService(container)
