@@ -64,6 +64,21 @@ func (h *GraphHandler) HandleStats(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, stats)
 }
 
+// HandleAll handles GET /imprint/graph/all — returns all nodes and edges for visualization.
+func (h *GraphHandler) HandleAll(w http.ResponseWriter, r *http.Request) {
+	nodes, err := h.svc.AllNodes(500)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	edges, err := h.svc.AllEdges(1000)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"nodes": orEmpty(nodes), "edges": orEmpty(edges)})
+}
+
 // HandleRelations handles POST /imprint/relations.
 func (h *GraphHandler) HandleRelations(w http.ResponseWriter, r *http.Request) {
 	var req struct {

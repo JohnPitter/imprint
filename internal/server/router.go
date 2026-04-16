@@ -132,6 +132,7 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 			r.Post("/graph/extract", deps.Graph.HandleExtract)
 			r.Post("/graph/query", deps.Graph.HandleQuery)
 			r.Get("/graph/stats", deps.Graph.HandleStats)
+			r.Get("/graph/all", deps.Graph.HandleAll)
 			r.Post("/relations", deps.Graph.HandleRelations)
 		} else {
 			r.Post("/graph/extract", notImplemented)

@@ -133,6 +133,20 @@ func (s *GraphService) Query(startNodeID string, maxDepth int) (*GraphQueryResul
 	return &GraphQueryResult{Nodes: allNodes, Edges: allEdges}, nil
 }
 
+// AllNodes returns all graph nodes (up to limit).
+func (s *GraphService) AllNodes(limit int) ([]store.GraphNodeRow, error) {
+	return s.c.Graph.ListNodes("", limit, 0)
+}
+
+// AllEdges returns all graph edges (up to limit).
+func (s *GraphService) AllEdges(limit int) ([]store.GraphEdgeRow, error) {
+	rows, err := s.c.Graph.ListEdges(limit)
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
 // Stats returns node and edge counts by type.
 func (s *GraphService) Stats() (map[string]any, error) {
 	nodeCounts, err := s.c.Graph.CountNodes()

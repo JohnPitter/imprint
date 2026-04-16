@@ -145,6 +145,19 @@ func (s *GraphStore) DeleteNode(id string) error {
 	return nil
 }
 
+// ListEdges returns all edges up to limit.
+func (s *GraphStore) ListEdges(limit int) ([]GraphEdgeRow, error) {
+	if limit <= 0 {
+		limit = 1000
+	}
+	rows, err := s.db.Query(`SELECT id, type, source_node_id, target_node_id, weight, COALESCE(source_observation_ids,'[]'), created_at, valid_from, valid_to, is_latest, version, COALESCE(context,'{}') FROM graph_edges WHERE is_latest = 1 ORDER BY created_at DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list edges: %w", err)
+	}
+	defer rows.Close()
+	return s.scanEdges(rows)
+}
+
 // CountNodes returns counts by type.
 func (s *GraphStore) CountNodes() (map[string]int, error) {
 	rows, err := s.db.Query(`SELECT type, COUNT(*) FROM graph_nodes GROUP BY type`)

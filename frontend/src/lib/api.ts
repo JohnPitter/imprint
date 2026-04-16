@@ -37,6 +37,7 @@ export const api = {
 
   // Graph
   graphStats: () => request<unknown>('GET', '/graph/stats'),
+  graphAll: () => request<unknown>('GET', '/graph/all'),
   graphQuery: (startNodeId: string, maxDepth = 2) => request<unknown>('POST', '/graph/query', { startNodeId, maxDepth }),
 
   // Actions
