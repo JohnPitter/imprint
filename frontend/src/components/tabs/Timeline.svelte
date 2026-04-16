@@ -55,10 +55,9 @@
   function clean(s: string | undefined | null): string {
     if (!s) return '';
     return s
+      .replace(/^[\s\u2000-\u2BFF\u0080-\u00BF•·–—►▸▶→←↑↓\-]+/, '')
       .replace(/\\u[0-9a-fA-F]{4}\s?/g, '')
-      .replace(/^u2[0-9a-fA-F]{2,3}\s?/gm, '')
-      .replace(/[\u2022\u2023\u2013\u2014\u25cf\u25cb\u25aa\u2190\u2192]\s?/g, '')
-      .replace(/^\s*[-•·]\s*/gm, '')
+      .replace(/[\u2022\u2023\u2013\u2014\u2190\u2192\u2193\u2194\u25a0-\u25FF\u2600-\u26FF]+\s?/g, '')
       .trim();
   }
 

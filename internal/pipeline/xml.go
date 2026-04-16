@@ -6,7 +6,11 @@ import (
 	"strings"
 )
 
-var unicodeBulletPattern = regexp.MustCompile(`\\u[0-9a-fA-F]{4}\s?|[\x{2022}\x{2023}\x{2013}\x{2014}\x{25CF}\x{25CB}]\s?`)
+// unicodeBulletPattern removes bullet/arrow symbols and literal \uXXXX escapes from LLM fact text.
+var unicodeBulletPattern = regexp.MustCompile(`\\u[0-9a-fA-F]{4}\s?|[\x{2022}\x{2023}\x{2013}\x{2014}\x{25CF}\x{25CB}\x{2190}\x{2191}\x{2192}\x{2193}\x{25A0}-\x{25FF}\x{2600}-\x{26FF}]+\s?`)
+
+// leadingSymbolPattern removes any non-letter/non-digit at the start of a string
+var leadingSymbolPattern = regexp.MustCompile(`^[^\p{L}\p{N}(]+`)
 
 // getXMLTag extracts the content of a single XML tag from text.
 // Example: getXMLTag("<title>Hello</title>", "title") returns "Hello"
@@ -32,8 +36,10 @@ func getXMLChildren(text, parent, child string) []string {
 	for _, m := range matches {
 		if len(m) >= 2 {
 			s := strings.TrimSpace(m[1])
-			// Strip unicode bullet characters that LLMs sometimes prepend
+			// Strip unicode bullets/symbols anywhere in the string
 			s = unicodeBulletPattern.ReplaceAllString(s, "")
+			// Strip any remaining non-letter/digit prefix (e.g. lone dash, dot)
+			s = leadingSymbolPattern.ReplaceAllString(s, "")
 			s = strings.TrimSpace(s)
 			if s != "" {
 				result = append(result, s)
