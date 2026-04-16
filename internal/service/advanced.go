@@ -290,11 +290,11 @@ func (s *AdvancedService) CreateLesson(content, context, source string, project 
 }
 
 // ListLessons returns lessons with optional project filter.
-func (s *AdvancedService) ListLessons(project string, limit int) ([]store.LessonRow, error) {
+func (s *AdvancedService) ListLessons(project string, limit, offset int) ([]store.LessonRow, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	return s.c.Lessons.List(project, limit)
+	return s.c.Lessons.List(project, limit, offset)
 }
 
 // SearchLessons performs a text search on lesson content.
@@ -321,11 +321,11 @@ func (s *AdvancedService) StrengthenLesson(id string) error {
 // ---------------------------------------------------------------------------
 
 // ListInsights returns insights with optional project filter.
-func (s *AdvancedService) ListInsights(project string, limit int) ([]store.InsightRow, error) {
+func (s *AdvancedService) ListInsights(project string, limit, offset int) ([]store.InsightRow, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	return s.c.Insights.List(project, limit)
+	return s.c.Insights.List(project, limit, offset)
 }
 
 // SearchInsights performs a text search on insight content and title.

@@ -352,8 +352,9 @@ func (h *AdvancedHandler) HandleCreateLesson(w http.ResponseWriter, r *http.Requ
 func (h *AdvancedHandler) HandleListLessons(w http.ResponseWriter, r *http.Request) {
 	project := r.URL.Query().Get("project")
 	limit := queryInt(r, "limit", 50)
+	offset := queryInt(r, "offset", 0)
 
-	lessons, err := h.svc.ListLessons(project, limit)
+	lessons, err := h.svc.ListLessons(project, limit, offset)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -405,8 +406,9 @@ func (h *AdvancedHandler) HandleStrengthenLesson(w http.ResponseWriter, r *http.
 func (h *AdvancedHandler) HandleListInsights(w http.ResponseWriter, r *http.Request) {
 	project := r.URL.Query().Get("project")
 	limit := queryInt(r, "limit", 50)
+	offset := queryInt(r, "offset", 0)
 
-	insights, err := h.svc.ListInsights(project, limit)
+	insights, err := h.svc.ListInsights(project, limit, offset)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

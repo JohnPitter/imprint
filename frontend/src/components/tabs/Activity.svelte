@@ -105,18 +105,27 @@
     return markers;
   }
 
+  let feedOffset = 0;
+  const feedLimit = 20;
+
   async function refresh() {
     try {
       const result = await api.listAudit(200, 0) as any;
       auditEntries = result.entries || result.audit || [];
       buildHeatmap(auditEntries);
       buildTypeBreakdown(auditEntries);
-      feedEntries = auditEntries.slice(0, 20);
+      feedEntries = auditEntries.slice(feedOffset, feedOffset + feedLimit);
     } catch (e) {
       console.error('Activity refresh error:', e);
     }
     loading = false;
   }
+
+  function feedPrev() { if (feedOffset >= feedLimit) { feedOffset -= feedLimit; feedEntries = auditEntries.slice(feedOffset, feedOffset + feedLimit); } }
+  function feedNext() { if (feedOffset + feedLimit < auditEntries.length) { feedOffset += feedLimit; feedEntries = auditEntries.slice(feedOffset, feedOffset + feedLimit); } }
+
+  $: feedPage = Math.floor(feedOffset / feedLimit) + 1;
+  $: feedTotalPages = Math.max(1, Math.ceil(auditEntries.length / feedLimit));
 
   onMount(() => { refresh(); interval = setInterval(refresh, 10000); });
   onDestroy(() => clearInterval(interval));
@@ -245,6 +254,11 @@
               <span class="mono feed-time">{timeAgo(entry.timestamp || entry.Timestamp || entry.createdAt)}</span>
             </div>
           {/each}
+        </div>
+        <div class="pagination">
+          <button class="pagination-btn" on:click={feedPrev} disabled={feedOffset === 0}>{'\u2190'} PREV</button>
+          <span class="pagination-info">PAGE {feedPage} OF {feedTotalPages}</span>
+          <button class="pagination-btn" on:click={feedNext} disabled={feedOffset + feedLimit >= auditEntries.length}>NEXT {'\u2192'}</button>
         </div>
       {:else}
         <p class="no-data">No activity yet</p>

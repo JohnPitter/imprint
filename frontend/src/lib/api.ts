@@ -19,7 +19,7 @@ export const api = {
   health: () => request<unknown>('GET', '/health'),
 
   // Sessions
-  listSessions: (limit = 50) => request<unknown>('GET', `/sessions?limit=${limit}`),
+  listSessions: (limit = 50, offset = 0) => request<unknown>('GET', `/sessions?limit=${limit}&offset=${offset}`),
   startSession: (data: Record<string, unknown>) => request<unknown>('POST', '/session/start', data),
   endSession: (data: Record<string, unknown>) => request<unknown>('POST', '/session/end', data),
 
@@ -27,7 +27,7 @@ export const api = {
   listObservations: (sessionId: string) => request<unknown>('GET', `/observations?sessionId=${sessionId}`),
 
   // Memories
-  listMemories: (type = '', limit = 50) => request<unknown>('GET', `/memories?type=${type}&limit=${limit}`),
+  listMemories: (type = '', limit = 50, offset = 0) => request<unknown>('GET', `/memories?type=${type}&limit=${limit}&offset=${offset}`),
   remember: (data: Record<string, unknown>) => request<unknown>('POST', '/remember', data),
   forget: (data: Record<string, unknown>) => request<unknown>('POST', '/forget', data),
   evolve: (data: Record<string, unknown>) => request<unknown>('POST', '/evolve', data),
@@ -41,16 +41,16 @@ export const api = {
   graphQuery: (startNodeId: string, maxDepth = 2) => request<unknown>('POST', '/graph/query', { startNodeId, maxDepth }),
 
   // Actions
-  listActions: (status = '', limit = 50) => request<unknown>('GET', `/actions?status=${status}&limit=${limit}`),
+  listActions: (status = '', limit = 50, offset = 0) => request<unknown>('GET', `/actions?status=${status}&limit=${limit}&offset=${offset}`),
   createAction: (data: Record<string, unknown>) => request<unknown>('POST', '/actions', data),
   frontier: () => request<unknown>('GET', '/frontier'),
 
   // Lessons
-  listLessons: (limit = 50) => request<unknown>('GET', `/lessons?limit=${limit}`),
+  listLessons: (limit = 50, offset = 0) => request<unknown>('GET', `/lessons?limit=${limit}&offset=${offset}`),
   searchLessons: (query: string) => request<unknown>('POST', '/lessons/search', { query }),
 
   // Insights
-  listInsights: (limit = 50) => request<unknown>('GET', `/insights?limit=${limit}`),
+  listInsights: (limit = 50, offset = 0) => request<unknown>('GET', `/insights?limit=${limit}&offset=${offset}`),
 
   // Audit
   listAudit: (limit = 50, offset = 0) => request<unknown>('GET', `/audit?limit=${limit}&offset=${offset}`),

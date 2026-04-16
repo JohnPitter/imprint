@@ -94,9 +94,12 @@ func (s *InsightStore) GetByID(id string) (*InsightRow, error) {
 }
 
 // List returns insights filtered by project, excluding soft-deleted, ordered by confidence DESC.
-func (s *InsightStore) List(project string, limit int) ([]InsightRow, error) {
+func (s *InsightStore) List(project string, limit, offset int) ([]InsightRow, error) {
 	if limit <= 0 {
 		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
 	}
 
 	var rows *sql.Rows
@@ -112,7 +115,7 @@ func (s *InsightStore) List(project string, limit int) ([]InsightRow, error) {
 				decay_rate, deleted
 			FROM insights
 			WHERE deleted = 0 AND project = ?
-			ORDER BY confidence DESC LIMIT ?`, project, limit)
+			ORDER BY confidence DESC LIMIT ? OFFSET ?`, project, limit, offset)
 	} else {
 		rows, err = s.db.Query(`
 			SELECT id, title, content, confidence, reinforcements,
@@ -123,7 +126,7 @@ func (s *InsightStore) List(project string, limit int) ([]InsightRow, error) {
 				decay_rate, deleted
 			FROM insights
 			WHERE deleted = 0
-			ORDER BY confidence DESC LIMIT ?`, limit)
+			ORDER BY confidence DESC LIMIT ? OFFSET ?`, limit, offset)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("list insights: %w", err)

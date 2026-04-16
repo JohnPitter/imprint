@@ -6,18 +6,45 @@
   let insights: any[] = [];
   let searchQuery = '';
   let loading = true;
+  let lessonsOffset = 0;
+  let insightsOffset = 0;
+  const limit = 30;
 
-  onMount(async () => {
+  onMount(() => loadAll());
+
+  async function loadAll() {
+    loading = true;
     try {
-      const [l, i] = await Promise.all([api.listLessons(50), api.listInsights(50)]);
+      const [l, i] = await Promise.all([
+        api.listLessons(limit, lessonsOffset),
+        api.listInsights(limit, insightsOffset),
+      ]);
       lessons = l.lessons || [];
       insights = i.insights || [];
     } catch(e) { console.error(e); }
     loading = false;
-  });
+  }
+
+  async function loadLessons() {
+    try { const r = await api.listLessons(limit, lessonsOffset); lessons = r.lessons || []; } catch(e) { console.error(e); }
+  }
+  async function loadInsights() {
+    try { const r = await api.listInsights(limit, insightsOffset); insights = r.insights || []; } catch(e) { console.error(e); }
+  }
+
+  function lessonsPrev() { if (lessonsOffset >= limit) { lessonsOffset -= limit; loadLessons(); } }
+  function lessonsNext() { if (lessons.length >= limit) { lessonsOffset += limit; loadLessons(); } }
+  function insightsPrev() { if (insightsOffset >= limit) { insightsOffset -= limit; loadInsights(); } }
+  function insightsNext() { if (insights.length >= limit) { insightsOffset += limit; loadInsights(); } }
+
+  $: lessonsPage = Math.floor(lessonsOffset / limit) + 1;
+  $: lessonsTotalPages = lessons.length < limit ? lessonsPage : lessonsPage + 1;
+  $: insightsPage = Math.floor(insightsOffset / limit) + 1;
+  $: insightsTotalPages = insights.length < limit ? insightsPage : insightsPage + 1;
 
   async function doSearch() {
     if (!searchQuery.trim()) return;
+    lessonsOffset = 0;
     try {
       const r = await api.searchLessons(searchQuery);
       lessons = r.lessons || [];
@@ -88,6 +115,11 @@
             </div>
           {/each}
         </div>
+        <div class="pagination">
+          <button class="pagination-btn" on:click={lessonsPrev} disabled={lessonsOffset === 0}>{'\u2190'} PREV</button>
+          <span class="pagination-info">PAGE {lessonsPage} OF {lessonsTotalPages}</span>
+          <button class="pagination-btn" on:click={lessonsNext} disabled={lessons.length < limit}>NEXT {'\u2192'}</button>
+        </div>
       {/if}
     </div>
 
@@ -111,6 +143,11 @@
               <p class="insight-content">{i.content}</p>
             </div>
           {/each}
+        </div>
+        <div class="pagination">
+          <button class="pagination-btn" on:click={insightsPrev} disabled={insightsOffset === 0}>{'\u2190'} PREV</button>
+          <span class="pagination-info">PAGE {insightsPage} OF {insightsTotalPages}</span>
+          <button class="pagination-btn" on:click={insightsNext} disabled={insights.length < limit}>NEXT {'\u2192'}</button>
         </div>
       {/if}
     </div>

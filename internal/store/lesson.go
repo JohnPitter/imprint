@@ -87,9 +87,12 @@ func (s *LessonStore) GetByID(id string) (*LessonRow, error) {
 }
 
 // List returns lessons filtered by project, excluding soft-deleted, ordered by confidence DESC.
-func (s *LessonStore) List(project string, limit int) ([]LessonRow, error) {
+func (s *LessonStore) List(project string, limit, offset int) ([]LessonRow, error) {
 	if limit <= 0 {
 		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
 	}
 
 	var rows *sql.Rows
@@ -103,7 +106,7 @@ func (s *LessonStore) List(project string, limit int) ([]LessonRow, error) {
 				decay_rate, deleted
 			FROM lessons
 			WHERE deleted = 0 AND project = ?
-			ORDER BY confidence DESC LIMIT ?`, project, limit)
+			ORDER BY confidence DESC LIMIT ? OFFSET ?`, project, limit, offset)
 	} else {
 		rows, err = s.db.Query(`
 			SELECT id, content, context, confidence, reinforcements, source,
@@ -112,7 +115,7 @@ func (s *LessonStore) List(project string, limit int) ([]LessonRow, error) {
 				decay_rate, deleted
 			FROM lessons
 			WHERE deleted = 0
-			ORDER BY confidence DESC LIMIT ?`, limit)
+			ORDER BY confidence DESC LIMIT ? OFFSET ?`, limit, offset)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("list lessons: %w", err)

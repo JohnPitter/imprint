@@ -9,6 +9,8 @@
   let loading = true;
   let actionLoading = '';
   let actionMessage = '';
+  let offset = 0;
+  const limit = 30;
 
   const typeLabels: Record<string, string> = {
     file_operation: 'FILE',
@@ -78,15 +80,24 @@
     }
   }
 
-  onMount(async () => {
+  onMount(() => loadSessions());
+
+  async function loadSessions() {
+    loading = true;
     try {
-      const r: any = await api.listSessions(100);
+      const r: any = await api.listSessions(limit, offset);
       sessions = r.sessions || [];
     } catch (e) {
       console.error(e);
     }
     loading = false;
-  });
+  }
+
+  function prevPage() { if (offset >= limit) { offset -= limit; loadSessions(); } }
+  function nextPage() { if (sessions.length >= limit) { offset += limit; loadSessions(); } }
+
+  $: currentPage = Math.floor(offset / limit) + 1;
+  $: totalPages = sessions.length < limit ? currentPage : currentPage + 1;
 
   async function selectSession(s: any) {
     selected = s;
@@ -106,7 +117,7 @@
     try {
       await api.endSession({ sessionId: getSessionId(selected) });
       actionMessage = 'Session ended successfully.';
-      const r: any = await api.listSessions(100);
+      const r: any = await api.listSessions(limit, offset);
       sessions = r.sessions || [];
       const fresh = sessions.find((s: any) => getSessionId(s) === getSessionId(selected));
       if (fresh) selected = fresh;
@@ -170,6 +181,11 @@
             </div>
           </button>
         {/each}
+      </div>
+      <div class="ss-pagination">
+        <button class="pagination-btn" on:click={prevPage} disabled={offset === 0}>{'\u2190'} PREV</button>
+        <span class="pagination-info">PAGE {currentPage} OF {totalPages}</span>
+        <button class="pagination-btn" on:click={nextPage} disabled={sessions.length < limit}>NEXT {'\u2192'}</button>
       </div>
     </div>
 
@@ -385,6 +401,15 @@
     font-size: 11px;
     color: var(--text-dim);
   }
+  .ss-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 12px 24px;
+    border-top: 1px solid var(--border);
+  }
+
   .ss-list-scroll {
     overflow-y: auto;
     flex: 1;

@@ -6,17 +6,24 @@
   let memories: any[] = [];
   let filter = '';
   let loading = true;
+  let offset = 0;
+  const limit = 30;
   const types = ['', 'pattern', 'preference', 'architecture', 'bug', 'workflow', 'fact'];
 
   onMount(() => load());
 
   async function load() {
     loading = true;
-    try { const r = await api.listMemories(filter, 100); memories = r.memories || []; } catch(e) { console.error(e); }
+    try { const r = await api.listMemories(filter, limit, offset); memories = r.memories || []; } catch(e) { console.error(e); }
     loading = false;
   }
 
-  function setFilter(t: string) { filter = t; load(); }
+  function setFilter(t: string) { filter = t; offset = 0; load(); }
+  function prev() { if (offset >= limit) { offset -= limit; load(); } }
+  function next() { if (memories.length >= limit) { offset += limit; load(); } }
+
+  $: currentPage = Math.floor(offset / limit) + 1;
+  $: totalPages = memories.length < limit ? currentPage : currentPage + 1;
 
   const typeColors: Record<string, string> = {
     pattern: 'badge-info', preference: 'badge-purple', architecture: 'badge-accent',
@@ -83,6 +90,12 @@
         </div>
       </div>
     {/each}
+  </div>
+
+  <div class="pagination">
+    <button class="pagination-btn" on:click={prev} disabled={offset === 0}>{'\u2190'} PREV</button>
+    <span class="pagination-info">PAGE {currentPage} OF {totalPages}</span>
+    <button class="pagination-btn" on:click={next} disabled={memories.length < limit}>NEXT {'\u2192'}</button>
   </div>
 {/if}
 

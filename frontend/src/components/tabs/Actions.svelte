@@ -5,15 +5,26 @@
   let actions: any[] = [];
   let frontier: any[] = [];
   let loading = true;
+  let offset = 0;
+  const limit = 30;
 
-  onMount(async () => {
+  onMount(() => load());
+
+  async function load() {
+    loading = true;
     try {
-      const [a, f] = await Promise.all([api.listActions('', 100), api.frontier()]);
+      const [a, f] = await Promise.all([api.listActions('', limit, offset), api.frontier()]);
       actions = a.actions || [];
       frontier = f.actions || [];
     } catch(e) { console.error(e); }
     loading = false;
-  });
+  }
+
+  function prev() { if (offset >= limit) { offset -= limit; load(); } }
+  function next() { if (actions.length >= limit) { offset += limit; load(); } }
+
+  $: currentPage = Math.floor(offset / limit) + 1;
+  $: totalPages = actions.length < limit ? currentPage : currentPage + 1;
 
   $: pending = actions.filter(a => a.status === 'pending');
   $: inProgress = actions.filter(a => a.status === 'in_progress');
@@ -145,6 +156,12 @@
           {/if}
         </div>
       </div>
+    </div>
+
+    <div class="pagination">
+      <button class="pagination-btn" on:click={prev} disabled={offset === 0}>{'\u2190'} PREV</button>
+      <span class="pagination-info">PAGE {currentPage} OF {totalPages}</span>
+      <button class="pagination-btn" on:click={next} disabled={actions.length < limit}>NEXT {'\u2192'}</button>
     </div>
   {/if}
 {/if}
