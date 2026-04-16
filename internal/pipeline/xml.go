@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+var unicodeBulletPattern = regexp.MustCompile(`\\u[0-9a-fA-F]{4}\s?|[\x{2022}\x{2023}\x{2013}\x{2014}\x{25CF}\x{25CB}]\s?`)
+
 // getXMLTag extracts the content of a single XML tag from text.
 // Example: getXMLTag("<title>Hello</title>", "title") returns "Hello"
 func getXMLTag(text, tag string) string {
@@ -30,6 +32,9 @@ func getXMLChildren(text, parent, child string) []string {
 	for _, m := range matches {
 		if len(m) >= 2 {
 			s := strings.TrimSpace(m[1])
+			// Strip unicode bullet characters that LLMs sometimes prepend
+			s = unicodeBulletPattern.ReplaceAllString(s, "")
+			s = strings.TrimSpace(s)
 			if s != "" {
 				result = append(result, s)
 			}
