@@ -244,9 +244,24 @@
   }
 
   function resetView() { zoom = 1; panX = 0; panY = 0; draw(); }
+
+  let fullscreen = false;
+
+  function toggleFullscreen() {
+    fullscreen = !fullscreen;
+    // Redraw after layout settles
+    setTimeout(() => draw(), 50);
+  }
+
+  // ESC closes fullscreen
+  function onKeyDown(e: KeyboardEvent) {
+    if (e.key === 'Escape' && fullscreen) { fullscreen = false; setTimeout(() => draw(), 50); }
+  }
 </script>
 
-<div class="graph-page">
+<svelte:window on:keydown={onKeyDown} />
+
+<div class="graph-page" class:is-fullscreen={fullscreen}>
   <div class="graph-header">
     <div>
       <div class="gold-line"></div>
@@ -255,6 +270,9 @@
     <div class="graph-controls">
       <span class="stat-mini mono">{nodeCount} nodes · {edgeCount} edges</span>
       <button class="btn" on:click={resetView}>Reset</button>
+      <button class="btn btn-icon" on:click={toggleFullscreen} title={fullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}>
+        {fullscreen ? '⊡' : '⊞'}
+      </button>
     </div>
   </div>
 
@@ -330,20 +348,38 @@
   .graph-header h3 { font-family:var(--font-display); font-size:16px; font-weight:600; }
   .graph-controls { display:flex; align-items:center; gap:12px; }
   .stat-mini { font-size:11px; color:var(--text-muted); }
+  .btn-icon { padding:6px 10px; font-size:16px; }
 
   .canvas-wrapper {
     position:relative;
     background:#030303;
     border:1px solid var(--border);
     margin-bottom:14px;
-    height: calc(100vh - 260px);
-    min-height: 400px;
+    height: 480px;
+    min-height: 320px;
+    transition: height 0.2s;
   }
   .canvas-wrapper:hover { border-color:var(--accent); }
   canvas { display:block; width:100%; height:100%; cursor:grab; }
   canvas:active { cursor:grabbing; }
 
-  .canvas-shell { width:100%; height:calc(100vh - 260px); min-height:400px; background:var(--bg-card); border:1px solid var(--border); animation:pulse 1.5s ease-in-out infinite; }
+  /* Fullscreen overlay */
+  .is-fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: #030303;
+    padding: 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .is-fullscreen .canvas-wrapper {
+    height: calc(100vh - 120px);
+    flex: 1;
+  }
+
+  .canvas-shell { width:100%; height:480px; min-height:320px; background:var(--bg-card); border:1px solid var(--border); animation:pulse 1.5s ease-in-out infinite; }
   @keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:.6} }
 
   .tooltip { position:absolute; top:12px; left:12px; background:rgba(3,3,3,.9); border:1px solid var(--accent); padding:10px 16px; display:flex; flex-direction:column; gap:3px; pointer-events:none; }
