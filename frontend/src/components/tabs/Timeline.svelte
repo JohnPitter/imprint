@@ -52,6 +52,11 @@
     return undefined;
   }
 
+  function clean(s: string | undefined | null): string {
+    if (!s) return '';
+    return s.replace(/\\u[0-9a-fA-F]{4}/g, '').replace(/[\u2022\u2023\u2013\u25cf\u25cb\u25aa]\s?/g, '').trim();
+  }
+
   onMount(async () => {
     try {
       const r: any = await api.listSessions(50);
@@ -208,13 +213,14 @@
           </div>
 
           {#if narrative}
-            <p class="tl-narrative">{narrative}</p>
+            <p class="tl-narrative">{clean(narrative)}</p>
           {/if}
 
           {#if facts && facts.length > 0}
             <ul class="tl-facts">
               {#each facts as fact}
-                <li>{fact}</li>
+                {@const f = clean(fact)}
+                {#if f}<li>{f}</li>{/if}
               {/each}
             </ul>
           {/if}

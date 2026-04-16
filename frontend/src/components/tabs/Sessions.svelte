@@ -41,6 +41,15 @@
     return undefined;
   }
 
+  // Strip unicode bullet artifacts that LLMs sometimes emit as literal text
+  function clean(s: string | undefined | null): string {
+    if (!s) return '';
+    return s
+      .replace(/\\u[0-9a-fA-F]{4}/g, '') // literal \uXXXX strings
+      .replace(/[\u2022\u2023\u2013\u2014\u25cf\u25cb\u25aa]\s?/g, '') // bullet chars
+      .trim();
+  }
+
   function getSessionId(s: any): string {
     return s.ID || s.id || '';
   }
@@ -270,7 +279,7 @@
                   <div class="ss-obs-top">
                     <div class="ss-obs-title">
                       <span class="badge {typeColors[obsType] || 'badge-info'}">{typeLabels[obsType] || obsType.replace('_', ' ').toUpperCase()}</span>
-                      <strong class="ss-obs-name">{title}</strong>
+                      <strong class="ss-obs-name">{clean(title)}</strong>
                       {#if importance}
                         <span class="ss-obs-importance mono">{'\u2605'}{importance}</span>
                       {/if}
@@ -280,12 +289,13 @@
                     {/if}
                   </div>
                   {#if narrative}
-                    <p class="ss-obs-narrative">{narrative}</p>
+                    <p class="ss-obs-narrative">{clean(narrative)}</p>
                   {/if}
                   {#if facts && facts.length > 0}
                     <ul class="ss-obs-facts">
                       {#each facts as fact}
-                        <li>{fact}</li>
+                        {@const f = clean(fact)}
+                        {#if f}<li>{f}</li>{/if}
                       {/each}
                     </ul>
                   {/if}
