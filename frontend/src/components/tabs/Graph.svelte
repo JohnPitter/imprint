@@ -22,7 +22,7 @@
 
   let nodes: SimNode[] = [];
   let edges: SimEdge[] = [];
-  let zoom = 1;
+  let zoom = 0.7;
   let panX = 0, panY = 0;
   let dragging = false;
   let dragStartX = 0, dragStartY = 0;
@@ -77,16 +77,21 @@
       edgeCounts.set(t, (edgeCounts.get(t) || 0) + 1);
     }
 
+    // Use small initial spread around origin (0,0) — camera centers on origin
     nodes = rawNodes.map((n: any, i: number) => {
       const id = n.id || n.ID || '';
       nodeMap.set(id, i);
       const ec = edgeCounts.get(id) || 0;
+      const angle = (i / rawNodes.length) * Math.PI * 2;
+      const r = 50 + Math.random() * 100;
       return {
         id, type: n.type || n.Type || 'other', name: n.name || n.Name || id,
-        x: 500 + (Math.random() - 0.5) * 800,
-        y: 400 + (Math.random() - 0.5) * 600,
-        vx: 0, vy: 0, edges: ec,
-        radius: Math.max(3, Math.min(20, 3 + ec * 2)),
+        x: Math.cos(angle) * r,
+        y: Math.sin(angle) * r,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: (Math.random() - 0.5) * 0.5,
+        edges: ec,
+        radius: Math.max(3, Math.min(18, 3 + ec * 1.8)),
       };
     });
 
@@ -108,11 +113,11 @@
       if (iteration > maxIterations) { draw(); return; }
       iteration++;
 
-      const repulsion = 5000;
-      const attraction = 0.002;
-      const damping = 0.88;
-      const centerGravity = 0.002;
-      const cx = 500, cy = 350;
+      const repulsion = 1200;
+      const attraction = 0.004;
+      const damping = 0.85;
+      const centerGravity = 0.005;
+      const cx = 0, cy = 0; // origin-centered
 
       // Repulsion
       for (let i = 0; i < nodes.length; i++) {
@@ -167,9 +172,9 @@
     // Apply DPR scaling, then pan + zoom
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.save();
+    // Center on origin (0,0) of simulation space
     ctx.translate(panX + W/2, panY + H/2);
     ctx.scale(zoom, zoom);
-    ctx.translate(-500, -350);
 
     // Edges — thin glowing lines
     for (const e of edges) {
@@ -245,8 +250,9 @@
       return;
     }
     const rect = canvasEl.getBoundingClientRect();
-    const mx = (e.clientX - rect.left - panX - W/2) / zoom + 500;
-    const my = (e.clientY - rect.top - panY - H/2) / zoom + 350;
+    // Map screen coords to simulation space (origin at 0,0)
+    const mx = (e.clientX - rect.left - panX - W/2) / zoom;
+    const my = (e.clientY - rect.top - panY - H/2) / zoom;
     hoveredNode = null;
     for (const n of nodes) {
       const dx = n.x - mx, dy = n.y - my;
@@ -273,7 +279,7 @@
     draw();
   }
 
-  function resetView() { zoom = 1; panX = 0; panY = 0; draw(); }
+  function resetView() { zoom = 0.7; panX = 0; panY = 0; draw(); }
 </script>
 
 <div class="graph-page">
