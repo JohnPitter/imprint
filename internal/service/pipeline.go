@@ -131,12 +131,21 @@ func (s *PipelineService) Consolidate(ctx context.Context, sessionID string) (in
 	s.c.LogAudit("memory.consolidate", sessionID, "session", map[string]any{"created": created, "observations": len(obs)})
 	log.Printf("[pipeline] Consolidated %d memories from %d observations", created, len(obs))
 
-	// Also detect patterns and store as lessons
+	// Also detect patterns and store as lessons (with dedup)
 	patterns := s.patterns.DetectPatterns(obs)
 	for _, p := range patterns {
 		if p.Confidence < 0.5 {
 			continue
 		}
+
+		// Dedup: check if a lesson with the same content already exists
+		existing, _ := s.c.Lessons.Search(p.Description[:min(50, len(p.Description))], 1)
+		if len(existing) > 0 {
+			// Strengthen existing lesson instead of creating duplicate
+			s.c.Lessons.Strengthen(existing[0].ID)
+			continue
+		}
+
 		lessonID := "les_" + uuid.New().String()[:8]
 		now := store.TimeToString(time.Now())
 		tagsJSON, _ := json.Marshal(p.Concepts)
