@@ -13,20 +13,22 @@ import (
 	"github.com/google/uuid"
 )
 
-// PipelineService orchestrates summarization, consolidation, and lesson extraction.
+// PipelineService orchestrates summarization, consolidation, reflection, and lesson extraction.
 type PipelineService struct {
 	c            *Container
 	summarizer   *pipeline.Summarizer
 	consolidator *pipeline.Consolidator
+	reflector    *pipeline.Reflector
 	patterns     *pipeline.PatternDetector
 }
 
 // NewPipelineService creates a new PipelineService.
-func NewPipelineService(c *Container, summarizer *pipeline.Summarizer, consolidator *pipeline.Consolidator) *PipelineService {
+func NewPipelineService(c *Container, summarizer *pipeline.Summarizer, consolidator *pipeline.Consolidator, reflector *pipeline.Reflector) *PipelineService {
 	return &PipelineService{
 		c:            c,
 		summarizer:   summarizer,
 		consolidator: consolidator,
+		reflector:    reflector,
 		patterns:     pipeline.NewPatternDetector(),
 	}
 }
@@ -163,17 +165,88 @@ func (s *PipelineService) Consolidate(ctx context.Context, sessionID string) (in
 	return created, nil
 }
 
-// RunFullPipeline runs summarize + consolidate for a session end.
-func (s *PipelineService) RunFullPipeline(ctx context.Context, sessionID string) error {
-	// 1. Summarize
-	if _, err := s.Summarize(ctx, sessionID); err != nil {
-		log.Printf("[pipeline] Summarize failed for %s: %v", sessionID[:min(12, len(sessionID))], err)
-		// Continue to consolidation even if summarize fails
+// Reflect generates insights from existing memories and observations via LLM.
+func (s *PipelineService) Reflect(ctx context.Context, sessionID string) (int, error) {
+	session, err := s.c.Sessions.GetByID(sessionID)
+	if err != nil {
+		return 0, fmt.Errorf("get session: %w", err)
 	}
 
-	// 2. Consolidate
+	// Get strong memories and recent observations
+	memories, err := s.c.Memories.ListByStrength(5, 30)
+	if err != nil {
+		return 0, fmt.Errorf("list memories: %w", err)
+	}
+
+	obs, err := s.c.Observations.ListCompressedByImportance(session.Project, 5, 30)
+	if err != nil {
+		return 0, fmt.Errorf("list observations: %w", err)
+	}
+
+	if len(memories) < 3 && len(obs) < 3 {
+		return 0, nil // not enough data
+	}
+
+	// Call LLM to reflect
+	insights, err := s.reflector.Reflect(ctx, memories, obs)
+	if err != nil {
+		return 0, fmt.Errorf("reflect: %w", err)
+	}
+
+	// Store insights
+	created := 0
+	for _, ins := range insights {
+		id := "ins_" + uuid.New().String()[:8]
+		now := store.TimeToString(time.Now())
+		conceptsJSON, _ := json.Marshal(ins.Concepts)
+
+		confidence := ins.Confidence
+		if confidence <= 0 || confidence > 1 {
+			confidence = 0.5
+		}
+
+		row := &store.InsightRow{
+			ID:                   id,
+			Title:                ins.Title,
+			Content:              ins.Content,
+			Confidence:           confidence,
+			SourceConceptCluster: json.RawMessage(conceptsJSON),
+			CreatedAt:            now,
+			UpdatedAt:            now,
+			DecayRate:            0.01,
+		}
+		if err := s.c.Insights.Create(row); err != nil {
+			log.Printf("[pipeline] Failed to store insight %s: %v", ins.Title, err)
+			continue
+		}
+		created++
+	}
+
+	if created > 0 {
+		s.c.LogAudit("insight.reflect", sessionID, "session", map[string]any{"created": created})
+		log.Printf("[pipeline] Generated %d insights from reflection", created)
+	}
+
+	return created, nil
+}
+
+// RunFullPipeline runs summarize + consolidate + reflect for a session end.
+func (s *PipelineService) RunFullPipeline(ctx context.Context, sessionID string) error {
+	sid := sessionID[:min(12, len(sessionID))]
+
+	// 1. Summarize
+	if _, err := s.Summarize(ctx, sessionID); err != nil {
+		log.Printf("[pipeline] Summarize failed for %s: %v", sid, err)
+	}
+
+	// 2. Consolidate (memories + lessons from patterns)
 	if _, err := s.Consolidate(ctx, sessionID); err != nil {
-		log.Printf("[pipeline] Consolidate failed for %s: %v", sessionID[:min(12, len(sessionID))], err)
+		log.Printf("[pipeline] Consolidate failed for %s: %v", sid, err)
+	}
+
+	// 3. Reflect (generate insights from memories + observations)
+	if _, err := s.Reflect(ctx, sessionID); err != nil {
+		log.Printf("[pipeline] Reflect failed for %s: %v", sid, err)
 	}
 
 	return nil
