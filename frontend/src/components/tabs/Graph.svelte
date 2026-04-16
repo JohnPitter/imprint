@@ -57,14 +57,13 @@
   function resizeCanvas() {
     if (!canvasEl || !wrapper) return;
     const rect = wrapper.getBoundingClientRect();
-    W = rect.width;
+    W = rect.width || 800;
     H = 700;
+    // Set backing store size for HiDPI — do NOT pre-scale the context here
     canvasEl.width = W * dpr;
     canvasEl.height = H * dpr;
     canvasEl.style.width = W + 'px';
     canvasEl.style.height = H + 'px';
-    const ctx = canvasEl.getContext('2d');
-    if (ctx) ctx.scale(dpr, dpr);
   }
 
   function buildSimulation(rawNodes: any[], rawEdges: any[]) {
@@ -161,10 +160,12 @@
     const ctx = canvasEl.getContext('2d');
     if (!ctx) return;
 
-    ctx.save();
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // reset for HiDPI
-    ctx.clearRect(0, 0, W, H);
+    // Clear with DPR-scaled dimensions
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
 
+    // Apply DPR scaling, then pan + zoom
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.save();
     ctx.translate(panX + W/2, panY + H/2);
     ctx.scale(zoom, zoom);
@@ -232,8 +233,7 @@
       }
     }
 
-    ctx.restore();
-    ctx.restore();
+    ctx.restore(); // undo pan+zoom save
   }
 
   function onMouseMove(e: MouseEvent) {
