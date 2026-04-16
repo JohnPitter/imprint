@@ -54,7 +54,12 @@
 
   function clean(s: string | undefined | null): string {
     if (!s) return '';
-    return s.replace(/\\u[0-9a-fA-F]{4}/g, '').replace(/[\u2022\u2023\u2013\u25cf\u25cb\u25aa]\s?/g, '').trim();
+    return s
+      .replace(/\\u[0-9a-fA-F]{4}\s?/g, '')
+      .replace(/^u2[0-9a-fA-F]{2,3}\s?/gm, '')
+      .replace(/[\u2022\u2023\u2013\u2014\u25cf\u25cb\u25aa\u2190\u2192]\s?/g, '')
+      .replace(/^\s*[-•·]\s*/gm, '')
+      .trim();
   }
 
   onMount(async () => {

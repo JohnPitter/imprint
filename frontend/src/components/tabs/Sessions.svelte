@@ -45,8 +45,10 @@
   function clean(s: string | undefined | null): string {
     if (!s) return '';
     return s
-      .replace(/\\u[0-9a-fA-F]{4}/g, '') // literal \uXXXX strings
-      .replace(/[\u2022\u2023\u2013\u2014\u25cf\u25cb\u25aa]\s?/g, '') // bullet chars
+      .replace(/\\u[0-9a-fA-F]{4}\s?/g, '')           // literal \uXXXX text
+      .replace(/^u2[0-9a-fA-F]{2,3}\s?/gm, '')         // u20xx prefix at line start
+      .replace(/[\u2022\u2023\u2013\u2014\u25cf\u25cb\u25aa\u2190\u2192\u2193\u2194]\s?/g, '') // unicode symbols
+      .replace(/^\s*[-•·]\s*/gm, '')                    // dash/bullet at line start
       .trim();
   }
 
