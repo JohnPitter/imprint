@@ -57,13 +57,33 @@
   function resizeCanvas() {
     if (!canvasEl || !wrapper) return;
     const rect = wrapper.getBoundingClientRect();
-    W = rect.width || 800;
-    H = 700;
-    // Set backing store size for HiDPI — do NOT pre-scale the context here
+    W = rect.width || window.innerWidth;
+    // Take most of the viewport height
+    H = Math.max(600, window.innerHeight - 220);
     canvasEl.width = W * dpr;
     canvasEl.height = H * dpr;
     canvasEl.style.width = W + 'px';
     canvasEl.style.height = H + 'px';
+  }
+
+  // After simulation settles, auto-fit all nodes into the viewport
+  function autoFit() {
+    if (nodes.length === 0) return;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const n of nodes) {
+      minX = Math.min(minX, n.x - n.radius);
+      maxX = Math.max(maxX, n.x + n.radius);
+      minY = Math.min(minY, n.y - n.radius);
+      maxY = Math.max(maxY, n.y + n.radius);
+    }
+    const graphW = maxX - minX;
+    const graphH = maxY - minY;
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    const pad = 60;
+    zoom = Math.min((W - pad * 2) / graphW, (H - pad * 2) / graphH, 3);
+    panX = -cx * zoom;
+    panY = -cy * zoom;
   }
 
   function buildSimulation(rawNodes: any[], rawEdges: any[]) {
@@ -110,7 +130,7 @@
     const maxIterations = 600;
 
     function tick() {
-      if (iteration > maxIterations) { draw(); return; }
+      if (iteration > maxIterations) { autoFit(); draw(); return; }
       iteration++;
 
       const repulsion = 1200;
@@ -279,7 +299,7 @@
     draw();
   }
 
-  function resetView() { zoom = 0.7; panX = 0; panY = 0; draw(); }
+  function resetView() { autoFit(); draw(); }
 </script>
 
 <div class="graph-page">
@@ -387,12 +407,13 @@
     border: 1px solid var(--border);
     margin-bottom: 16px;
     overflow: hidden;
+    width: 100%;
   }
   .canvas-wrapper:hover { border-color: var(--accent); }
-  canvas { display: block; cursor: grab; }
+  canvas { display: block; cursor: grab; width: 100% !important; }
   canvas:active { cursor: grabbing; }
 
-  .canvas-shell { width: 100%; height: 700px; background: var(--bg-card); border: 1px solid var(--border); }
+  .canvas-shell { width: 100%; height: 80vh; background: var(--bg-card); border: 1px solid var(--border); }
   .skeleton { animation: pulse 1.5s ease-in-out infinite; }
   @keyframes pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.6; } }
 

@@ -27,7 +27,7 @@
 <div class="app">
   <Header on:search={handleSearch} />
   <TabBar bind:activeTab />
-  <main class="content">
+  <main class="content" class:content-graph={activeTab === 'graph'}>
     {#if activeTab === 'dashboard'}<Dashboard />
     {:else if activeTab === 'sessions'}<Sessions />
     {:else if activeTab === 'timeline'}<Timeline />
@@ -47,4 +47,5 @@
 <style>
   .app { display:flex; flex-direction:column; height:100vh; }
   .content { flex:1; overflow-y:auto; padding:24px; }
+  .content-graph { padding:16px; }
 </style>
