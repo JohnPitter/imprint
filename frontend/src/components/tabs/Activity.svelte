@@ -50,7 +50,7 @@
   function buildTypeBreakdown(entries: any[]) {
     const counts = new Map<string, number>();
     for (const e of entries) {
-      const t = e.operation || e.Operation || e.type || e.Type || 'unknown';
+      const t = e.action || e.Action || e.operation || e.type || 'unknown';
       counts.set(t, (counts.get(t) || 0) + 1);
     }
     const total = entries.length || 1;
