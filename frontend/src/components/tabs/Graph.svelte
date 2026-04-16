@@ -3,26 +3,26 @@
   import { api } from '../../lib/api';
 
   let canvasEl: HTMLCanvasElement;
-  let wrapper: HTMLDivElement;
   let stats: any = null;
   let loading = true;
   let nodeCount = 0;
   let edgeCount = 0;
   let hoveredNode: any = null;
   let animFrame: number;
-  let dpr = 1;
-  let W = 0, H = 0;
+
+  // Simulation space: fixed coords, camera maps to canvas
+  const SIM_W = 1200, SIM_H = 900;
 
   interface SimNode {
     id: string; type: string; name: string;
     x: number; y: number; vx: number; vy: number;
     edges: number; radius: number;
   }
-  interface SimEdge { source: number; target: number; type: string; weight: number; }
+  interface SimEdge { source: number; target: number; type: string; }
 
   let nodes: SimNode[] = [];
   let edges: SimEdge[] = [];
-  let zoom = 0.7;
+  let zoom = 1;
   let panX = 0, panY = 0;
   let dragging = false;
   let dragStartX = 0, dragStartY = 0;
@@ -33,11 +33,9 @@
     decision: '#eab308', pattern: '#a78bfa', library: '#f472b6', person: '#34d399',
     project: '#c8933a', component: '#38bdf8', process: '#8b5cf6',
   };
-
   function getColor(type: string): string { return typeColors[type] || '#555'; }
 
   onMount(async () => {
-    dpr = window.devicePixelRatio || 1;
     try {
       const [s, g] = await Promise.all([api.graphStats(), api.graphAll()]) as any[];
       stats = s;
@@ -45,7 +43,6 @@
       edgeCount = s?.totalEdges || 0;
       if (g?.nodes?.length > 0) {
         buildSimulation(g.nodes, g.edges || []);
-        resizeCanvas();
         startSimulation();
       }
     } catch (e) { console.error(e); }
@@ -54,129 +51,78 @@
 
   onDestroy(() => { if (animFrame) cancelAnimationFrame(animFrame); });
 
-  function resizeCanvas() {
-    if (!canvasEl || !wrapper) return;
-    const rect = wrapper.getBoundingClientRect();
-    W = rect.width || window.innerWidth;
-    // Take most of the viewport height
-    H = Math.max(600, window.innerHeight - 220);
-    canvasEl.width = W * dpr;
-    canvasEl.height = H * dpr;
-    canvasEl.style.width = W + 'px';
-    canvasEl.style.height = H + 'px';
-  }
-
-  // After simulation settles, auto-fit all nodes into the viewport
-  function autoFit() {
-    if (nodes.length === 0) return;
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    for (const n of nodes) {
-      minX = Math.min(minX, n.x - n.radius);
-      maxX = Math.max(maxX, n.x + n.radius);
-      minY = Math.min(minY, n.y - n.radius);
-      maxY = Math.max(maxY, n.y + n.radius);
-    }
-    const graphW = maxX - minX;
-    const graphH = maxY - minY;
-    const cx = (minX + maxX) / 2;
-    const cy = (minY + maxY) / 2;
-    const pad = 60;
-    zoom = Math.min((W - pad * 2) / graphW, (H - pad * 2) / graphH, 3);
-    panX = -cx * zoom;
-    panY = -cy * zoom;
-  }
-
   function buildSimulation(rawNodes: any[], rawEdges: any[]) {
     const nodeMap = new Map<string, number>();
     const edgeCounts = new Map<string, number>();
-
     for (const e of rawEdges) {
       const s = e.sourceNodeId || e.SourceNodeID || '';
       const t = e.targetNodeId || e.TargetNodeID || '';
       edgeCounts.set(s, (edgeCounts.get(s) || 0) + 1);
       edgeCounts.set(t, (edgeCounts.get(t) || 0) + 1);
     }
-
-    // Use small initial spread around origin (0,0) — camera centers on origin
+    // Start nodes in a circle in the middle of sim space
+    const cx = SIM_W / 2, cy = SIM_H / 2;
     nodes = rawNodes.map((n: any, i: number) => {
       const id = n.id || n.ID || '';
       nodeMap.set(id, i);
       const ec = edgeCounts.get(id) || 0;
       const angle = (i / rawNodes.length) * Math.PI * 2;
-      const r = 50 + Math.random() * 100;
+      const r = 80 + Math.random() * 120;
       return {
         id, type: n.type || n.Type || 'other', name: n.name || n.Name || id,
-        x: Math.cos(angle) * r,
-        y: Math.sin(angle) * r,
+        x: cx + Math.cos(angle) * r,
+        y: cy + Math.sin(angle) * r,
         vx: (Math.random() - 0.5) * 0.5,
         vy: (Math.random() - 0.5) * 0.5,
         edges: ec,
-        radius: Math.max(3, Math.min(18, 3 + ec * 1.8)),
+        radius: Math.max(4, Math.min(18, 4 + ec * 1.8)),
       };
     });
-
     edges = [];
     for (const e of rawEdges) {
       const si = nodeMap.get(e.sourceNodeId || e.SourceNodeID || '');
       const ti = nodeMap.get(e.targetNodeId || e.TargetNodeID || '');
-      if (si !== undefined && ti !== undefined) {
-        edges.push({ source: si, target: ti, type: e.type || e.Type || '', weight: e.weight || e.Weight || 0.5 });
-      }
+      if (si !== undefined && ti !== undefined)
+        edges.push({ source: si, target: ti, type: e.type || e.Type || '' });
     }
   }
 
   function startSimulation() {
-    let iteration = 0;
-    const maxIterations = 600;
-
+    let iter = 0;
     function tick() {
-      if (iteration > maxIterations) { autoFit(); draw(); return; }
-      iteration++;
-
-      const repulsion = 1200;
-      const attraction = 0.004;
-      const damping = 0.85;
-      const centerGravity = 0.005;
-      const cx = 0, cy = 0; // origin-centered
-
-      // Repulsion
+      iter++;
+      const rep = 2000, att = 0.003, damp = 0.87, grav = 0.003;
+      const cx = SIM_W / 2, cy = SIM_H / 2;
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
-          const dx = nodes[j].x - nodes[i].x;
-          const dy = nodes[j].y - nodes[i].y;
-          const dist = Math.max(1, Math.sqrt(dx*dx + dy*dy));
-          const force = repulsion / (dist * dist);
-          const fx = (dx / dist) * force;
-          const fy = (dy / dist) * force;
+          const dx = nodes[j].x - nodes[i].x, dy = nodes[j].y - nodes[i].y;
+          const d = Math.max(1, Math.sqrt(dx*dx + dy*dy));
+          const f = rep / (d * d);
+          const fx = (dx/d)*f, fy = (dy/d)*f;
           nodes[i].vx -= fx; nodes[i].vy -= fy;
           nodes[j].vx += fx; nodes[j].vy += fy;
         }
       }
-
-      // Attraction
       for (const e of edges) {
         const s = nodes[e.source], t = nodes[e.target];
         const dx = t.x - s.x, dy = t.y - s.y;
-        const dist = Math.max(1, Math.sqrt(dx*dx + dy*dy));
-        const force = dist * attraction;
-        const fx = (dx / dist) * force;
-        const fy = (dy / dist) * force;
-        s.vx += fx; s.vy += fy;
-        t.vx -= fx; t.vy -= fy;
+        const d = Math.max(1, Math.sqrt(dx*dx + dy*dy));
+        const f = d * att;
+        const fx = (dx/d)*f, fy = (dy/d)*f;
+        s.vx += fx; s.vy += fy; t.vx -= fx; t.vy -= fy;
       }
-
-      // Apply
       for (const n of nodes) {
-        n.vx += (cx - n.x) * centerGravity;
-        n.vy += (cy - n.y) * centerGravity;
-        n.vx *= damping; n.vy *= damping;
+        n.vx += (cx - n.x) * grav; n.vy += (cy - n.y) * grav;
+        n.vx *= damp; n.vy *= damp;
         n.x += n.vx; n.y += n.vy;
+        // Clamp to sim bounds
+        n.x = Math.max(n.radius, Math.min(SIM_W - n.radius, n.x));
+        n.y = Math.max(n.radius, Math.min(SIM_H - n.radius, n.y));
       }
-
       draw();
-      animFrame = requestAnimationFrame(tick);
+      if (iter < 500) animFrame = requestAnimationFrame(tick);
+      else draw();
     }
-
     animFrame = requestAnimationFrame(tick);
   }
 
@@ -184,102 +130,100 @@
     if (!canvasEl) return;
     const ctx = canvasEl.getContext('2d');
     if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    const CW = canvasEl.clientWidth;
+    const CH = canvasEl.clientHeight;
 
-    // Clear with DPR-scaled dimensions
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+    // Ensure canvas backing store matches display size
+    if (canvasEl.width !== CW * dpr || canvasEl.height !== CH * dpr) {
+      canvasEl.width = CW * dpr;
+      canvasEl.height = CH * dpr;
+    }
 
-    // Apply DPR scaling, then pan + zoom
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.save();
-    // Center on origin (0,0) of simulation space
-    ctx.translate(panX + W/2, panY + H/2);
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, CW, CH);
+
+    // Camera: map sim space to canvas
+    ctx.save();
+    ctx.translate(panX + CW / 2 - (SIM_W / 2) * zoom, panY + CH / 2 - (SIM_H / 2) * zoom);
     ctx.scale(zoom, zoom);
 
-    // Edges — thin glowing lines
+    // Edges
+    ctx.lineWidth = 0.7;
+    ctx.strokeStyle = 'rgba(200,147,58,0.1)';
+    ctx.beginPath();
     for (const e of edges) {
       const s = nodes[e.source], t = nodes[e.target];
+      ctx.moveTo(s.x, s.y); ctx.lineTo(t.x, t.y);
+    }
+    ctx.stroke();
+
+    // Hovered edges
+    if (hoveredNode) {
+      const hi = nodes.indexOf(hoveredNode);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(200,147,58,0.55)';
       ctx.beginPath();
-      ctx.moveTo(s.x, s.y);
-      ctx.lineTo(t.x, t.y);
-      ctx.strokeStyle = 'rgba(200, 147, 58, 0.08)';
-      ctx.lineWidth = 0.8;
+      for (const e of edges) {
+        if (e.source === hi || e.target === hi) {
+          ctx.moveTo(nodes[e.source].x, nodes[e.source].y);
+          ctx.lineTo(nodes[e.target].x, nodes[e.target].y);
+        }
+      }
       ctx.stroke();
     }
 
-    // Highlight edges for hovered node
-    if (hoveredNode) {
-      const hi = nodes.indexOf(hoveredNode);
-      for (const e of edges) {
-        if (e.source === hi || e.target === hi) {
-          const s = nodes[e.source], t = nodes[e.target];
-          ctx.beginPath();
-          ctx.moveTo(s.x, s.y);
-          ctx.lineTo(t.x, t.y);
-          ctx.strokeStyle = 'rgba(200, 147, 58, 0.5)';
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-        }
-      }
-    }
-
-    // Nodes — glowing circles
+    // Nodes
     for (const n of nodes) {
-      const isHovered = n === hoveredNode;
       const color = getColor(n.type);
-
+      const hov = n === hoveredNode;
       // Glow
-      if (n.radius > 5 || isHovered) {
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, n.radius * (isHovered ? 3 : 2), 0, Math.PI * 2);
-        const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.radius * (isHovered ? 3 : 2));
-        grad.addColorStop(0, color + (isHovered ? '40' : '15'));
-        grad.addColorStop(1, color + '00');
-        ctx.fillStyle = grad;
-        ctx.fill();
+      if (n.radius > 5 || hov) {
+        const g = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.radius * (hov ? 4 : 2.5));
+        g.addColorStop(0, color + (hov ? '50' : '20'));
+        g.addColorStop(1, color + '00');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(n.x, n.y, n.radius * (hov ? 4 : 2.5), 0, Math.PI*2); ctx.fill();
       }
-
       // Core
-      ctx.beginPath();
-      ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
       ctx.fillStyle = color;
-      ctx.globalAlpha = isHovered ? 1 : 0.9;
-      ctx.fill();
+      ctx.globalAlpha = hov ? 1 : 0.88;
+      ctx.beginPath(); ctx.arc(n.x, n.y, n.radius, 0, Math.PI*2); ctx.fill();
       ctx.globalAlpha = 1;
-
       // Label
-      if (n.radius > 7 || isHovered) {
+      if (n.radius > 7 || hov) {
         ctx.fillStyle = '#f4f4f5';
-        ctx.font = `600 ${Math.max(9, n.radius)}px Manrope, sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        const label = n.name.length > 24 ? n.name.slice(0, 22) + '..' : n.name;
-        ctx.fillText(label, n.x, n.y - n.radius - 5);
+        ctx.font = `600 ${Math.max(9, n.radius * 0.85)}px Manrope, sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+        ctx.fillText(n.name.slice(0, 22), n.x, n.y - n.radius - 4);
       }
     }
 
-    ctx.restore(); // undo pan+zoom save
+    ctx.restore();
+    ctx.restore();
+  }
+
+  function getSimCoords(clientX: number, clientY: number): [number, number] {
+    if (!canvasEl) return [0, 0];
+    const rect = canvasEl.getBoundingClientRect();
+    const CW = canvasEl.clientWidth, CH = canvasEl.clientHeight;
+    const sx = (clientX - rect.left - panX - CW/2 + (SIM_W/2)*zoom) / zoom;
+    const sy = (clientY - rect.top - panY - CH/2 + (SIM_H/2)*zoom) / zoom;
+    return [sx, sy];
   }
 
   function onMouseMove(e: MouseEvent) {
-    if (!canvasEl) return;
     if (dragging) {
       panX = panStartX + (e.clientX - dragStartX);
       panY = panStartY + (e.clientY - dragStartY);
-      draw();
-      return;
+      draw(); return;
     }
-    const rect = canvasEl.getBoundingClientRect();
-    // Map screen coords to simulation space (origin at 0,0)
-    const mx = (e.clientX - rect.left - panX - W/2) / zoom;
-    const my = (e.clientY - rect.top - panY - H/2) / zoom;
+    const [mx, my] = getSimCoords(e.clientX, e.clientY);
     hoveredNode = null;
     for (const n of nodes) {
       const dx = n.x - mx, dy = n.y - my;
-      if (dx*dx + dy*dy < (n.radius + 5) * (n.radius + 5)) {
-        hoveredNode = n;
-        break;
-      }
+      if (dx*dx + dy*dy < (n.radius+6)*(n.radius+6)) { hoveredNode = n; break; }
     }
     if (canvasEl) canvasEl.style.cursor = hoveredNode ? 'pointer' : 'grab';
     draw();
@@ -295,11 +239,11 @@
   function onWheel(e: WheelEvent) {
     e.preventDefault();
     zoom *= e.deltaY > 0 ? 0.92 : 1.08;
-    zoom = Math.max(0.1, Math.min(8, zoom));
+    zoom = Math.max(0.15, Math.min(8, zoom));
     draw();
   }
 
-  function resetView() { autoFit(); draw(); }
+  function resetView() { zoom = 1; panX = 0; panY = 0; draw(); }
 </script>
 
 <div class="graph-page">
@@ -309,8 +253,7 @@
       <h3>Knowledge Graph</h3>
     </div>
     <div class="graph-controls">
-      <span class="stat-mini mono">{nodeCount} nodes</span>
-      <span class="stat-mini mono">{edgeCount} edges</span>
+      <span class="stat-mini mono">{nodeCount} nodes · {edgeCount} edges</span>
       <button class="btn" on:click={resetView}>Reset</button>
     </div>
   </div>
@@ -319,11 +262,11 @@
     <div class="canvas-shell skeleton"></div>
   {:else if nodes.length === 0}
     <div class="empty-state">
-      <div class="icon" style="font-size:32px; opacity:0.15">&#9670;</div>
-      <p>No graph data yet</p>
+      <div class="icon" style="font-size:32px;opacity:0.15">&#9670;</div>
+      <p>No graph data yet. Run a session and close it to populate the graph.</p>
     </div>
   {:else}
-    <div class="canvas-wrapper" bind:this={wrapper}>
+    <div class="canvas-wrapper">
       <canvas
         bind:this={canvasEl}
         on:mousemove={onMouseMove}
@@ -332,12 +275,11 @@
         on:mouseleave={onMouseUp}
         on:wheel|preventDefault={onWheel}
       ></canvas>
-
       {#if hoveredNode}
         <div class="tooltip">
-          <span class="tooltip-type" style="color:{getColor(hoveredNode.type)}">{hoveredNode.type}</span>
-          <span class="tooltip-name">{hoveredNode.name}</span>
-          <span class="tooltip-edges mono">{hoveredNode.edges} connections</span>
+          <span style="color:{getColor(hoveredNode.type)};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em">{hoveredNode.type}</span>
+          <span style="font-size:14px;font-weight:600;color:var(--text-primary)">{hoveredNode.name}</span>
+          <span style="font-size:11px;color:var(--text-muted)">{hoveredNode.edges} connections</span>
         </div>
       {/if}
     </div>
@@ -345,46 +287,34 @@
     <div class="legend">
       {#each Object.entries(typeColors) as [type, color]}
         <div class="legend-item">
-          <div class="legend-dot" style="background:{color}"></div>
+          <div class="dot" style="background:{color}"></div>
           <span>{type}</span>
         </div>
       {/each}
     </div>
 
     <div class="breakdown-grid">
-      {#if stats?.nodesByType && Object.keys(stats.nodesByType).length > 0}
+      {#if stats?.nodesByType}
         <div class="breakdown-card">
-          <div class="breakdown-header">
-            <div class="gold-line" style="margin-bottom:0"></div>
-            <span class="breakdown-title">NODES BY TYPE</span>
-          </div>
+          <div class="bh"><div class="gold-line" style="margin-bottom:0"></div><span class="bt">NODES BY TYPE</span></div>
           <table>
             <thead><tr><th>TYPE</th><th style="text-align:right">COUNT</th></tr></thead>
             <tbody>
               {#each Object.entries(stats.nodesByType).sort((a,b) => Number(b[1]) - Number(a[1])) as [type, count]}
-                <tr>
-                  <td><span class="legend-dot-inline" style="background:{getColor(type)}"></span> {type}</td>
-                  <td class="mono" style="text-align:right">{count}</td>
-                </tr>
+                <tr><td><span class="dot-inline" style="background:{getColor(type)}"></span>{type}</td><td class="mono" style="text-align:right">{count}</td></tr>
               {/each}
             </tbody>
           </table>
         </div>
       {/if}
-      {#if stats?.edgesByType && Object.keys(stats.edgesByType).length > 0}
+      {#if stats?.edgesByType}
         <div class="breakdown-card">
-          <div class="breakdown-header">
-            <div class="gold-line" style="margin-bottom:0"></div>
-            <span class="breakdown-title">EDGES BY TYPE</span>
-          </div>
+          <div class="bh"><div class="gold-line" style="margin-bottom:0"></div><span class="bt">EDGES BY TYPE</span></div>
           <table>
             <thead><tr><th>TYPE</th><th style="text-align:right">COUNT</th></tr></thead>
             <tbody>
               {#each Object.entries(stats.edgesByType).sort((a,b) => Number(b[1]) - Number(a[1])) as [type, count]}
-                <tr>
-                  <td>{type}</td>
-                  <td class="mono" style="text-align:right">{count}</td>
-                </tr>
+                <tr><td>{type}</td><td class="mono" style="text-align:right">{count}</td></tr>
               {/each}
             </tbody>
           </table>
@@ -395,55 +325,38 @@
 </div>
 
 <style>
-  .graph-page { display: flex; flex-direction: column; }
-  .graph-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
-  .graph-header h3 { font-family: var(--font-display); font-size: 16px; font-weight: 600; }
-  .graph-controls { display: flex; align-items: center; gap: 12px; }
-  .stat-mini { font-size: 11px; color: var(--text-muted); }
+  .graph-page { display:flex; flex-direction:column; }
+  .graph-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; }
+  .graph-header h3 { font-family:var(--font-display); font-size:16px; font-weight:600; }
+  .graph-controls { display:flex; align-items:center; gap:12px; }
+  .stat-mini { font-size:11px; color:var(--text-muted); }
 
   .canvas-wrapper {
-    position: relative;
-    background: #030303;
-    border: 1px solid var(--border);
-    margin-bottom: 16px;
-    overflow: hidden;
-    width: 100%;
+    position:relative;
+    background:#030303;
+    border:1px solid var(--border);
+    margin-bottom:14px;
+    height: calc(100vh - 260px);
+    min-height: 400px;
   }
-  .canvas-wrapper:hover { border-color: var(--accent); }
-  canvas { display: block; cursor: grab; width: 100% !important; }
-  canvas:active { cursor: grabbing; }
+  .canvas-wrapper:hover { border-color:var(--accent); }
+  canvas { display:block; width:100%; height:100%; cursor:grab; }
+  canvas:active { cursor:grabbing; }
 
-  .canvas-shell { width: 100%; height: 80vh; background: var(--bg-card); border: 1px solid var(--border); }
-  .skeleton { animation: pulse 1.5s ease-in-out infinite; }
-  @keyframes pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.6; } }
+  .canvas-shell { width:100%; height:calc(100vh - 260px); min-height:400px; background:var(--bg-card); border:1px solid var(--border); animation:pulse 1.5s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:.6} }
 
-  .tooltip {
-    position: absolute;
-    top: 12px; left: 12px;
-    background: rgba(3,3,3,0.9);
-    border: 1px solid var(--accent);
-    padding: 10px 16px;
-    display: flex; flex-direction: column; gap: 2px;
-    pointer-events: none;
-    backdrop-filter: blur(4px);
-  }
-  .tooltip-type { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; font-family: var(--font-ui); }
-  .tooltip-name { font-size: 15px; font-weight: 600; color: var(--text-primary); font-family: var(--font-display); }
-  .tooltip-edges { font-size: 11px; color: var(--text-muted); }
+  .tooltip { position:absolute; top:12px; left:12px; background:rgba(3,3,3,.9); border:1px solid var(--accent); padding:10px 16px; display:flex; flex-direction:column; gap:3px; pointer-events:none; }
 
-  .legend {
-    display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 20px;
-    padding: 10px 16px;
-    background: var(--bg-card); border: 1px solid var(--border);
-  }
-  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text-muted); font-family: var(--font-ui); text-transform: uppercase; letter-spacing: 0.06em; }
-  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
-  .legend-dot-inline { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; }
+  .legend { display:flex; flex-wrap:wrap; gap:14px; margin-bottom:14px; padding:10px 14px; background:var(--bg-card); border:1px solid var(--border); }
+  .legend-item { display:flex; align-items:center; gap:6px; font-size:10px; color:var(--text-muted); font-family:var(--font-ui); text-transform:uppercase; letter-spacing:.06em; }
+  .dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .dot-inline { display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:6px; }
 
-  .breakdown-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  @media (max-width: 700px) { .breakdown-grid { grid-template-columns: 1fr; } }
-  .breakdown-card { background: var(--bg-card); border: 1px solid var(--border); padding: 20px; }
-  .breakdown-card:hover { border-color: var(--accent); box-shadow: var(--shadow-hover); }
-  .breakdown-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-  .breakdown-title { font-family: var(--font-ui); font-size: 10px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.12em; }
+  .breakdown-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media(max-width:700px){.breakdown-grid{grid-template-columns:1fr}}
+  .breakdown-card { background:var(--bg-card); border:1px solid var(--border); padding:18px; }
+  .breakdown-card:hover { border-color:var(--accent); box-shadow:var(--shadow-hover); }
+  .bh { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .bt { font-family:var(--font-ui); font-size:10px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.12em; }
 </style>
