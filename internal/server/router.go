@@ -94,7 +94,7 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 		// Search
 		if deps.Search != nil {
 			r.Post("/search", deps.Search.HandleSearch)
-			r.Post("/smart-search", deps.Search.HandleSmartSearch)
+			r.Post("/smart-search", deps.Search.HandleSearch) // alias
 		} else {
 			r.Post("/search", notImplemented)
 			r.Post("/smart-search", notImplemented)

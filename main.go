@@ -85,13 +85,13 @@ func main() {
 	log.Println("[app] Search indexes initialized")
 
 	// Create services
-	sessionSvc := service.NewSessionService(container)
+	contextSvc := service.NewContextService(container, cfg.ContextTokenBudget)
+	contextSvc.SetDataDir(cfg.DataDir)
+	sessionSvc := service.NewSessionService(container, contextSvc)
 	observeSvc := service.NewObserveService(container, cfg.MaxObservationsPerSession, cfg.ToolOutputMaxLen)
 	observeSvc.SetCompressor(worker) // auto-compress observations in background
 	rememberSvc := service.NewRememberService(container)
 	searchSvc := service.NewSearchService(container, searcher)
-	contextSvc := service.NewContextService(container, cfg.ContextTokenBudget)
-	contextSvc.SetDataDir(cfg.DataDir)
 
 	// Create graph components
 	graphExtractor := pipeline.NewGraphExtractor(llmProvider)

@@ -25,7 +25,7 @@ func setupTestContainer(t *testing.T) *Container {
 
 func TestSessionService_StartAndEnd(t *testing.T) {
 	c := setupTestContainer(t)
-	svc := NewSessionService(c)
+	svc := NewSessionService(c, nil)
 
 	session, blocks, err := svc.Start("ses_test1", "myproject", "/tmp/proj")
 	if err != nil {
@@ -66,7 +66,7 @@ func TestSessionService_StartAndEnd(t *testing.T) {
 
 func TestSessionService_StartGeneratesID(t *testing.T) {
 	c := setupTestContainer(t)
-	svc := NewSessionService(c)
+	svc := NewSessionService(c, nil)
 
 	session, _, err := svc.Start("", "proj", "/tmp")
 	if err != nil {
@@ -86,7 +86,7 @@ func TestSessionService_StartGeneratesID(t *testing.T) {
 
 func TestSessionService_StartRequiresProject(t *testing.T) {
 	c := setupTestContainer(t)
-	svc := NewSessionService(c)
+	svc := NewSessionService(c, nil)
 
 	_, _, err := svc.Start("ses_x", "", "/tmp")
 	if err == nil {
@@ -96,7 +96,7 @@ func TestSessionService_StartRequiresProject(t *testing.T) {
 
 func TestSessionService_List(t *testing.T) {
 	c := setupTestContainer(t)
-	svc := NewSessionService(c)
+	svc := NewSessionService(c, nil)
 
 	// Create 3 sessions.
 	for i := 0; i < 3; i++ {
@@ -152,7 +152,7 @@ func strPtr(s string) *string { return &s }
 func TestObserveService_Observe(t *testing.T) {
 	c := setupTestContainer(t)
 	// Create a session first so IncrementObservationCount works.
-	sessionSvc := NewSessionService(c)
+	sessionSvc := NewSessionService(c, nil)
 	sessionSvc.Start("ses_obs1", "proj", "/tmp")
 
 	svc := NewObserveService(c, 500, 8000)
@@ -187,7 +187,7 @@ func TestObserveService_Observe(t *testing.T) {
 
 func TestObserveService_ObserveStripsSecrets(t *testing.T) {
 	c := setupTestContainer(t)
-	sessionSvc := NewSessionService(c)
+	sessionSvc := NewSessionService(c, nil)
 	sessionSvc.Start("ses_secret", "proj", "/tmp")
 
 	svc := NewObserveService(c, 500, 8000)
@@ -222,7 +222,7 @@ func TestObserveService_ObserveStripsSecrets(t *testing.T) {
 
 func TestObserveService_ObserveDedup(t *testing.T) {
 	c := setupTestContainer(t)
-	sessionSvc := NewSessionService(c)
+	sessionSvc := NewSessionService(c, nil)
 	sessionSvc.Start("ses_dedup", "proj", "/tmp")
 
 	svc := NewObserveService(c, 500, 8000)
@@ -250,7 +250,7 @@ func TestObserveService_ObserveDedup(t *testing.T) {
 
 func TestObserveService_ObserveRateLimit(t *testing.T) {
 	c := setupTestContainer(t)
-	sessionSvc := NewSessionService(c)
+	sessionSvc := NewSessionService(c, nil)
 	sessionSvc.Start("ses_rate", "proj", "/tmp")
 
 	// Allow only 2 observations per session.

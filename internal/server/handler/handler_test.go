@@ -21,7 +21,7 @@ func setupTestHandlers(t *testing.T) (*SessionHandler, *ObservationHandler, *Mem
 	}
 	t.Cleanup(func() { db.Close() })
 	c := service.NewContainer(db)
-	sessionSvc := service.NewSessionService(c)
+	sessionSvc := service.NewSessionService(c, nil)
 	observeSvc := service.NewObserveService(c, 500, 8000)
 	rememberSvc := service.NewRememberService(c)
 	return NewSessionHandler(sessionSvc), NewObservationHandler(observeSvc), NewMemoryHandler(rememberSvc)

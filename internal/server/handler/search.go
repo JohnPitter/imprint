@@ -44,11 +44,6 @@ func (h *SearchHandler) HandleSearch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"results": results, "count": len(results)})
 }
 
-// HandleSmartSearch handles POST /imprint/smart-search.
-func (h *SearchHandler) HandleSmartSearch(w http.ResponseWriter, r *http.Request) {
-	h.HandleSearch(w, r)
-}
-
 // HandleContext handles POST /imprint/context.
 func (h *SearchHandler) HandleContext(w http.ResponseWriter, r *http.Request) {
 	var req struct {

@@ -9,8 +9,7 @@ import (
 
 func main() {
 	cfg := hooks.LoadConfig()
-	// Use longer timeout for session-end since it triggers LLM pipelines
-	cfg.Timeout = 120 * time.Second
+	cfg.Timeout = 300 * time.Second // Full pipeline needs time
 
 	input, err := hooks.ReadStdin()
 	if err != nil {
@@ -25,9 +24,6 @@ func main() {
 	// 1. End the session
 	hooks.Post(cfg, "/imprint/session/end", map[string]string{"sessionId": sessionID})
 
-	// 2. Summarize (LLM generates session summary)
-	hooks.Post(cfg, "/imprint/summarize", map[string]string{"sessionId": sessionID})
-
-	// 3. Consolidate (LLM groups observations into memories + detects patterns as lessons)
-	hooks.Post(cfg, "/imprint/consolidate-pipeline", map[string]string{"sessionId": sessionID})
+	// 2. Run full pipeline (summarize + consolidate + graph + actions + crystal + reflect)
+	hooks.Post(cfg, "/imprint/consolidate", map[string]string{"sessionId": sessionID})
 }
