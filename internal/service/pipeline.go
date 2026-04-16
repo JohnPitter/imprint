@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"imprint/internal/pipeline"
@@ -271,7 +272,145 @@ func (s *PipelineService) ExtractGraph(ctx context.Context, sessionID string) (i
 	return processed, nil
 }
 
-// RunFullPipeline runs summarize + consolidate + graph + reflect for a session end.
+// ExtractActions creates action items from high-importance observations (heuristic, no LLM).
+func (s *PipelineService) ExtractActions(ctx context.Context, sessionID string) (int, error) {
+	session, err := s.c.Sessions.GetByID(sessionID)
+	if err != nil {
+		return 0, fmt.Errorf("get session: %w", err)
+	}
+
+	obs, err := s.c.Observations.ListCompressed(sessionID, 100, 0)
+	if err != nil {
+		return 0, fmt.Errorf("list observations: %w", err)
+	}
+
+	created := 0
+	for _, o := range obs {
+		// Only create actions from high-importance observations (>= 7)
+		if o.Importance < 7 {
+			continue
+		}
+
+		id := "act_" + uuid.New().String()[:8]
+		now := store.TimeToString(time.Now())
+
+		status := "done" // session already ended, these are completed actions
+		priority := o.Importance
+
+		var project *string
+		if session.Project != "" {
+			project = &session.Project
+		}
+
+		tagsJSON, _ := json.Marshal(o.Concepts)
+		row := &store.ActionRow{
+			ID:          id,
+			Title:       o.Title,
+			Description: "",
+			Status:      status,
+			Priority:    priority,
+			Project:     project,
+			Tags:        json.RawMessage(tagsJSON),
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+
+		if o.Narrative != nil {
+			row.Description = *o.Narrative
+		}
+
+		if err := s.c.Actions.Create(row); err != nil {
+			continue
+		}
+		created++
+	}
+
+	if created > 0 {
+		s.c.LogAudit("action.extract", sessionID, "session", map[string]any{"created": created})
+		log.Printf("[pipeline] Created %d actions from high-importance observations", created)
+	}
+
+	return created, nil
+}
+
+// CreateCrystal generates a crystal (narrative digest) from the session's observations.
+func (s *PipelineService) CreateCrystal(ctx context.Context, sessionID string) error {
+	session, err := s.c.Sessions.GetByID(sessionID)
+	if err != nil {
+		return fmt.Errorf("get session: %w", err)
+	}
+
+	obs, err := s.c.Observations.ListCompressed(sessionID, 50, 0)
+	if err != nil {
+		return fmt.Errorf("list observations: %w", err)
+	}
+
+	if len(obs) < 3 {
+		return nil // not enough data for a crystal
+	}
+
+	// Build summary from observations for the crystal narrative
+	summary, _ := s.c.Summaries.GetBySessionID(sessionID)
+	narrative := ""
+	if summary != nil {
+		narrative = summary.Narrative
+	} else {
+		// Fallback: build from observation titles
+		var titles []string
+		for _, o := range obs {
+			titles = append(titles, o.Title)
+		}
+		narrative = fmt.Sprintf("Session with %d observations: %s", len(obs), strings.Join(titles[:min(5, len(titles))], ", "))
+	}
+
+	// Collect files and outcomes from observations
+	var filesSet = map[string]bool{}
+	var outcomes []string
+	for _, o := range obs {
+		if o.Importance >= 7 {
+			outcomes = append(outcomes, o.Title)
+		}
+		for _, f := range o.Files {
+			filesSet[f] = true
+		}
+	}
+	var files []string
+	for f := range filesSet {
+		files = append(files, f)
+	}
+
+	id := "cry_" + uuid.New().String()[:8]
+	now := store.TimeToString(time.Now())
+	outcomesJSON, _ := json.Marshal(outcomes)
+	filesJSON, _ := json.Marshal(files)
+
+	var project *string
+	if session.Project != "" {
+		project = &session.Project
+	}
+	sid := &sessionID
+
+	row := &store.CrystalRow{
+		ID:          id,
+		Narrative:   narrative,
+		KeyOutcomes: json.RawMessage(outcomesJSON),
+		FilesAffected: json.RawMessage(filesJSON),
+		Lessons:     json.RawMessage("[]"),
+		SessionID:   sid,
+		Project:     project,
+		CreatedAt:   now,
+	}
+
+	if err := s.c.Crystals.Create(row); err != nil {
+		return fmt.Errorf("store crystal: %w", err)
+	}
+
+	s.c.LogAudit("crystal.create", id, "crystal", map[string]any{"observations": len(obs)})
+	log.Printf("[pipeline] Created crystal %s from %d observations", id, len(obs))
+	return nil
+}
+
+// RunFullPipeline runs all pipeline stages for a session end.
 func (s *PipelineService) RunFullPipeline(ctx context.Context, sessionID string) error {
 	sid := sessionID[:min(12, len(sessionID))]
 
@@ -290,7 +429,17 @@ func (s *PipelineService) RunFullPipeline(ctx context.Context, sessionID string)
 		log.Printf("[pipeline] Graph extraction failed for %s: %v", sid, err)
 	}
 
-	// 4. Reflect (generate insights from memories + observations)
+	// 4. Extract actions from high-importance observations
+	if _, err := s.ExtractActions(ctx, sessionID); err != nil {
+		log.Printf("[pipeline] Action extraction failed for %s: %v", sid, err)
+	}
+
+	// 5. Create crystal (session narrative digest)
+	if err := s.CreateCrystal(ctx, sessionID); err != nil {
+		log.Printf("[pipeline] Crystal creation failed for %s: %v", sid, err)
+	}
+
+	// 6. Reflect (generate insights from memories + observations)
 	if _, err := s.Reflect(ctx, sessionID); err != nil {
 		log.Printf("[pipeline] Reflect failed for %s: %v", sid, err)
 	}
