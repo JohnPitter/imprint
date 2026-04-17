@@ -9,7 +9,7 @@ import (
 
 // DetectedPattern represents a pattern found by analyzing compressed observations.
 type DetectedPattern struct {
-	Type        string   `json:"type"`        // "co_change", "error_repeat", "frequent_file"
+	Type        string   `json:"type"` // "co_change", "error_repeat", "frequent_file"
 	Description string   `json:"description"`
 	Files       []string `json:"files"`
 	Concepts    []string `json:"concepts"`

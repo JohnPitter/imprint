@@ -30,7 +30,7 @@ func NewOpenRouterProvider(apiKey, model string) *OpenRouterProvider {
 }
 
 func (p *OpenRouterProvider) Name() string    { return "openrouter" }
-func (p *OpenRouterProvider) Available() bool  { return p.apiKey != "" }
+func (p *OpenRouterProvider) Available() bool { return p.apiKey != "" }
 
 func (p *OpenRouterProvider) Complete(ctx context.Context, req CompletionRequest) (string, error) {
 	messages := make([]chatMessage, 0, 2)

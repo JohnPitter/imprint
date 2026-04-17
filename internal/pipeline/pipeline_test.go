@@ -19,8 +19,8 @@ type mockLLMProvider struct {
 	calls    atomic.Int32
 }
 
-func (m *mockLLMProvider) Name() string      { return "mock" }
-func (m *mockLLMProvider) Available() bool    { return true }
+func (m *mockLLMProvider) Name() string    { return "mock" }
+func (m *mockLLMProvider) Available() bool { return true }
 func (m *mockLLMProvider) Complete(_ context.Context, _ llm.CompletionRequest) (string, error) {
 	m.calls.Add(1)
 	return m.response, m.err

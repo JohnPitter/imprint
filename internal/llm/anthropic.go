@@ -34,7 +34,7 @@ func NewAnthropicProvider(apiKey, baseURL, model, authMode string) *AnthropicPro
 }
 
 func (p *AnthropicProvider) Name() string    { return "anthropic" }
-func (p *AnthropicProvider) Available() bool  { return p.apiKey != "" }
+func (p *AnthropicProvider) Available() bool { return p.apiKey != "" }
 
 type anthropicRequest struct {
 	Model     string             `json:"model"`

@@ -10,19 +10,19 @@ var secretPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)(api[_-]?key|apikey)\s*[:=]\s*['"]?[\w\-]{20,}['"]?`),
 	regexp.MustCompile(`(?i)(secret|password|passwd|pwd)\s*[:=]\s*['"]?[\w\-]{8,}['"]?`),
 	regexp.MustCompile(`(?i)(token|auth[_-]?token|access[_-]?token|bearer)\s*[:=]\s*['"]?[\w\-\.]{20,}['"]?`),
-	regexp.MustCompile(`sk-proj-[\w\-]{20,}`),          // OpenAI project keys
-	regexp.MustCompile(`sk-[\w]{20,}`),                 // OpenAI keys
-	regexp.MustCompile(`ghp_[\w]{36}`),                 // GitHub PAT
-	regexp.MustCompile(`gho_[\w]{36}`),                 // GitHub OAuth
-	regexp.MustCompile(`github_pat_[\w]{22}_[\w]{59}`), // GitHub fine-grained PAT
-	regexp.MustCompile(`xoxb-[\w\-]+`),                 // Slack bot token
-	regexp.MustCompile(`xoxp-[\w\-]+`),                 // Slack user token
-	regexp.MustCompile(`AKIA[\w]{16}`),                 // AWS access key
-	regexp.MustCompile(`AIza[\w\-]{35}`),               // Google API key
+	regexp.MustCompile(`sk-proj-[\w\-]{20,}`),             // OpenAI project keys
+	regexp.MustCompile(`sk-[\w]{20,}`),                    // OpenAI keys
+	regexp.MustCompile(`ghp_[\w]{36}`),                    // GitHub PAT
+	regexp.MustCompile(`gho_[\w]{36}`),                    // GitHub OAuth
+	regexp.MustCompile(`github_pat_[\w]{22}_[\w]{59}`),    // GitHub fine-grained PAT
+	regexp.MustCompile(`xoxb-[\w\-]+`),                    // Slack bot token
+	regexp.MustCompile(`xoxp-[\w\-]+`),                    // Slack user token
+	regexp.MustCompile(`AKIA[\w]{16}`),                    // AWS access key
+	regexp.MustCompile(`AIza[\w\-]{35}`),                  // Google API key
 	regexp.MustCompile(`eyJ[\w\-]*\.eyJ[\w\-]*\.[\w\-]*`), // JWT tokens
-	regexp.MustCompile(`npm_[\w]{36}`),                 // npm tokens
-	regexp.MustCompile(`glpat-[\w\-]{20,}`),            // GitLab PAT
-	regexp.MustCompile(`dop_v1_[\w]{64}`),              // DigitalOcean PAT
+	regexp.MustCompile(`npm_[\w]{36}`),                    // npm tokens
+	regexp.MustCompile(`glpat-[\w\-]{20,}`),               // GitLab PAT
+	regexp.MustCompile(`dop_v1_[\w]{64}`),                 // DigitalOcean PAT
 }
 
 // privateTagPattern matches <private>...</private> XML tags.

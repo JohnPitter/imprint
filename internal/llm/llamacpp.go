@@ -30,7 +30,7 @@ func NewLlamaCppProvider(baseURL, model string) *LlamaCppProvider {
 }
 
 func (p *LlamaCppProvider) Name() string    { return "llamacpp" }
-func (p *LlamaCppProvider) Available() bool  { return p.baseURL != "" }
+func (p *LlamaCppProvider) Available() bool { return p.baseURL != "" }
 
 func (p *LlamaCppProvider) Complete(ctx context.Context, req CompletionRequest) (string, error) {
 	messages := make([]chatMessage, 0, 2)

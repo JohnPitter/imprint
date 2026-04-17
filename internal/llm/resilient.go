@@ -21,7 +21,7 @@ func NewResilientProvider(inner LLMProvider, breaker *CircuitBreaker) *Resilient
 }
 
 func (p *ResilientProvider) Name() string    { return p.inner.Name() }
-func (p *ResilientProvider) Available() bool  { return p.inner.Available() }
+func (p *ResilientProvider) Available() bool { return p.inner.Available() }
 
 func (p *ResilientProvider) Complete(ctx context.Context, req CompletionRequest) (string, error) {
 	if !p.breaker.Allow() {

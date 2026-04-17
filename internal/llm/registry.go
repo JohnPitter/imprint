@@ -44,8 +44,8 @@ func BuildProviderChain(cfg *config.Config) LLMProvider {
 // NoopProvider returns an error for all calls. Used when no providers are configured.
 type NoopProvider struct{}
 
-func (p *NoopProvider) Name() string      { return "noop" }
-func (p *NoopProvider) Available() bool    { return false }
+func (p *NoopProvider) Name() string    { return "noop" }
+func (p *NoopProvider) Available() bool { return false }
 func (p *NoopProvider) Complete(_ context.Context, _ CompletionRequest) (string, error) {
 	return "", fmt.Errorf("no LLM provider configured")
 }

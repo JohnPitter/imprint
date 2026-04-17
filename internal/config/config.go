@@ -10,7 +10,6 @@ import (
 	"time"
 )
 
-
 type Config struct {
 	// Server
 	Port    int    // IMPRINT_PORT, default 3111
@@ -18,14 +17,14 @@ type Config struct {
 	DataDir string // IMPRINT_DATA_DIR, default ~/.imprint
 
 	// LLM
-	AnthropicAPIKey   string // ANTHROPIC_API_KEY (or auto-detected from Claude Code OAuth)
-	AnthropicBaseURL  string // ANTHROPIC_BASE_URL
-	AnthropicModel    string // ANTHROPIC_MODEL, default "claude-haiku-4-5-20251001"
-	AnthropicAuthMode string // "api_key" or "oauth" (auto-detected)
-	OpenRouterAPIKey  string // OPENROUTER_API_KEY
-	OpenRouterModel   string // OPENROUTER_MODEL, default "anthropic/claude-haiku-4-5-20251001"
-	LlamaCppURL       string // LLAMACPP_URL, default "http://localhost:8080"
-	LlamaCppModel     string // LLAMACPP_MODEL, default "" (server decides)
+	AnthropicAPIKey   string   // ANTHROPIC_API_KEY (or auto-detected from Claude Code OAuth)
+	AnthropicBaseURL  string   // ANTHROPIC_BASE_URL
+	AnthropicModel    string   // ANTHROPIC_MODEL, default "claude-haiku-4-5-20251001"
+	AnthropicAuthMode string   // "api_key" or "oauth" (auto-detected)
+	OpenRouterAPIKey  string   // OPENROUTER_API_KEY
+	OpenRouterModel   string   // OPENROUTER_MODEL, default "anthropic/claude-haiku-4-5-20251001"
+	LlamaCppURL       string   // LLAMACPP_URL, default "http://localhost:8080"
+	LlamaCppModel     string   // LLAMACPP_MODEL, default "" (server decides)
 	LLMProviderOrder  []string // LLM_PROVIDER_ORDER, default ["anthropic","openrouter","llamacpp"]
 
 	// Embedding

@@ -11,9 +11,9 @@ import (
 // These override the defaults from env vars. Only non-zero values override.
 type UserSettings struct {
 	// LLM Provider
-	LLMProvider      string `json:"llmProvider"`      // "anthropic", "openrouter", "llamacpp"
-	AnthropicModel   string `json:"anthropicModel"`   // e.g. "claude-haiku-4-5-20251001"
-	AnthropicAPIKey  string `json:"anthropicApiKey"`   // manual API key (not shown in UI)
+	LLMProvider      string `json:"llmProvider"`     // "anthropic", "openrouter", "llamacpp"
+	AnthropicModel   string `json:"anthropicModel"`  // e.g. "claude-haiku-4-5-20251001"
+	AnthropicAPIKey  string `json:"anthropicApiKey"` // manual API key (not shown in UI)
 	OpenRouterModel  string `json:"openrouterModel"`
 	OpenRouterAPIKey string `json:"openrouterApiKey"`
 	LlamaCppURL      string `json:"llamacppUrl"`
@@ -34,7 +34,7 @@ type UserSettings struct {
 }
 
 var (
-	settingsMu   sync.RWMutex
+	settingsMu     sync.RWMutex
 	cachedSettings *UserSettings
 )
 

@@ -8,9 +8,9 @@ import (
 
 // Sanitizer constants — tuned to match the MemPalace query sanitizer behavior.
 const (
-	safeQueryLength = 300  // Below this, query is almost certainly clean.
-	maxQueryLength  = 500  // Above this, we force-truncate.
-	minQueryLength  = 10   // Extracted result shorter than this = extraction failed.
+	safeQueryLength = 300 // Below this, query is almost certainly clean.
+	maxQueryLength  = 500 // Above this, we force-truncate.
+	minQueryLength  = 10  // Extracted result shorter than this = extraction failed.
 )
 
 var (

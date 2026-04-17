@@ -18,8 +18,8 @@ type mockProvider struct {
 	calls     int
 }
 
-func (m *mockProvider) Name() string      { return m.name }
-func (m *mockProvider) Available() bool    { return m.available }
+func (m *mockProvider) Name() string    { return m.name }
+func (m *mockProvider) Available() bool { return m.available }
 func (m *mockProvider) Complete(_ context.Context, _ CompletionRequest) (string, error) {
 	m.calls++
 	return m.response, m.err
@@ -243,10 +243,10 @@ func TestBuildProviderChain_NoConfig(t *testing.T) {
 
 func TestBuildProviderChain_WithAPIKey(t *testing.T) {
 	cfg := &config.Config{
-		LLMProviderOrder: []string{"anthropic"},
-		AnthropicAPIKey:  "sk-test-key-12345",
-		AnthropicBaseURL: "https://api.anthropic.com",
-		AnthropicModel:   "claude-haiku-4-5-20251001",
+		LLMProviderOrder:  []string{"anthropic"},
+		AnthropicAPIKey:   "sk-test-key-12345",
+		AnthropicBaseURL:  "https://api.anthropic.com",
+		AnthropicModel:    "claude-haiku-4-5-20251001",
 		AnthropicAuthMode: "api_key",
 	}
 

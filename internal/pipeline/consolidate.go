@@ -29,7 +29,7 @@ const consolidateUserPrompt = `Consolidate these %d related observations into lo
 
 // ConsolidatedMemory represents a memory produced by the consolidation pipeline.
 type ConsolidatedMemory struct {
-	Type     string   // pattern, preference, architecture, bug, workflow, fact
+	Type     string // pattern, preference, architecture, bug, workflow, fact
 	Title    string
 	Content  string
 	Concepts []string
