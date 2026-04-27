@@ -679,7 +679,7 @@
     position: relative;
   }
   .ss-obs-facts li::before {
-    content: '\u2014';
+    content: '\2014';
     position: absolute;
     left: -18px;
     color: var(--text-muted);

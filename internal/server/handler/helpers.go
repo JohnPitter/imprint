@@ -21,10 +21,19 @@ func orEmpty(v any) any {
 }
 
 // writeJSON writes a JSON response with the given status code.
+// Marshals first so a serialization failure (e.g. invalid json.RawMessage from
+// the DB) returns 500 instead of a silent empty 200 with broken Content-Length.
 func writeJSON(w http.ResponseWriter, status int, v any) {
+	body, err := json.Marshal(v)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"response serialization failed"}`))
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	_, _ = w.Write(body)
 }
 
 // writeError writes a JSON error response.

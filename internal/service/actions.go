@@ -22,6 +22,11 @@ func NewActionService(c *Container) *ActionService {
 
 // UpsertFromTask creates or updates an action from a Claude Code task completion.
 // If an action with the same title exists, updates its status. Otherwise creates a new one.
+//
+// Side-effect: when a new "in_progress" action is recorded, any existing
+// in_progress actions for the same session are marked done first. This keeps
+// the kanban accurate (only the current task shows as in-progress) since
+// Claude Code itself does not emit a "task ended" hook for previous prompts.
 func (s *ActionService) UpsertFromTask(title, description, status, sessionID string) (*store.ActionRow, error) {
 	if title == "" {
 		return nil, fmt.Errorf("title is required")
@@ -30,19 +35,32 @@ func (s *ActionService) UpsertFromTask(title, description, status, sessionID str
 		status = "done"
 	}
 
-	// Try to find existing action by title
 	existing, err := s.c.Actions.List("", "", 200, 0)
-	if err == nil {
-		for _, a := range existing {
-			if a.Title == title {
-				a.Status = status
-				a.Description = description
-				a.UpdatedAt = store.TimeToString(time.Now())
-				if err := s.c.Actions.Update(&a); err != nil {
-					return nil, fmt.Errorf("update action: %w", err)
-				}
-				return &a, nil
+	if err != nil {
+		existing = nil
+	}
+
+	if status == "in_progress" && sessionID != "" {
+		for i := range existing {
+			a := &existing[i]
+			if a.Status != "in_progress" || a.Title == title {
+				continue
 			}
+			a.Status = "done"
+			a.UpdatedAt = store.TimeToString(time.Now())
+			_ = s.c.Actions.Update(a)
+		}
+	}
+
+	for _, a := range existing {
+		if a.Title == title {
+			a.Status = status
+			a.Description = description
+			a.UpdatedAt = store.TimeToString(time.Now())
+			if err := s.c.Actions.Update(&a); err != nil {
+				return nil, fmt.Errorf("update action: %w", err)
+			}
+			return &a, nil
 		}
 	}
 

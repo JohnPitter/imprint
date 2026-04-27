@@ -126,6 +126,39 @@ func (s *ObservationStore) ListCompressed(sessionID string, limit, offset int) (
 	return scanCompressedObservations(rows)
 }
 
+// CountAllCompressed returns the total number of compressed observations.
+func (s *ObservationStore) CountAllCompressed() (int, error) {
+	var count int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM compressed_observations`).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("count all compressed: %w", err)
+	}
+	return count, nil
+}
+
+// IterateAllCompressed calls fn for each compressed observation in the DB.
+// Used for one-shot operations like rebuilding the search index.
+func (s *ObservationStore) IterateAllCompressed(fn func(*CompressedObservationRow) error) error {
+	rows, err := s.db.Query(
+		`SELECT id, session_id, timestamp, type, title, subtitle, facts, narrative, concepts, files, importance, confidence, source_observation_id
+		 FROM compressed_observations`,
+	)
+	if err != nil {
+		return fmt.Errorf("iterate compressed: %w", err)
+	}
+	defer rows.Close()
+	all, err := scanCompressedObservations(rows)
+	if err != nil {
+		return err
+	}
+	for i := range all {
+		if err := fn(&all[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // CountBySession returns the raw observation count for a session.
 func (s *ObservationStore) CountBySession(sessionID string) (int, error) {
 	var count int
@@ -205,6 +238,27 @@ func marshalRawJSON(raw json.RawMessage) sql.NullString {
 	return sql.NullString{String: string(raw), Valid: true}
 }
 
+// sanitizeRawJSON converts a possibly-corrupt TEXT column into a json.RawMessage
+// that is safe to marshal back into a response. Older rows occasionally contain
+// double-escaped strings (e.g. tool_output saved as a JSON string of a JSON
+// object) which would crash json.Marshal mid-stream. We re-encode such values
+// as a plain JSON string so the row is still readable rather than 500'ing the
+// whole list endpoint.
+func sanitizeRawJSON(ns sql.NullString) json.RawMessage {
+	if !ns.Valid || ns.String == "" {
+		return nil
+	}
+	candidate := json.RawMessage(ns.String)
+	if json.Valid(candidate) {
+		return candidate
+	}
+	// Fallback: wrap the raw text as a JSON string literal.
+	if encoded, err := json.Marshal(ns.String); err == nil {
+		return encoded
+	}
+	return json.RawMessage(`""`)
+}
+
 // scanRawObservation scans a single row into a RawObservationRow.
 func scanRawObservations(rows *sql.Rows) ([]RawObservationRow, error) {
 	var result []RawObservationRow
@@ -239,18 +293,12 @@ func scanRawObservations(rows *sql.Rows) ([]RawObservationRow, error) {
 		if toolName.Valid {
 			obs.ToolName = &toolName.String
 		}
-		if toolInput.Valid {
-			obs.ToolInput = json.RawMessage(toolInput.String)
-		}
-		if toolOutput.Valid {
-			obs.ToolOutput = json.RawMessage(toolOutput.String)
-		}
+		obs.ToolInput = sanitizeRawJSON(toolInput)
+		obs.ToolOutput = sanitizeRawJSON(toolOutput)
 		if userPrompt.Valid {
 			obs.UserPrompt = &userPrompt.String
 		}
-		if raw.Valid {
-			obs.Raw = json.RawMessage(raw.String)
-		}
+		obs.Raw = sanitizeRawJSON(raw)
 
 		result = append(result, obs)
 	}

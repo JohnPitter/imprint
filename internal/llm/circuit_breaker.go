@@ -36,6 +36,12 @@ func NewCircuitBreaker(threshold int, resetTimeout time.Duration) *CircuitBreake
 }
 
 // Allow returns true if a request should be permitted through the breaker.
+//
+// In HalfOpen state we permit requests through so a real call can probe the
+// upstream and either close (RecordSuccess) or re-open (RecordFailure) the
+// breaker. Without this, once the timeout expired the breaker would flip to
+// HalfOpen on one Allow() call and then refuse every subsequent call forever
+// — effectively a permanent open with no escape.
 func (cb *CircuitBreaker) Allow() bool {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
@@ -50,8 +56,7 @@ func (cb *CircuitBreaker) Allow() bool {
 		}
 		return false
 	case CircuitHalfOpen:
-		// Only one probe request at a time; block until it completes.
-		return false
+		return true
 	default:
 		return true
 	}

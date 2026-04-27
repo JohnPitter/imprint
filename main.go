@@ -70,12 +70,7 @@ func main() {
 		log.Println("[app] Write-ahead log initialized")
 	}
 
-	// Create pipeline components
-	compressor := pipeline.NewCompressor(llmProvider)
-	worker := pipeline.NewWorker(compressor, container.Observations, cfg.CompressWorkers)
-	log.Printf("[app] Compression worker pool started (%d workers)", cfg.CompressWorkers)
-
-	// Create search indexes
+	// Create search indexes (must come before workers so they can index as they compress)
 	bm25, err := search.NewBM25Index(cfg.DataDir)
 	if err != nil {
 		log.Fatalf("[app] Failed to create BM25 index: %v", err)
@@ -83,6 +78,20 @@ func main() {
 	vectors := search.NewVectorIndex()
 	searcher := search.NewHybridSearcher(bm25, vectors, cfg.BM25Weight, cfg.VectorWeight)
 	log.Println("[app] Search indexes initialized")
+
+	// Backfill BM25 index if empty but DB has compressed observations.
+	// This catches existing installations where indexing was previously broken.
+	if indexed, err := bm25.Count(); err == nil && indexed == 0 {
+		if dbCount, _ := container.Observations.CountAllCompressed(); dbCount > 0 {
+			log.Printf("[app] Empty BM25 index with %d compressed obs in DB — backfilling…", dbCount)
+			go backfillBM25(container.Observations, bm25)
+		}
+	}
+
+	// Create pipeline components
+	compressor := pipeline.NewCompressor(llmProvider)
+	worker := pipeline.NewWorkerWithIndex(compressor, container.Observations, bm25, cfg.CompressWorkers)
+	log.Printf("[app] Compression worker pool started (%d workers)", cfg.CompressWorkers)
 
 	// Create services
 	contextSvc := service.NewContextService(container, cfg.ContextTokenBudget)
@@ -165,4 +174,50 @@ func main() {
 	}
 
 	log.Println("[app] Shutdown complete")
+}
+
+// backfillBM25 reindexes every compressed observation in the DB into the BM25
+// index. Used on first run after the indexing-on-compress fix to catch up on
+// observations created while indexing was broken.
+func backfillBM25(obs *store.ObservationStore, idx *search.BM25Index) {
+	indexed := 0
+	skipped := 0
+	err := obs.IterateAllCompressed(func(c *store.CompressedObservationRow) error {
+		narrative := ""
+		if c.Narrative != nil {
+			narrative = *c.Narrative
+		}
+		doc := search.IndexDocument{
+			ID:        c.ID,
+			SessionID: c.SessionID,
+			Title:     c.Title,
+			Narrative: narrative,
+			Facts:     joinSpace(c.Facts),
+			Concepts:  joinSpace(c.Concepts),
+			Files:     joinSpace(c.Files),
+			Type:      c.Type,
+		}
+		if err := idx.Index(doc); err != nil {
+			skipped++
+			return nil // keep going on individual failures
+		}
+		indexed++
+		return nil
+	})
+	if err != nil {
+		log.Printf("[app] Backfill iterate error: %v", err)
+		return
+	}
+	log.Printf("[app] BM25 backfill complete: %d indexed, %d skipped", indexed, skipped)
+}
+
+func joinSpace(s []string) string {
+	out := ""
+	for i, v := range s {
+		if i > 0 {
+			out += " "
+		}
+		out += v
+	}
+	return out
 }

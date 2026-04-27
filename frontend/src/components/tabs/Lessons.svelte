@@ -79,83 +79,133 @@
       {/each}
     </div>
   {:else}
-    <!-- Lessons Section -->
-    <div class="section">
-      <div class="section-label-row">
-        <div class="gold-line"></div>
-        <span class="section-label">LESSONS</span>
-        <span class="section-count">{lessons.length}</span>
-      </div>
-
-      {#if lessons.length === 0}
-        <div class="empty-state" style="padding:32px">
-          <p>No lessons yet</p>
+    <div class="split-layout">
+      <!-- Lessons column -->
+      <div class="column">
+        <div class="column-header">
+          <div class="section-label-row">
+            <div class="gold-line"></div>
+            <span class="section-label">LESSONS</span>
+            <span class="section-count">{lessons.length}</span>
+          </div>
+          <div class="pagination compact">
+            <button class="pagination-btn" on:click={lessonsPrev} disabled={lessonsOffset === 0}>{'\u2190'}</button>
+            <span class="pagination-info">{lessonsPage}/{lessonsTotalPages}</span>
+            <button class="pagination-btn" on:click={lessonsNext} disabled={lessons.length < limit}>{'\u2192'}</button>
+          </div>
         </div>
-      {:else}
-        <div class="lessons-list">
-          {#each lessons as l}
-            <div class="lesson-card">
-              <p class="lesson-content">{l.content}</p>
-              <div class="lesson-meta">
-                <div class="gauge-row">
-                  <div class="gauge">
-                    <div class="gauge-fill" style="width:{(l.confidence || 0) * 100}%"></div>
+
+        <div class="column-scroll">
+          {#if lessons.length === 0}
+            <div class="empty-state" style="padding:32px"><p>No lessons yet</p></div>
+          {:else}
+            <div class="lessons-list">
+              {#each lessons as l}
+                <div class="lesson-card">
+                  <p class="lesson-content">{l.content}</p>
+                  <div class="lesson-meta">
+                    <div class="gauge-row">
+                      <div class="gauge"><div class="gauge-fill" style="width:{(l.confidence || 0) * 100}%"></div></div>
+                      <span class="mono gauge-label">{Math.round((l.confidence || 0) * 100)}%</span>
+                    </div>
+                    <span class="mono reinforcement-count">{l.reinforcements || 0}x</span>
                   </div>
-                  <span class="mono gauge-label">{Math.round((l.confidence || 0) * 100)}%</span>
+                  {#if parseTags(l.tags).length > 0}
+                    <div class="lesson-tags">
+                      {#each parseTags(l.tags) as t}<span class="tag-badge">{t}</span>{/each}
+                    </div>
+                  {/if}
                 </div>
-                <span class="mono reinforcement-count">{l.reinforcements || 0}x</span>
-              </div>
-              {#if parseTags(l.tags).length > 0}
-                <div class="lesson-tags">
-                  {#each parseTags(l.tags) as t}
-                    <span class="tag-badge">{t}</span>
-                  {/each}
-                </div>
-              {/if}
+              {/each}
             </div>
-          {/each}
+          {/if}
         </div>
-        <div class="pagination">
-          <button class="pagination-btn" on:click={lessonsPrev} disabled={lessonsOffset === 0}>{'\u2190'} PREV</button>
-          <span class="pagination-info">PAGE {lessonsPage} OF {lessonsTotalPages}</span>
-          <button class="pagination-btn" on:click={lessonsNext} disabled={lessons.length < limit}>NEXT {'\u2192'}</button>
-        </div>
-      {/if}
-    </div>
-
-    <!-- Insights Section -->
-    <div class="section" style="margin-top:40px">
-      <div class="section-label-row">
-        <div class="gold-line"></div>
-        <span class="section-label">INSIGHTS</span>
-        <span class="section-count">{insights.length}</span>
       </div>
 
-      {#if insights.length === 0}
-        <div class="empty-state" style="padding:32px">
-          <p>No insights yet</p>
+      <!-- Insights column -->
+      <div class="column">
+        <div class="column-header">
+          <div class="section-label-row">
+            <div class="gold-line"></div>
+            <span class="section-label">INSIGHTS</span>
+            <span class="section-count">{insights.length}</span>
+          </div>
+          <div class="pagination compact">
+            <button class="pagination-btn" on:click={insightsPrev} disabled={insightsOffset === 0}>{'\u2190'}</button>
+            <span class="pagination-info">{insightsPage}/{insightsTotalPages}</span>
+            <button class="pagination-btn" on:click={insightsNext} disabled={insights.length < limit}>{'\u2192'}</button>
+          </div>
         </div>
-      {:else}
-        <div class="insights-list">
-          {#each insights as i}
-            <div class="insight-card">
-              <h4 class="insight-title">{i.title}</h4>
-              <p class="insight-content">{i.content}</p>
+
+        <div class="column-scroll">
+          {#if insights.length === 0}
+            <div class="empty-state" style="padding:32px"><p>No insights yet</p></div>
+          {:else}
+            <div class="insights-list">
+              {#each insights as i}
+                <div class="insight-card">
+                  <h4 class="insight-title">{i.title}</h4>
+                  <p class="insight-content">{i.content}</p>
+                </div>
+              {/each}
             </div>
-          {/each}
+          {/if}
         </div>
-        <div class="pagination">
-          <button class="pagination-btn" on:click={insightsPrev} disabled={insightsOffset === 0}>{'\u2190'} PREV</button>
-          <span class="pagination-info">PAGE {insightsPage} OF {insightsTotalPages}</span>
-          <button class="pagination-btn" on:click={insightsNext} disabled={insights.length < limit}>NEXT {'\u2192'}</button>
-        </div>
-      {/if}
+      </div>
     </div>
   {/if}
 </div>
 
 <style>
-  .lessons-container { display: flex; flex-direction: column; }
+  .lessons-container { display: flex; flex-direction: column; height: calc(100vh - 140px); min-height: 480px; }
+
+  .split-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    flex: 1;
+    min-height: 0;
+  }
+  @media (max-width: 1100px) {
+    .split-layout { grid-template-columns: 1fr; }
+    .lessons-container { height: auto; }
+  }
+  .column {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border: 1px solid var(--border);
+    background: var(--bg-secondary);
+  }
+  .column-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .column-header .section-label-row { margin-bottom: 0; }
+  .column-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 18px;
+    min-height: 0;
+  }
+  .pagination.compact {
+    margin: 0;
+    padding: 0;
+    gap: 6px;
+  }
+  .pagination.compact .pagination-btn {
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+  .pagination.compact .pagination-info {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+  }
 
   /* Search */
   .search-row { margin-bottom: 28px; }
