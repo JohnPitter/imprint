@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { api } from '../../lib/api';
 
   let actions: any[] = [];
@@ -7,21 +7,31 @@
   let loading = true;
   let offset = 0;
   const limit = 30;
+  let pollTimer: ReturnType<typeof setInterval> | undefined;
 
-  onMount(() => load());
+  onMount(() => {
+    load(true);
+    // Refresh every 5s so the kanban tracks the agent's pending/in-progress/done state in near real time.
+    pollTimer = setInterval(() => load(false), 5000);
+  });
 
-  async function load() {
-    loading = true;
+  onDestroy(() => {
+    if (pollTimer) clearInterval(pollTimer);
+  });
+
+  // initial=true shows the skeleton; subsequent polls update silently in place.
+  async function load(initial: boolean) {
+    if (initial) loading = true;
     try {
       const [a, f] = await Promise.all([api.listActions('', limit, offset), api.frontier()]);
       actions = a.actions || [];
       frontier = f.actions || [];
     } catch(e) { console.error(e); }
-    loading = false;
+    if (initial) loading = false;
   }
 
-  function prev() { if (offset >= limit) { offset -= limit; load(); } }
-  function next() { if (actions.length >= limit) { offset += limit; load(); } }
+  function prev() { if (offset >= limit) { offset -= limit; load(true); } }
+  function next() { if (actions.length >= limit) { offset += limit; load(true); } }
 
   $: currentPage = Math.floor(offset / limit) + 1;
   $: totalPages = actions.length < limit ? currentPage : currentPage + 1;
