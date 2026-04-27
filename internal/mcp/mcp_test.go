@@ -38,8 +38,15 @@ func TestMCPServer_Initialize(t *testing.T) {
 	if !ok {
 		t.Fatal("result is not a map")
 	}
-	if result["protocolVersion"] != "2024-11-05" {
-		t.Errorf("expected protocolVersion 2024-11-05, got %v", result["protocolVersion"])
+	// With no client-supplied protocolVersion the server falls back to the
+	// newest version it supports. Just assert it's one of the supported set.
+	got := result["protocolVersion"]
+	known := map[string]bool{}
+	for _, v := range supportedProtocolVersions {
+		known[v] = true
+	}
+	if s, ok := got.(string); !ok || !known[s] {
+		t.Errorf("expected protocolVersion in %v, got %v", supportedProtocolVersions, got)
 	}
 
 	caps, ok := result["capabilities"].(map[string]any)
@@ -58,6 +65,24 @@ func TestMCPServer_Initialize(t *testing.T) {
 	}
 	if info["name"] != "imprint" {
 		t.Errorf("expected server name imprint, got %v", info["name"])
+	}
+}
+
+func TestMCPServer_InitializeNegotiatesClientVersion(t *testing.T) {
+	s := NewServer("http://localhost:3111", "", "core")
+	ctx := context.Background()
+
+	for _, want := range supportedProtocolVersions {
+		params, _ := json.Marshal(map[string]any{"protocolVersion": want})
+		req := JSONRPCRequest{JSONRPC: "2.0", ID: 1, Method: "initialize", Params: params}
+		resp := s.dispatch(ctx, req)
+		if resp.Error != nil {
+			t.Fatalf("%s: unexpected error: %v", want, resp.Error)
+		}
+		result := resp.Result.(map[string]any)
+		if got := result["protocolVersion"]; got != want {
+			t.Errorf("client asked %s, server returned %v", want, got)
+		}
 	}
 }
 

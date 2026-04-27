@@ -53,11 +53,25 @@ func (s *Server) Run(ctx context.Context) error {
 			continue
 		}
 
+		// JSON-RPC notifications have no id and MUST NOT receive a response.
+		// Claude Code sends notifications/initialized after the handshake.
+		if req.ID == nil {
+			s.handleNotification(ctx, req)
+			continue
+		}
+
 		resp := s.dispatch(ctx, req)
 		s.writeResponse(resp)
 	}
 
 	return scanner.Err()
+}
+
+// handleNotification consumes notifications silently. Currently the only one
+// the protocol sends us is notifications/initialized, which we acknowledge by
+// doing nothing (per spec, no response is allowed).
+func (s *Server) handleNotification(_ context.Context, _ JSONRPCRequest) {
+	// no-op
 }
 
 func (s *Server) writeResponse(resp JSONRPCResponse) {
@@ -69,8 +83,6 @@ func (s *Server) dispatch(ctx context.Context, req JSONRPCRequest) JSONRPCRespon
 	switch req.Method {
 	case "initialize":
 		return s.handleInitialize(req)
-	case "initialized":
-		return successResponse(req.ID, nil)
 	case "tools/list":
 		return s.handleToolsList(req)
 	case "tools/call":
@@ -79,14 +91,41 @@ func (s *Server) dispatch(ctx context.Context, req JSONRPCRequest) JSONRPCRespon
 		return s.handleResourcesList(req)
 	case "prompts/list":
 		return s.handlePromptsList(req)
+	case "ping":
+		// Some MCP clients send ping to keep the connection alive; respond empty.
+		return successResponse(req.ID, map[string]any{})
 	default:
 		return errorResponse(req.ID, -32601, "method not found: "+req.Method)
 	}
 }
 
+// supportedProtocolVersions lists protocol versions this server can speak,
+// newest first. The MCP spec says servers should respond with the highest
+// version they support that the client also supports — when the client asks
+// for a newer version we echo it back, otherwise we fall back to the latest
+// version we know.
+var supportedProtocolVersions = []string{
+	"2025-06-18",
+	"2025-03-26",
+	"2024-11-05",
+}
+
 func (s *Server) handleInitialize(req JSONRPCRequest) JSONRPCResponse {
+	var params struct {
+		ProtocolVersion string `json:"protocolVersion"`
+	}
+	_ = json.Unmarshal(req.Params, &params)
+
+	negotiated := supportedProtocolVersions[0] // default: newest we support
+	for _, v := range supportedProtocolVersions {
+		if params.ProtocolVersion == v {
+			negotiated = v
+			break
+		}
+	}
+
 	return successResponse(req.ID, map[string]any{
-		"protocolVersion": "2024-11-05",
+		"protocolVersion": negotiated,
 		"capabilities": map[string]any{
 			"tools":     map[string]any{},
 			"resources": map[string]any{},
