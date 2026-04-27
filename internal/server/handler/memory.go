@@ -110,7 +110,10 @@ func (h *MemoryHandler) HandleList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	total, _ := h.svc.Count()
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"memories": memories,
+		"total":    total,
 	})
 }

@@ -75,3 +75,8 @@ func (s *SessionService) List(project string, limit, offset int) ([]store.Sessio
 	}
 	return s.c.Sessions.List(project, limit, offset)
 }
+
+// Count returns the total number of sessions, optionally filtered by project.
+func (s *SessionService) Count(project string) (int, error) {
+	return s.c.Sessions.Count(project)
+}

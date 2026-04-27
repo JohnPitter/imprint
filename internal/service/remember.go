@@ -137,3 +137,8 @@ func (s *RememberService) List(memType string, limit, offset int) ([]store.Memor
 	}
 	return s.c.Memories.List(memType, limit, offset)
 }
+
+// Count returns the total number of memories.
+func (s *RememberService) Count() (int, error) {
+	return s.c.Memories.Count()
+}

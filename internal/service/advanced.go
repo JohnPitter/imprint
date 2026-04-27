@@ -297,6 +297,11 @@ func (s *AdvancedService) ListLessons(project string, limit, offset int) ([]stor
 	return s.c.Lessons.List(project, limit, offset)
 }
 
+// CountLessons returns the total number of non-deleted lessons.
+func (s *AdvancedService) CountLessons(project string) (int, error) {
+	return s.c.Lessons.Count(project)
+}
+
 // SearchLessons performs a text search on lesson content.
 func (s *AdvancedService) SearchLessons(query string, limit int) ([]store.LessonRow, error) {
 	if query == "" {

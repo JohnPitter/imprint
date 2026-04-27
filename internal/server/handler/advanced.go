@@ -359,7 +359,11 @@ func (h *AdvancedHandler) HandleListLessons(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"lessons": orEmpty(lessons)})
+	total, _ := h.svc.CountLessons(project)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"lessons": orEmpty(lessons),
+		"total":   total,
+	})
 }
 
 // HandleSearchLessons handles POST /lessons/search.

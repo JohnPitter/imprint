@@ -85,7 +85,12 @@ func (h *SessionHandler) HandleList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Total is independent of pagination — clients use it to render counts
+	// without fetching every row.
+	total, _ := h.svc.Count(project)
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"sessions": sessions,
+		"total":    total,
 	})
 }

@@ -86,6 +86,23 @@ func (s *LessonStore) GetByID(id string) (*LessonRow, error) {
 	return s.scanRow(row)
 }
 
+// Count returns the number of non-deleted lessons, optionally filtered by project.
+func (s *LessonStore) Count(project string) (int, error) {
+	var (
+		count int
+		err   error
+	)
+	if project == "" {
+		err = s.db.QueryRow(`SELECT COUNT(*) FROM lessons WHERE deleted_at IS NULL`).Scan(&count)
+	} else {
+		err = s.db.QueryRow(`SELECT COUNT(*) FROM lessons WHERE deleted_at IS NULL AND project = ?`, project).Scan(&count)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("lesson count: %w", err)
+	}
+	return count, nil
+}
+
 // List returns lessons filtered by project, excluding soft-deleted, ordered by confidence DESC.
 func (s *LessonStore) List(project string, limit, offset int) ([]LessonRow, error) {
 	if limit <= 0 {

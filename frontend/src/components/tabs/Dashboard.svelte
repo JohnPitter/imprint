@@ -5,6 +5,7 @@
 
   let health: any = null;
   let sessions: any[] = [];
+  let sessionsTotal = 0;
   let graph: any = null;
   let auditEntries: any[] = [];
   let memoriesCount = 0;
@@ -17,14 +18,17 @@
     try {
       const [h, s, g, a, m, l] = await Promise.all([
         api.health().catch(() => null),
-        api.listSessions(5).catch(() => ({ sessions: [] })),
+        // Pull a generous page so the recent-list and total agree, then trim
+        // for display below.
+        api.listSessions(50, 0).catch(() => ({ sessions: [], total: 0 })),
         api.graphStats().catch(() => null),
         api.listAudit(5, 0).catch(() => ({ entries: [] })),
-        api.listMemories('', 0).catch(() => ({ memories: [], total: 0 })),
-        api.listLessons(0).catch(() => ({ lessons: [], total: 0 })),
+        api.listMemories('', 1, 0).catch(() => ({ memories: [], total: 0 })),
+        api.listLessons(1, 0).catch(() => ({ lessons: [], total: 0 })),
       ]);
       health = h;
-      sessions = (s as any).sessions || [];
+      sessions = ((s as any).sessions || []).slice(0, 5);
+      sessionsTotal = (s as any).total ?? ((s as any).sessions?.length || 0);
       graph = g;
       auditEntries = (a as any).entries || (a as any).audit || [];
       memoriesCount = (m as any).total ?? ((m as any).memories?.length || 0);
@@ -112,7 +116,7 @@
   <!-- Stats Grid -->
   <div class="stats-grid">
     <div class="stat-card">
-      <div class="stat-value">{formatNumber(sessions.length)}</div>
+      <div class="stat-value">{formatNumber(sessionsTotal)}</div>
       <div class="stat-label">Sessions</div>
     </div>
     <div class="stat-card">
