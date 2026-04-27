@@ -40,11 +40,14 @@ Inspired by [agentmemory](https://github.com/rohitg00/agentmemory) (Node.js + Do
 | **Multi-Provider LLM** | Anthropic (API key + Claude Code OAuth auto-detect), OpenRouter, llama.cpp with circuit breaker + fallback |
 | **MCP Server** | 8 tools for explicit memory recall, save, search, and graph queries |
 | **11-Tab Web UI** | Dashboard, Sessions, Timeline, Memories, Graph, Actions, Lessons, Activity, Audit, Profile, Settings |
+| **Global Topbar Search** | Modal search overlay on every page — query the Bleve index from anywhere with title, type, score, narrative, concepts and files |
 | **Settings UI** | Select LLM provider/model, configure API keys, tune search weights, pipeline interval — all from the browser |
 | **4-Layer Memory Stack** | L0 Identity, L1 Essential Story, L2 Session Context, L3 On-Demand Search — each with token budgets |
-| **Actions Kanban** | Live task tracking: in-progress during active sessions, auto-completed on session end |
+| **Actions Kanban** | Pending = waiting on user (permission prompts), In Progress = current prompt being worked on, Done = completed tasks. Older in-progress entries auto-graduate to done when a new one starts. |
+| **Lessons & Insights** | Two-column split layout with independent scrolling — see lessons and insights side-by-side without scrolling the page |
 | **Query Sanitizer** | Detects and strips system prompt contamination from search queries |
 | **Write-Ahead Log** | Append-only JSONL audit of every write operation for crash recovery and poisoning detection |
+| **Index Self-Heal** | If the BM25 index is empty on startup but the DB has compressed observations, a background goroutine reindexes everything automatically |
 | **Transcript Mining** | `go run ./cmd/mine` imports historical Claude Code JSONL sessions retroactively |
 | **Auto-Start** | Server launches automatically on first Claude Code session with retry + error logging |
 | **Privacy** | All data stays local in `~/.imprint/`. Secrets are scrubbed with 16 regex patterns before storage |
@@ -94,10 +97,10 @@ graph TD
 
 ### The Pipeline
 
-1. **Capture** — 12 compiled Go hooks intercept Claude Code events (tool use, prompts, errors, task completions)
+1. **Capture** — 12 compiled Go hooks intercept Claude Code events (tool use, prompts, errors, task completions, permission prompts)
 2. **Scrub** — 16 regex patterns strip API keys, tokens, JWTs, and secrets before storage
-3. **Compress** — Background workers send raw observations to LLM, producing structured summaries with type, importance (1-10), concepts, and files
-4. **Index** — Compressed observations indexed in Bleve (BM25) and in-memory vector store
+3. **Compress** — Background workers send raw observations to an LLM (Anthropic / OpenRouter / llama.cpp with circuit breaker + fallback), producing structured summaries with type, title, narrative, importance (1-10), concepts, and files
+4. **Index** — Each compressed observation is immediately indexed into Bleve (BM25) inside the worker. On startup, an empty BM25 with rows in the DB triggers a self-heal reindex of every compressed observation
 5. **Schedule** — Background scheduler runs summarize + consolidate + action extraction periodically during active sessions
 6. **Extract** — LLM extracts entities (files, functions, concepts) and relations into a knowledge graph
 7. **Inject** — On new sessions, token-budgeted context blocks are built from recent summaries, high-importance observations, and strong memories
@@ -107,12 +110,14 @@ graph TD
 | Hook | Trigger | What it does |
 |---|---|---|
 | **session-start** | Claude Code opens | Creates session, injects context (retry 3x with backoff) |
-| **prompt-submit** | User sends message | Captures user intent as high-importance observation |
+| **prompt-submit** | User sends message | Captures user intent as high-importance observation; opens an `in_progress` entry on the Actions kanban (older in-progress in the same session graduate to done) |
 | **pre-tool-use** | Before Read/Edit/Grep | Enriches context with relevant memories for the files being touched |
-| **post-tool-use** | After any tool | Records observation, auto-compresses via LLM |
+| **post-tool-use** | After any tool | Records observation, auto-compresses via LLM, indexes the result into BM25 |
 | **post-tool-failure** | Tool fails | Records error with distinct type for pattern detection |
 | **pre-compact** | Context compaction | Saves snapshot before context is lost, injects recovered context |
-| **task-completed** | Task marked done | Syncs with Actions kanban |
+| **notification** | Permission prompt | Surfaces the prompt as a `pending` action so the user sees Claude is waiting on them |
+| **task-completed** | Task marked done | Marks the corresponding action `done` |
+| **subagent-start / subagent-stop** | Task agent spawned/finished | Records subagent lifecycle for the activity feed |
 | **stop** | Session ends | Processes transcript for missed observations |
 | **session-end** | Session finalizes | Runs finalize pipeline (graph, actions, reflect) |
 
