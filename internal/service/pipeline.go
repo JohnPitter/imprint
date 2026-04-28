@@ -7,6 +7,7 @@ import (
 	"log"
 	"time"
 
+	"imprint/internal/llm"
 	"imprint/internal/pipeline"
 	"imprint/internal/store"
 
@@ -416,14 +417,15 @@ func (s *PipelineService) RunFinalize(ctx context.Context, sessionID string) err
 // PipelineStats describes the current state of the ingestion pipeline.
 // Numbers come from the DB and the audit log; everything is O(1) or O(actions).
 type PipelineStats struct {
-	RawCount        int            `json:"rawCount"`
-	CompressedCount int            `json:"compressedCount"`
-	MemoryCount     int            `json:"memoryCount"`
-	LessonCount     int            `json:"lessonCount"`
-	InsightCount    int            `json:"insightCount"`
-	ActiveSessions  int            `json:"activeSessions"`
-	Backlog         int            `json:"backlog"`
-	LastByAction    map[string]any `json:"lastByAction"`
+	RawCount        int               `json:"rawCount"`
+	CompressedCount int               `json:"compressedCount"`
+	MemoryCount     int               `json:"memoryCount"`
+	LessonCount     int               `json:"lessonCount"`
+	InsightCount    int               `json:"insightCount"`
+	ActiveSessions  int               `json:"activeSessions"`
+	Backlog         int               `json:"backlog"`
+	LastByAction    map[string]any    `json:"lastByAction"`
+	Usage           llm.UsageSnapshot `json:"usage"`
 }
 
 // Stats returns a snapshot of pipeline state. Used by the dashboard panel
@@ -473,6 +475,8 @@ func (s *PipelineService) Stats() (*PipelineStats, error) {
 			}
 		}
 	}
+
+	stats.Usage = llm.GlobalUsage.Snapshot()
 
 	return stats, nil
 }

@@ -53,6 +53,10 @@ type anthropicResponse struct {
 		Type string `json:"type"`
 		Text string `json:"text"`
 	} `json:"content"`
+	Usage *struct {
+		InputTokens  int `json:"input_tokens"`
+		OutputTokens int `json:"output_tokens"`
+	} `json:"usage,omitempty"`
 	Error *struct {
 		Type    string `json:"type"`
 		Message string `json:"message"`
@@ -87,27 +91,39 @@ func (p *AnthropicProvider) Complete(ctx context.Context, req CompletionRequest)
 
 	resp, err := p.client.Do(httpReq)
 	if err != nil {
+		GlobalUsage.Record("anthropic", 0, 0, true)
 		return "", fmt.Errorf("anthropic: request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
+		GlobalUsage.Record("anthropic", 0, 0, true)
 		return "", fmt.Errorf("anthropic: read response: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		GlobalUsage.Record("anthropic", 0, 0, true)
 		return "", fmt.Errorf("anthropic: HTTP %d: %s", resp.StatusCode, string(respBody))
 	}
 
 	var result anthropicResponse
 	if err := json.Unmarshal(respBody, &result); err != nil {
+		GlobalUsage.Record("anthropic", 0, 0, true)
 		return "", fmt.Errorf("anthropic: unmarshal response: %w", err)
 	}
 
 	if result.Error != nil {
+		GlobalUsage.Record("anthropic", 0, 0, true)
 		return "", fmt.Errorf("anthropic: API error: %s: %s", result.Error.Type, result.Error.Message)
 	}
+
+	pt, ot := 0, 0
+	if result.Usage != nil {
+		pt = result.Usage.InputTokens
+		ot = result.Usage.OutputTokens
+	}
+	GlobalUsage.Record("anthropic", pt, ot, false)
 
 	for _, block := range result.Content {
 		if block.Type == "text" {

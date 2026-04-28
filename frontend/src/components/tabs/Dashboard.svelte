@@ -251,6 +251,38 @@
           {/each}
         </div>
       {/if}
+
+      {#if pipeline.usage && (pipeline.usage.calls > 0 || pipeline.usage.promptTokens > 0)}
+        <div class="pipeline-usage">
+          <span class="pipeline-usage-label">LLM USAGE (since boot)</span>
+          <div class="pipeline-usage-row">
+            <span class="pipeline-usage-key">Calls</span>
+            <span class="pipeline-usage-val mono">{formatNumber(pipeline.usage.calls)}</span>
+          </div>
+          {#if pipeline.usage.failures > 0}
+            <div class="pipeline-usage-row">
+              <span class="pipeline-usage-key">Failures</span>
+              <span class="pipeline-usage-val pipeline-usage-fail mono">{pipeline.usage.failures}</span>
+            </div>
+          {/if}
+          <div class="pipeline-usage-row">
+            <span class="pipeline-usage-key">Prompt tokens</span>
+            <span class="pipeline-usage-val mono">{formatNumber(pipeline.usage.promptTokens)}</span>
+          </div>
+          <div class="pipeline-usage-row">
+            <span class="pipeline-usage-key">Output tokens</span>
+            <span class="pipeline-usage-val mono">{formatNumber(pipeline.usage.outputTokens)}</span>
+          </div>
+          {#if pipeline.usage.byProvider}
+            {#each Object.entries(pipeline.usage.byProvider) as [name, p]}
+              <div class="pipeline-usage-row pipeline-usage-provider">
+                <span class="pipeline-usage-key">{name}</span>
+                <span class="pipeline-usage-val mono">{(p as any).calls} calls · {formatNumber((p as any).promptTokens + (p as any).outputTokens)} tokens</span>
+              </div>
+            {/each}
+          {/if}
+        </div>
+      {/if}
     {:else}
       <p class="no-data">Pipeline status unavailable</p>
     {/if}
@@ -563,4 +595,46 @@
   .pipeline-activity-val {
     color: var(--text-secondary);
   }
+
+  .pipeline-usage {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    margin-top: 12px;
+    padding: 14px 18px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+  }
+  .pipeline-usage-label {
+    width: 100%;
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 8px;
+  }
+  .pipeline-usage-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-right: 24px;
+    font-size: 12px;
+  }
+  .pipeline-usage-provider {
+    width: 100%;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+  }
+  .pipeline-usage-key {
+    color: var(--text-muted);
+    font-family: var(--font-ui);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .pipeline-usage-val { color: var(--text-secondary); }
+  .pipeline-usage-fail { color: var(--danger, #ef4444); }
 </style>

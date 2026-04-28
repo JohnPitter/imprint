@@ -1,11 +1,11 @@
-.PHONY: dev build hooks mcp frontend test clean all
+.PHONY: dev build hooks mcp cli frontend test clean all
 
 # Development mode
 dev: frontend
 	go run .
 
 # Build everything
-all: frontend build hooks mcp
+all: frontend build hooks mcp cli
 
 # Build Go binary with embedded frontend
 build: frontend
@@ -31,6 +31,11 @@ hooks:
 mcp:
 	go build -ldflags="-s -w" -o build/mcp-server.exe ./cmd/mcp-server/
 	@echo "Built build/mcp-server.exe"
+
+# Build CLI binary
+cli:
+	go build -ldflags="-s -w" -o build/imprint-cli.exe ./cmd/cli/
+	@echo "Built build/imprint-cli.exe"
 
 # Run tests
 test:
