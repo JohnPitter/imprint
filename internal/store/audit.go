@@ -81,6 +81,41 @@ func (s *AuditStore) List(action string, limit, offset int) ([]AuditRow, error) 
 	return s.scanRows(rows)
 }
 
+// HeatmapBucket is one day in the heatmap response: ISO date (YYYY-MM-DD) and event count.
+type HeatmapBucket struct {
+	Date  string `json:"date"`
+	Count int    `json:"count"`
+}
+
+// Heatmap returns daily event counts for the last `days` days, ordered by date ASC.
+// Aggregation happens in SQL so the response stays O(days) regardless of audit_log size.
+func (s *AuditStore) Heatmap(days int) ([]HeatmapBucket, error) {
+	if days <= 0 {
+		days = 365
+	}
+	cutoff := TimeToString(time.Now().AddDate(0, 0, -days))
+	rows, err := s.db.Query(`
+		SELECT substr(timestamp, 1, 10) AS day, COUNT(*) AS c
+		FROM audit_log
+		WHERE timestamp >= ?
+		GROUP BY day
+		ORDER BY day ASC`, cutoff)
+	if err != nil {
+		return nil, fmt.Errorf("heatmap audit log: %w", err)
+	}
+	defer rows.Close()
+
+	var result []HeatmapBucket
+	for rows.Next() {
+		var b HeatmapBucket
+		if err := rows.Scan(&b.Date, &b.Count); err != nil {
+			return nil, fmt.Errorf("scan heatmap bucket: %w", err)
+		}
+		result = append(result, b)
+	}
+	return result, rows.Err()
+}
+
 // Count returns the total number of audit log entries.
 func (s *AuditStore) Count() (int, error) {
 	var count int

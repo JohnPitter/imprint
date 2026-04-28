@@ -54,6 +54,7 @@ export const api = {
 
   // Audit
   listAudit: (limit = 50, offset = 0) => request<unknown>('GET', `/audit?limit=${limit}&offset=${offset}`),
+  auditHeatmap: (days = 365) => request<unknown>('GET', `/audit/heatmap?days=${days}`),
 
   // Summarize
   summarize: (data: Record<string, unknown>) => request<unknown>('POST', '/summarize', data),

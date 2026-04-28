@@ -420,6 +420,14 @@ func (s *AdvancedService) ListAudit(action string, limit, offset int) ([]store.A
 	return s.c.Audit.List(action, limit, offset)
 }
 
+// AuditHeatmap returns one bucket per day of audit activity within the last `days` days.
+func (s *AdvancedService) AuditHeatmap(days int) ([]store.HeatmapBucket, error) {
+	if days <= 0 || days > 730 {
+		days = 365
+	}
+	return s.c.Audit.Heatmap(days)
+}
+
 // ---------------------------------------------------------------------------
 // Governance
 // ---------------------------------------------------------------------------

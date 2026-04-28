@@ -218,6 +218,7 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 			r.Post("/facets/query", deps.Advanced.HandleQueryFacets)
 			r.Get("/facets/stats", deps.Advanced.HandleFacetStats)
 			r.Get("/audit", deps.Advanced.HandleListAudit)
+			r.Get("/audit/heatmap", deps.Advanced.HandleAuditHeatmap)
 			r.Delete("/governance/memories", deps.Advanced.HandleGovernanceDeleteMemory)
 			r.Post("/governance/bulk-delete", deps.Advanced.HandleGovernanceBulkDelete)
 		} else {

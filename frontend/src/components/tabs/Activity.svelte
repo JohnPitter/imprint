@@ -18,13 +18,11 @@
     return d.toISOString().slice(0, 10);
   }
 
-  function buildHeatmap(entries: any[]) {
+  function buildHeatmap(buckets: { date: string; count: number }[]) {
     const map = new Map<string, number>();
-    for (const e of entries) {
-      const ts = e.timestamp || e.Timestamp || e.createdAt;
-      if (!ts) continue;
-      const key = toDateKey(new Date(ts));
-      map.set(key, (map.get(key) || 0) + 1);
+    for (const b of buckets) {
+      if (!b?.date) continue;
+      map.set(b.date, b.count || 0);
     }
     heatmap = map;
     maxCount = Math.max(1, ...map.values());
@@ -110,9 +108,12 @@
 
   async function refresh() {
     try {
-      const result = await api.listAudit(200, 0) as any;
-      auditEntries = result.entries || result.audit || [];
-      buildHeatmap(auditEntries);
+      const [list, hm] = await Promise.all([
+        api.listAudit(200, 0) as Promise<any>,
+        api.auditHeatmap(365) as Promise<any>,
+      ]);
+      auditEntries = list.entries || list.audit || [];
+      buildHeatmap(hm.buckets || []);
       buildTypeBreakdown(auditEntries);
       feedEntries = auditEntries.slice(feedOffset, feedOffset + feedLimit);
     } catch (e) {
@@ -126,6 +127,7 @@
 
   $: feedPage = Math.floor(feedOffset / feedLimit) + 1;
   $: feedTotalPages = Math.max(1, Math.ceil(auditEntries.length / feedLimit));
+  $: heatmapTotal = [...heatmap.values()].reduce((a, b) => a + b, 0);
 
   onMount(() => { refresh(); interval = setInterval(refresh, 10000); });
   onDestroy(() => clearInterval(interval));
@@ -148,7 +150,7 @@
         <div class="gold-line"></div>
         <h3>Activity Heatmap</h3>
       </div>
-      <span class="refresh-indicator">AUTO-REFRESH 10S  ·  {auditEntries.length} EVENTS</span>
+      <span class="refresh-indicator">AUTO-REFRESH 10S  ·  {heatmapTotal} EVENTS / 365D</span>
     </div>
 
     <div class="heatmap-wrapper">

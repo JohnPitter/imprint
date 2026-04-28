@@ -546,6 +546,18 @@ func (h *AdvancedHandler) HandleListAudit(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, map[string]any{"entries": orEmpty(entries)})
 }
 
+// HandleAuditHeatmap handles GET /audit/heatmap. Returns daily event counts
+// over the last ?days=N days (default 365). Aggregation is done in SQL.
+func (h *AdvancedHandler) HandleAuditHeatmap(w http.ResponseWriter, r *http.Request) {
+	days := queryInt(r, "days", 365)
+	buckets, err := h.svc.AuditHeatmap(days)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"buckets": orEmpty(buckets)})
+}
+
 // ---------------------------------------------------------------------------
 // Governance
 // ---------------------------------------------------------------------------
