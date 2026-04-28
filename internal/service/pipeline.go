@@ -412,3 +412,67 @@ func (s *PipelineService) RunFinalize(ctx context.Context, sessionID string) err
 	log.Printf("[pipeline] Finalized session %s", sid)
 	return nil
 }
+
+// PipelineStats describes the current state of the ingestion pipeline.
+// Numbers come from the DB and the audit log; everything is O(1) or O(actions).
+type PipelineStats struct {
+	RawCount        int            `json:"rawCount"`
+	CompressedCount int            `json:"compressedCount"`
+	MemoryCount     int            `json:"memoryCount"`
+	LessonCount     int            `json:"lessonCount"`
+	InsightCount    int            `json:"insightCount"`
+	ActiveSessions  int            `json:"activeSessions"`
+	Backlog         int            `json:"backlog"`
+	LastByAction    map[string]any `json:"lastByAction"`
+}
+
+// Stats returns a snapshot of pipeline state. Used by the dashboard panel
+// so the user can tell at a glance whether observations are flowing through.
+func (s *PipelineService) Stats() (*PipelineStats, error) {
+	stats := &PipelineStats{LastByAction: map[string]any{}}
+
+	if n, err := s.c.Observations.CountAllRaw(); err == nil {
+		stats.RawCount = n
+	}
+	if n, err := s.c.Observations.CountAllCompressed(); err == nil {
+		stats.CompressedCount = n
+	}
+	if n, err := s.c.Memories.Count(); err == nil {
+		stats.MemoryCount = n
+	}
+	if n, err := s.c.Lessons.Count(""); err == nil {
+		stats.LessonCount = n
+	}
+	if n, err := s.c.Insights.Count(""); err == nil {
+		stats.InsightCount = n
+	}
+	if active, err := s.c.Sessions.GetActive(); err == nil {
+		stats.ActiveSessions = len(active)
+	}
+
+	// Backlog: rough proxy for compression debt. Negative values shouldn't
+	// happen in practice (compressed_observations row is created from a raw),
+	// but guard anyway.
+	if d := stats.RawCount - stats.CompressedCount; d > 0 {
+		stats.Backlog = d
+	}
+
+	actions := []string{
+		"observation.create",
+		"memory.consolidate",
+		"session.summarize",
+		"action.extract",
+		"reflect",
+	}
+	if last, err := s.c.Audit.LastByAction(actions); err == nil {
+		for _, a := range actions {
+			if ts, ok := last[a]; ok {
+				stats.LastByAction[a] = ts
+			} else {
+				stats.LastByAction[a] = nil
+			}
+		}
+	}
+
+	return stats, nil
+}

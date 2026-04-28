@@ -17,6 +17,17 @@ func NewPipelineHandler(svc *service.PipelineService) *PipelineHandler {
 	return &PipelineHandler{svc: svc}
 }
 
+// HandleStats handles GET /imprint/pipeline/status. Returns a snapshot of
+// pipeline counts and last-activity timestamps for the dashboard panel.
+func (h *PipelineHandler) HandleStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := h.svc.Stats()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, stats)
+}
+
 // HandleSummarize handles POST /imprint/summarize.
 func (h *PipelineHandler) HandleSummarize(w http.ResponseWriter, r *http.Request) {
 	var req struct {

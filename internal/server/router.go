@@ -28,6 +28,7 @@ type RouterDeps struct {
 	Advanced     *handler.AdvancedHandler
 	Settings     *handler.SettingsHandler
 	Pipeline     *handler.PipelineHandler
+	Recall       *handler.RecallHandler
 }
 
 var startTime = time.Now()
@@ -100,6 +101,13 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 			r.Post("/enrich", notImplemented)
 		}
 
+		// Recall (LLM synthesis on top of search)
+		if deps.Recall != nil {
+			r.Post("/recall", deps.Recall.HandleRecall)
+		} else {
+			r.Post("/recall", notImplemented)
+		}
+
 		// Memories
 		if deps.Memories != nil {
 			r.Post("/remember", deps.Memories.HandleRemember)
@@ -121,11 +129,13 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 			r.Post("/consolidate", deps.Pipeline.HandleFullPipeline)
 			r.Post("/consolidate-pipeline", deps.Pipeline.HandleConsolidatePipeline)
 			r.Post("/finalize", deps.Pipeline.HandleFinalize)
+			r.Get("/pipeline/status", deps.Pipeline.HandleStats)
 		} else {
 			r.Post("/summarize", notImplemented)
 			r.Post("/consolidate", notImplemented)
 			r.Post("/consolidate-pipeline", notImplemented)
 			r.Post("/finalize", notImplemented)
+			r.Get("/pipeline/status", notImplemented)
 		}
 
 		// Graph

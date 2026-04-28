@@ -11,13 +11,14 @@
   let auditEntries: any[] = $state([]);
   let memoriesCount = $state(0);
   let lessonsCount = $state(0);
+  let pipeline: any = $state(null);
   let loading = $state(true);
   let lastRefresh = $state('');
   let stopPoll: (() => void) | undefined;
 
   async function refresh() {
     try {
-      const [h, s, g, a, m, l] = await Promise.all([
+      const [h, s, g, a, m, l, p] = await Promise.all([
         api.health().catch(() => null),
         // Pull a generous page so the recent-list and total agree, then trim
         // for display below.
@@ -26,6 +27,7 @@
         api.listAudit(5, 0).catch(() => ({ entries: [] })),
         api.listMemories('', 1, 0).catch(() => ({ memories: [], total: 0 })),
         api.listLessons(1, 0).catch(() => ({ lessons: [], total: 0 })),
+        api.pipelineStatus().catch(() => null),
       ]);
       health = h;
       sessions = ((s as any).sessions || []).slice(0, 5);
@@ -34,11 +36,22 @@
       auditEntries = (a as any).entries || (a as any).audit || [];
       memoriesCount = (m as any).total ?? ((m as any).memories?.length || 0);
       lessonsCount = (l as any).total ?? ((l as any).lessons?.length || 0);
+      pipeline = p;
     } catch (e) {
       console.error('Dashboard refresh error:', e);
     }
     lastRefresh = new Date().toLocaleTimeString();
     loading = false;
+  }
+
+  function actionLabel(k: string): string {
+    return ({
+      'observation.create': 'Last observation',
+      'memory.consolidate': 'Last consolidate',
+      'session.summarize': 'Last summarize',
+      'action.extract': 'Last action extract',
+      'reflect': 'Last reflect',
+    } as Record<string,string>)[k] || k;
   }
 
   onMount(() => {
@@ -186,6 +199,60 @@
       </div>
     {:else}
       <p class="no-data">Unable to fetch health data</p>
+    {/if}
+  </div>
+
+  <!-- Gold separator -->
+  <div class="gold-line"></div>
+
+  <!-- Pipeline status -->
+  <div class="section-block">
+    <h3 class="section-heading">Pipeline</h3>
+    {#if pipeline}
+      <div class="pipeline-grid">
+        <div class="pipeline-stat">
+          <span class="pipeline-key">Raw observations</span>
+          <span class="pipeline-val mono">{formatNumber(pipeline.rawCount || 0)}</span>
+        </div>
+        <div class="pipeline-stat">
+          <span class="pipeline-key">Compressed</span>
+          <span class="pipeline-val mono">{formatNumber(pipeline.compressedCount || 0)}</span>
+        </div>
+        <div class="pipeline-stat" class:has-backlog={pipeline.backlog > 0}>
+          <span class="pipeline-key">Backlog</span>
+          <span class="pipeline-val mono">{formatNumber(pipeline.backlog || 0)}</span>
+        </div>
+        <div class="pipeline-stat">
+          <span class="pipeline-key">Active sessions</span>
+          <span class="pipeline-val mono">{pipeline.activeSessions || 0}</span>
+        </div>
+        <div class="pipeline-stat">
+          <span class="pipeline-key">Memories</span>
+          <span class="pipeline-val mono">{formatNumber(pipeline.memoryCount || 0)}</span>
+        </div>
+        <div class="pipeline-stat">
+          <span class="pipeline-key">Lessons</span>
+          <span class="pipeline-val mono">{formatNumber(pipeline.lessonCount || 0)}</span>
+        </div>
+        <div class="pipeline-stat">
+          <span class="pipeline-key">Insights</span>
+          <span class="pipeline-val mono">{formatNumber(pipeline.insightCount || 0)}</span>
+        </div>
+      </div>
+      {#if pipeline.lastByAction}
+        <div class="pipeline-activity">
+          {#each Object.entries(pipeline.lastByAction) as [action, ts]}
+            {#if ts}
+              <div class="pipeline-activity-row">
+                <span class="pipeline-activity-key">{actionLabel(action)}</span>
+                <span class="pipeline-activity-val mono">{timeAgo(ts as string)}</span>
+              </div>
+            {/if}
+          {/each}
+        </div>
+      {/if}
+    {:else}
+      <p class="no-data">Pipeline status unavailable</p>
     {/if}
   </div>
 
@@ -431,5 +498,69 @@
   @keyframes pulse {
     0%, 100% { opacity: 0.3; }
     50% { opacity: 0.7; }
+  }
+
+  /* Pipeline status panel */
+  .pipeline-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    overflow-x: auto;
+  }
+  @media (max-width: 1100px) { .pipeline-grid { grid-template-columns: repeat(4, 1fr); } }
+  @media (max-width: 640px) { .pipeline-grid { grid-template-columns: repeat(2, 1fr); } }
+
+  .pipeline-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 18px;
+    border-right: 1px solid var(--border);
+  }
+  .pipeline-stat:last-child { border-right: none; }
+  .pipeline-stat.has-backlog .pipeline-val { color: var(--accent); }
+
+  .pipeline-key {
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+  }
+  .pipeline-val {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .pipeline-activity {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    margin-top: 12px;
+    padding: 12px 18px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+  }
+  .pipeline-activity-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-right: 24px;
+    font-size: 12px;
+  }
+  .pipeline-activity-key {
+    color: var(--text-muted);
+    font-family: var(--font-ui);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .pipeline-activity-val {
+    color: var(--text-secondary);
   }
 </style>

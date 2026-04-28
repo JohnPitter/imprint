@@ -116,6 +116,9 @@ func main() {
 	actionSvc := service.NewActionService(container)
 	advancedSvc := service.NewAdvancedService(container)
 
+	// Recall: searches via SearchService, then asks the LLM to synthesise.
+	recallSvc := service.NewRecallService(searchSvc, llmProvider)
+
 	// Create handlers
 	deps := &server.RouterDeps{
 		Sessions:     handler.NewSessionHandler(sessionSvc),
@@ -127,6 +130,7 @@ func main() {
 		Advanced:     handler.NewAdvancedHandler(advancedSvc),
 		Settings:     handler.NewSettingsHandler(cfg),
 		Pipeline:     handler.NewPipelineHandler(pipelineSvc),
+		Recall:       handler.NewRecallHandler(recallSvc),
 	}
 
 	// Create router and HTTP server

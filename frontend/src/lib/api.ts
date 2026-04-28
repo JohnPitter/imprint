@@ -67,4 +67,10 @@ export const api = {
   // Settings
   getSettings: () => request<unknown>('GET', '/settings'),
   updateSettings: (data: Record<string, unknown>) => request<unknown>('POST', '/settings', data),
+
+  // Pipeline status
+  pipelineStatus: () => request<unknown>('GET', '/pipeline/status'),
+
+  // Recall (search + LLM synthesis)
+  recall: (query: string, limit = 8) => request<unknown>('POST', '/recall', { query, limit }),
 };

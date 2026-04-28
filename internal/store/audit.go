@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -114,6 +115,38 @@ func (s *AuditStore) Heatmap(days int) ([]HeatmapBucket, error) {
 		result = append(result, b)
 	}
 	return result, rows.Err()
+}
+
+// LastByAction returns the latest timestamp for each requested action name.
+// Missing actions are absent from the map. Done in one query so the call is
+// O(actions) regardless of audit_log size.
+func (s *AuditStore) LastByAction(actions []string) (map[string]string, error) {
+	out := make(map[string]string, len(actions))
+	if len(actions) == 0 {
+		return out, nil
+	}
+	placeholders := make([]string, len(actions))
+	args := make([]any, len(actions))
+	for i, a := range actions {
+		placeholders[i] = "?"
+		args[i] = a
+	}
+	q := `SELECT action, MAX(timestamp) FROM audit_log
+	      WHERE action IN (` + strings.Join(placeholders, ",") + `)
+	      GROUP BY action`
+	rows, err := s.db.Query(q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("audit last-by-action: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var action, ts string
+		if err := rows.Scan(&action, &ts); err != nil {
+			return nil, fmt.Errorf("scan last-by-action: %w", err)
+		}
+		out[action] = ts
+	}
+	return out, rows.Err()
 }
 
 // Count returns the total number of audit log entries.
