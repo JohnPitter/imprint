@@ -351,7 +351,7 @@ func TestRememberService_Evolve(t *testing.T) {
 		t.Fatalf("Remember: %v", err)
 	}
 
-	evolved, err := svc.Evolve(original.ID, "Use 2 spaces (updated preference)", 8)
+	evolved, err := svc.Evolve(original.ID, EvolveInput{Content: "Use 2 spaces (updated preference)", Strength: 8})
 	if err != nil {
 		t.Fatalf("Evolve: %v", err)
 	}

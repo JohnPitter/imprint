@@ -63,11 +63,15 @@ func (h *MemoryHandler) HandleForget(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// HandleEvolve handles POST /imprint/evolve.
+// HandleEvolve handles POST /imprint/evolve. Body fields content / title /
+// type / strength are all optional; missing ones inherit from the previous
+// version.
 func (h *MemoryHandler) HandleEvolve(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ID       string `json:"id"`
 		Content  string `json:"content"`
+		Title    string `json:"title"`
+		Type     string `json:"type"`
 		Strength int    `json:"strength"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -75,7 +79,12 @@ func (h *MemoryHandler) HandleEvolve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mem, err := h.svc.Evolve(req.ID, req.Content, req.Strength)
+	mem, err := h.svc.Evolve(req.ID, service.EvolveInput{
+		Content:  req.Content,
+		Title:    req.Title,
+		Type:     req.Type,
+		Strength: req.Strength,
+	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

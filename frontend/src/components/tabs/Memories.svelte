@@ -11,7 +11,18 @@
   let offset = $state(0);
   const limit = 30;
   const types = ['', 'pattern', 'preference', 'architecture', 'bug', 'workflow', 'fact'];
+  const editableTypes = types.filter(t => t !== '');
   let stopPoll: (() => void) | undefined;
+
+  // Modal state
+  let editing: any = $state(null);
+  let editTitle = $state('');
+  let editContent = $state('');
+  let editType = $state('');
+  let editStrength = $state(5);
+  let saving = $state(false);
+  let confirmingForget = $state(false);
+  let modalError = $state('');
 
   onMount(() => {
     load(true);
@@ -43,7 +54,66 @@
     pattern: 'badge-info', preference: 'badge-purple', architecture: 'badge-accent',
     bug: 'badge-danger', workflow: 'badge-success', fact: 'badge-warning',
   };
+
+  function openEdit(m: any) {
+    editing = m;
+    editTitle = m.title || '';
+    editContent = m.content || '';
+    editType = m.type || 'fact';
+    editStrength = m.strength ?? 5;
+    confirmingForget = false;
+    modalError = '';
+  }
+
+  function closeModal() {
+    if (saving) return;
+    editing = null;
+    confirmingForget = false;
+    modalError = '';
+  }
+
+  async function saveEdit() {
+    if (!editing || saving) return;
+    saving = true;
+    modalError = '';
+    try {
+      await api.evolve({
+        id: editing.id,
+        title: editTitle,
+        content: editContent,
+        type: editType,
+        strength: editStrength,
+      });
+      // Optimistic update — reload to pick up the new version (the old row is
+      // marked is_latest=0 and won't show in /memories anymore).
+      await load(false);
+      editing = null;
+    } catch (e: any) {
+      modalError = e?.message || 'Failed to save';
+    }
+    saving = false;
+  }
+
+  async function confirmForget() {
+    if (!editing || saving) return;
+    saving = true;
+    modalError = '';
+    try {
+      await api.forget({ id: editing.id });
+      await load(false);
+      editing = null;
+    } catch (e: any) {
+      modalError = e?.message || 'Failed to forget';
+    }
+    saving = false;
+  }
+
+  function onModalKey(e: KeyboardEvent) {
+    if (e.key === 'Escape') closeModal();
+  }
 </script>
+
+<svelte:window onkeydown={onModalKey} />
 
 <!-- Type filter bar -->
 <div class="filter-bar">
@@ -74,7 +144,7 @@
 {:else}
   <div class="memory-list">
     {#each memories as m}
-      <div class="memory-card">
+      <button class="memory-card" onclick={() => openEdit(m)}>
         <div class="card-header">
           <div class="card-header-left">
             <span class="badge {typeColors[m.type] || 'badge-info'}">{m.type}</span>
@@ -102,14 +172,71 @@
             </div>
           {/if}
         </div>
-      </div>
+      </button>
     {/each}
   </div>
 
   <div class="pagination">
-    <button class="pagination-btn" onclick={prev} disabled={offset === 0}>{'\u2190'} PREV</button>
+    <button class="pagination-btn" onclick={prev} disabled={offset === 0}>{'←'} PREV</button>
     <span class="pagination-info">PAGE {currentPage} OF {totalPages}</span>
-    <button class="pagination-btn" onclick={next} disabled={offset + limit >= memoriesTotal}>NEXT {'\u2192'}</button>
+    <button class="pagination-btn" onclick={next} disabled={offset + limit >= memoriesTotal}>NEXT {'→'}</button>
+  </div>
+{/if}
+
+{#if editing}
+  <div class="modal-backdrop" onclick={closeModal} role="presentation">
+    <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-label="Edit memory" tabindex="-1">
+      <div class="modal-header">
+        <span class="modal-label">EDIT MEMORY</span>
+        <span class="modal-id mono">{editing.id} · v{editing.version}</span>
+        <button class="modal-close" onclick={closeModal} aria-label="Close">×</button>
+      </div>
+
+      <div class="modal-body">
+        <label class="field">
+          <span class="field-label">Title</span>
+          <input class="modal-input" bind:value={editTitle} disabled={saving} />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Type</span>
+          <select class="modal-input" bind:value={editType} disabled={saving}>
+            {#each editableTypes as t}<option value={t}>{t}</option>{/each}
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field-label">Strength: {editStrength}/10</span>
+          <input class="modal-range" type="range" min="1" max="10" bind:value={editStrength} disabled={saving} />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Content</span>
+          <textarea class="modal-textarea" rows="8" bind:value={editContent} disabled={saving}></textarea>
+        </label>
+
+        {#if modalError}
+          <div class="modal-error">{modalError}</div>
+        {/if}
+      </div>
+
+      <div class="modal-actions">
+        {#if confirmingForget}
+          <span class="modal-confirm-text">Forget this memory? This soft-deletes the latest version.</span>
+          <button class="modal-btn modal-btn-danger" onclick={confirmForget} disabled={saving}>
+            {saving ? 'Forgetting…' : 'Yes, forget'}
+          </button>
+          <button class="modal-btn" onclick={() => confirmingForget = false} disabled={saving}>Cancel</button>
+        {:else}
+          <button class="modal-btn modal-btn-danger-outline" onclick={() => confirmingForget = true} disabled={saving}>Forget</button>
+          <div class="modal-actions-spacer"></div>
+          <button class="modal-btn" onclick={closeModal} disabled={saving}>Cancel</button>
+          <button class="modal-btn modal-btn-primary" onclick={saveEdit} disabled={saving}>
+            {saving ? 'Saving…' : 'Save (new version)'}
+          </button>
+        {/if}
+      </div>
+    </div>
   </div>
 {/if}
 
@@ -136,9 +263,7 @@
     cursor: pointer;
     transition: color 0.2s var(--ease), border-color 0.2s var(--ease);
   }
-  .filter-btn:hover {
-    color: var(--text-primary);
-  }
+  .filter-btn:hover { color: var(--text-primary); }
   .filter-btn.active {
     color: var(--accent);
     border-bottom-color: var(--accent);
@@ -151,13 +276,18 @@
     gap: 8px;
   }
 
-  /* Memory card */
+  /* Memory card — now a button */
   .memory-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-left: 2px solid var(--accent);
     padding: 20px 24px;
     transition: border-color 0.3s var(--ease), box-shadow 0.3s var(--ease);
+    text-align: left;
+    width: 100%;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
   }
   .memory-card:hover {
     border-color: var(--accent);
@@ -203,7 +333,6 @@
     gap: 10px;
   }
 
-  /* Strength gauge */
   .strength-row {
     display: flex;
     align-items: center;
@@ -224,7 +353,6 @@
     flex-shrink: 0;
   }
 
-  /* Concepts */
   .concepts {
     display: flex;
     gap: 4px;
@@ -232,11 +360,7 @@
   }
 
   /* Loading skeleton */
-  .loading-state {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
+  .loading-state { display: flex; flex-direction: column; gap: 8px; }
   .skeleton-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -257,5 +381,175 @@
   @keyframes pulse {
     0%, 100% { opacity: 0.3; }
     50% { opacity: 0.7; }
+  }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 60px;
+  }
+  .modal {
+    width: min(720px, calc(100vw - 32px));
+    max-height: calc(100vh - 100px);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-secondary);
+    border: 1px solid var(--accent);
+    border-top-width: 2px;
+  }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .modal-label {
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+  .modal-id {
+    flex: 1;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .modal-close {
+    background: transparent;
+    border: none;
+    font-size: 22px;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0 4px;
+  }
+  .modal-close:hover { color: var(--text-primary); }
+  .modal-body {
+    padding: 18px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .field-label {
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .modal-input {
+    padding: 10px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 14px;
+  }
+  .modal-input:focus { outline: none; border-color: var(--accent); }
+  .modal-input:disabled { opacity: 0.6; }
+
+  .modal-textarea {
+    padding: 10px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.5;
+    resize: vertical;
+  }
+  .modal-textarea:focus { outline: none; border-color: var(--accent); }
+
+  .modal-range {
+    width: 100%;
+    accent-color: var(--accent);
+    height: 4px;
+  }
+
+  .modal-error {
+    padding: 10px 12px;
+    background: rgba(239, 68, 68, 0.06);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    color: var(--danger);
+    font-size: 13px;
+  }
+
+  .modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .modal-actions-spacer { flex: 1; }
+  .modal-btn {
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: all 0.15s var(--ease);
+  }
+  .modal-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .modal-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .modal-btn-primary {
+    background: var(--accent);
+    color: #030303;
+    border-color: var(--accent);
+  }
+  .modal-btn-primary:hover:not(:disabled) {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+    color: #030303;
+  }
+  .modal-btn-danger {
+    background: var(--danger, #ef4444);
+    color: #fff;
+    border-color: var(--danger, #ef4444);
+  }
+  .modal-btn-danger:hover:not(:disabled) {
+    opacity: 0.9;
+    color: #fff;
+  }
+  .modal-btn-danger-outline {
+    border-color: rgba(239, 68, 68, 0.4);
+    color: var(--danger, #ef4444);
+  }
+  .modal-btn-danger-outline:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: var(--danger, #ef4444);
+    color: var(--danger, #ef4444);
+  }
+  .modal-confirm-text {
+    flex: 1;
+    font-size: 13px;
+    color: var(--text-primary);
   }
 </style>

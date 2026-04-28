@@ -72,13 +72,21 @@ func (s *RememberService) Forget(id string) error {
 	return s.c.Memories.Delete(id)
 }
 
-// Evolve updates a memory's content by creating a new version via Supersede.
-func (s *RememberService) Evolve(id string, newContent string, newStrength int) (*store.MemoryRow, error) {
+// EvolveInput collects the fields a user can edit on an existing memory.
+// Empty/zero fields fall back to the previous version's value, so callers
+// can send partial updates.
+type EvolveInput struct {
+	Content  string
+	Title    string
+	Type     string
+	Strength int
+}
+
+// Evolve creates a new version of a memory via Supersede. Old version stays
+// in place (is_latest=0) so the audit trail is preserved.
+func (s *RememberService) Evolve(id string, in EvolveInput) (*store.MemoryRow, error) {
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
-	}
-	if newContent == "" {
-		return nil, fmt.Errorf("content is required")
 	}
 
 	old, err := s.c.Memories.GetByID(id)
@@ -86,11 +94,28 @@ func (s *RememberService) Evolve(id string, newContent string, newStrength int) 
 		return nil, fmt.Errorf("get memory to evolve: %w", err)
 	}
 
-	if newStrength < 1 {
-		newStrength = old.Strength
+	content := in.Content
+	if content == "" {
+		content = old.Content
 	}
-	if newStrength > 10 {
-		newStrength = 10
+	title := in.Title
+	if title == "" {
+		title = old.Title
+	}
+	memType := in.Type
+	if memType == "" {
+		memType = old.Type
+	}
+	strength := in.Strength
+	if strength < 1 {
+		strength = old.Strength
+	}
+	if strength > 10 {
+		strength = 10
+	}
+
+	if content == old.Content && title == old.Title && memType == old.Type && strength == old.Strength {
+		return old, nil // nothing changed; don't bump the version pointlessly
 	}
 
 	now := store.TimeToString(time.Now())
@@ -100,14 +125,15 @@ func (s *RememberService) Evolve(id string, newContent string, newStrength int) 
 		ID:                   newID,
 		CreatedAt:            now,
 		UpdatedAt:            now,
-		Type:                 old.Type,
-		Title:                old.Title,
-		Content:              newContent,
+		Type:                 memType,
+		Title:                title,
+		Content:              content,
 		Concepts:             old.Concepts,
 		Files:                old.Files,
 		SessionIDs:           old.SessionIDs,
-		Strength:             newStrength,
+		Strength:             strength,
 		Version:              old.Version + 1,
+		ParentID:             &id,
 		SourceObservationIDs: old.SourceObservationIDs,
 		IsLatest:             1,
 	}
@@ -115,6 +141,10 @@ func (s *RememberService) Evolve(id string, newContent string, newStrength int) 
 	if err := s.c.Memories.Supersede(id, newMem); err != nil {
 		return nil, fmt.Errorf("supersede memory: %w", err)
 	}
+
+	s.c.LogAudit("memory.evolve", newID, "memory", map[string]any{
+		"from": id, "title": title, "type": memType, "strength": strength,
+	})
 
 	return newMem, nil
 }

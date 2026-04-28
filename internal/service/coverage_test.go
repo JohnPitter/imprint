@@ -1134,19 +1134,19 @@ func TestRememberService_Errors(t *testing.T) {
 		t.Error("expected empty-id error")
 	}
 
-	if _, err := svc.Evolve("", "c", 5); err == nil {
+	if _, err := svc.Evolve("", EvolveInput{Content: "c", Strength: 5}); err == nil {
 		t.Error("expected empty-id error")
 	}
-	if _, err := svc.Evolve("x", "", 5); err == nil {
+	if _, err := svc.Evolve("x", EvolveInput{Content: "", Strength: 5}); err == nil {
 		t.Error("expected empty-content error")
 	}
-	if _, err := svc.Evolve("nonexistent", "c", 5); err == nil {
+	if _, err := svc.Evolve("nonexistent", EvolveInput{Content: "c", Strength: 5}); err == nil {
 		t.Error("expected not-found error")
 	}
 
 	// Evolve with strength clamp.
 	base, _ := svc.Remember(types.MemFact, "t3", "c", nil, nil, 5)
-	ev, err := svc.Evolve(base.ID, "new", 999)
+	ev, err := svc.Evolve(base.ID, EvolveInput{Content: "new", Strength: 999})
 	if err != nil {
 		t.Fatalf("Evolve clamp: %v", err)
 	}
@@ -1156,7 +1156,7 @@ func TestRememberService_Errors(t *testing.T) {
 
 	// Evolve preserves old strength on 0.
 	base2, _ := svc.Remember(types.MemFact, "t4", "c", nil, nil, 6)
-	ev2, _ := svc.Evolve(base2.ID, "new", 0)
+	ev2, _ := svc.Evolve(base2.ID, EvolveInput{Content: "new", Strength: 0})
 	if ev2.Strength != 6 {
 		t.Errorf("expected preserved strength 6, got %d", ev2.Strength)
 	}
