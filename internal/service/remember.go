@@ -185,3 +185,8 @@ func (s *RememberService) History(id string) ([]store.MemoryRow, error) {
 	}
 	return s.c.Memories.History(id)
 }
+
+// MemoryGraph returns nodes and edges for the memory-centric graph view.
+func (s *RememberService) MemoryGraph(topN, minShared int) ([]store.MemoryGraphNode, []store.MemoryGraphEdge, error) {
+	return s.c.Memories.MemoryGraph(topN, minShared)
+}

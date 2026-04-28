@@ -31,6 +31,7 @@ export const api = {
   listMemories: (type = '', limit = 50, offset = 0) => request<unknown>('GET', `/memories?type=${type}&limit=${limit}&offset=${offset}`),
   topConcepts: (limit = 20) => request<unknown>('GET', `/memories/concepts?limit=${limit}`),
   memoryHistory: (id: string) => request<unknown>('GET', `/memories/history?id=${encodeURIComponent(id)}`),
+  memoryGraph: (topN = 200, minShared = 1) => request<unknown>('GET', `/memories/graph?topN=${topN}&minShared=${minShared}`),
   remember: (data: Record<string, unknown>) => request<unknown>('POST', '/remember', data),
   forget: (data: Record<string, unknown>) => request<unknown>('POST', '/forget', data),
   evolve: (data: Record<string, unknown>) => request<unknown>('POST', '/evolve', data),

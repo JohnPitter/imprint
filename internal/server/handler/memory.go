@@ -127,6 +127,33 @@ func (h *MemoryHandler) HandleList(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// HandleGraph handles GET /imprint/memories/graph?topN=200&minShared=1.
+// Returns memory-centric graph nodes + edges for the Graph tab's "memories"
+// view.
+func (h *MemoryHandler) HandleGraph(w http.ResponseWriter, r *http.Request) {
+	topN := 200
+	minShared := 1
+	if v := r.URL.Query().Get("topN"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			topN = n
+		}
+	}
+	if v := r.URL.Query().Get("minShared"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			minShared = n
+		}
+	}
+	nodes, edges, err := h.svc.MemoryGraph(topN, minShared)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"nodes": nodes,
+		"edges": edges,
+	})
+}
+
 // HandleHistory handles GET /imprint/memories/history?id=mem_xxx. Returns
 // every version of the memory in oldest-first order so the UI can render a
 // timeline.

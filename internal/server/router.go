@@ -115,6 +115,7 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 			r.Get("/memories", deps.Memories.HandleList)
 			r.Get("/memories/concepts", deps.Memories.HandleConcepts)
 			r.Get("/memories/history", deps.Memories.HandleHistory)
+			r.Get("/memories/graph", deps.Memories.HandleGraph)
 			r.Post("/evolve", deps.Memories.HandleEvolve)
 		} else {
 			r.Post("/remember", notImplemented)
@@ -122,6 +123,7 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 			r.Get("/memories", notImplemented)
 			r.Get("/memories/concepts", notImplemented)
 			r.Get("/memories/history", notImplemented)
+			r.Get("/memories/graph", notImplemented)
 			r.Post("/evolve", notImplemented)
 		}
 

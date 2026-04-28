@@ -331,6 +331,111 @@ type ConceptCount struct {
 	Count int    `json:"count"`
 }
 
+// MemoryGraphNode is a memory rendered as a graph vertex: just enough to
+// draw the node and label it, no full content.
+type MemoryGraphNode struct {
+	ID       string   `json:"id"`
+	Title    string   `json:"title"`
+	Type     string   `json:"type"`
+	Strength int      `json:"strength"`
+	Concepts []string `json:"concepts"`
+}
+
+// MemoryGraphEdge is an undirected edge between two memories, weighted by
+// the number of concepts they share.
+type MemoryGraphEdge struct {
+	Source string `json:"source"`
+	Target string `json:"target"`
+	Weight int    `json:"weight"`
+}
+
+// MemoryGraph computes a graph view over the strongest N latest memories,
+// with edges between memories that share at least minShared concepts. The
+// computation is server-side because doing it client-side would require
+// shipping every memory's concept list.
+func (s *MemoryStore) MemoryGraph(topN, minShared int) ([]MemoryGraphNode, []MemoryGraphEdge, error) {
+	if topN <= 0 || topN > 500 {
+		topN = 200
+	}
+	if minShared < 1 {
+		minShared = 1
+	}
+
+	rows, err := s.db.Query(`
+		SELECT id, title, type, strength, COALESCE(concepts, '[]')
+		FROM memories
+		WHERE is_latest = 1
+		ORDER BY strength DESC, updated_at DESC
+		LIMIT ?`, topN)
+	if err != nil {
+		return nil, nil, fmt.Errorf("memory graph nodes: %w", err)
+	}
+	defer rows.Close()
+
+	type memWithConcepts struct {
+		node     MemoryGraphNode
+		conceptSet map[string]struct{}
+	}
+	mems := make([]memWithConcepts, 0, topN)
+	for rows.Next() {
+		var n MemoryGraphNode
+		var conceptsRaw string
+		if err := rows.Scan(&n.ID, &n.Title, &n.Type, &n.Strength, &conceptsRaw); err != nil {
+			return nil, nil, fmt.Errorf("scan memory graph node: %w", err)
+		}
+		var cs []string
+		if err := json.Unmarshal([]byte(conceptsRaw), &cs); err != nil {
+			cs = nil
+		}
+		n.Concepts = cs
+		set := make(map[string]struct{}, len(cs))
+		for _, c := range cs {
+			if c != "" {
+				set[c] = struct{}{}
+			}
+		}
+		mems = append(mems, memWithConcepts{node: n, conceptSet: set})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, fmt.Errorf("rows.Err: %w", err)
+	}
+
+	// O(N^2) intersection — fine for N <= 500 (worst case 125k pair checks).
+	nodes := make([]MemoryGraphNode, 0, len(mems))
+	for _, m := range mems {
+		nodes = append(nodes, m.node)
+	}
+	edges := make([]MemoryGraphEdge, 0)
+	for i := 0; i < len(mems); i++ {
+		for j := i + 1; j < len(mems); j++ {
+			a := mems[i].conceptSet
+			b := mems[j].conceptSet
+			if len(a) == 0 || len(b) == 0 {
+				continue
+			}
+			// Iterate the smaller set.
+			small, large := a, b
+			if len(b) < len(a) {
+				small, large = b, a
+			}
+			shared := 0
+			for c := range small {
+				if _, ok := large[c]; ok {
+					shared++
+				}
+			}
+			if shared >= minShared {
+				edges = append(edges, MemoryGraphEdge{
+					Source: mems[i].node.ID,
+					Target: mems[j].node.ID,
+					Weight: shared,
+				})
+			}
+		}
+	}
+	return nodes, edges, nil
+}
+
 // TopConcepts returns the top N concepts across all latest memories,
 // aggregated server-side via json_each so the client doesn't have to scan
 // the full memories table to build a tag cloud.

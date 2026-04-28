@@ -11,6 +11,11 @@
   let hoveredNode: any = $state(null);
   let animFrame: number;
 
+  // Two views over the knowledge: "concepts" (the existing extracted graph
+  // with concept/file/decision/pattern nodes) vs "memories" (top-N latest
+  // memories with edges between those that share concepts).
+  let view: 'concepts' | 'memories' = $state('concepts');
+
   // Simulation space: fixed coords, camera maps to canvas
   const SIM_W = 1200, SIM_H = 900;
 
@@ -31,9 +36,13 @@
   let stopPoll: (() => void) | undefined;
 
   const typeColors: Record<string, string> = {
+    // Knowledge graph types
     concept: '#e8a065', file: '#5ba3d9', function: '#4ecdc4', error: '#ef4444',
     decision: '#eab308', pattern: '#a78bfa', library: '#f472b6', person: '#34d399',
     project: '#c8933a', component: '#38bdf8', process: '#8b5cf6',
+    // Memory types — different palette so the two views are visually distinct
+    architecture: '#c8933a', preference: '#a78bfa', bug: '#ef4444',
+    workflow: '#34d399', fact: '#eab308',
   };
   function getColor(type: string): string { return typeColors[type] || '#555'; }
 
@@ -50,30 +59,71 @@
 
   async function refresh(initial: boolean) {
     try {
-      const [s, g] = await Promise.all([api.graphStats(), api.graphAll()]) as any[];
-      const newNodeCount = s?.totalNodes || 0;
-      const newEdgeCount = s?.totalEdges || 0;
-      const structureChanged = newNodeCount !== nodeCount || newEdgeCount !== edgeCount;
-      stats = s;
-      nodeCount = newNodeCount;
-      edgeCount = newEdgeCount;
-      if ((initial || structureChanged) && g?.nodes?.length > 0) {
-        buildSimulation(g.nodes, g.edges || []);
-        startSimulation();
+      if (view === 'concepts') {
+        const [s, g] = await Promise.all([api.graphStats(), api.graphAll()]) as any[];
+        const newNodeCount = s?.totalNodes || 0;
+        const newEdgeCount = s?.totalEdges || 0;
+        const structureChanged = newNodeCount !== nodeCount || newEdgeCount !== edgeCount;
+        stats = s;
+        nodeCount = newNodeCount;
+        edgeCount = newEdgeCount;
+        if ((initial || structureChanged) && g?.nodes?.length > 0) {
+          buildSimulation(g.nodes, g.edges || [], 'concepts');
+          startSimulation();
+        }
+      } else {
+        const g = await api.memoryGraph(200, 1) as any;
+        const newNodeCount = g?.nodes?.length || 0;
+        const newEdgeCount = g?.edges?.length || 0;
+        const structureChanged = newNodeCount !== nodeCount || newEdgeCount !== edgeCount;
+        // Synthesize a "stats" payload so the breakdown panel has something.
+        const byType: Record<string, number> = {};
+        for (const n of (g?.nodes || [])) byType[n.type || 'other'] = (byType[n.type || 'other'] || 0) + 1;
+        stats = {
+          totalNodes: newNodeCount,
+          totalEdges: newEdgeCount,
+          nodesByType: byType,
+        };
+        nodeCount = newNodeCount;
+        edgeCount = newEdgeCount;
+        if ((initial || structureChanged) && newNodeCount > 0) {
+          buildSimulation(g.nodes, g.edges || [], 'memories');
+          startSimulation();
+        }
       }
     } catch (e) { console.error(e); }
     if (initial) loading = false;
   }
 
-  function buildSimulation(rawNodes: any[], rawEdges: any[]) {
+  async function setView(v: 'concepts' | 'memories') {
+    if (v === view) return;
+    view = v;
+    // Force a structural rebuild on switch.
+    nodeCount = -1;
+    edgeCount = -1;
+    loading = true;
+    if (animFrame) cancelAnimationFrame(animFrame);
+    await refresh(true);
+  }
+
+  function buildSimulation(rawNodes: any[], rawEdges: any[], mode: 'concepts' | 'memories') {
     const nodeMap = new Map<string, number>();
+
+    // Each view names its source/target keys differently. Memory edges
+    // also carry a numeric weight that we factor into the bond strength.
+    const sourceKey = mode === 'memories' ? 'source' : 'sourceNodeId';
+    const targetKey = mode === 'memories' ? 'target' : 'targetNodeId';
+    const altSrc = mode === 'memories' ? 'Source' : 'SourceNodeID';
+    const altTgt = mode === 'memories' ? 'Target' : 'TargetNodeID';
+
     const edgeCounts = new Map<string, number>();
     for (const e of rawEdges) {
-      const s = e.sourceNodeId || e.SourceNodeID || '';
-      const t = e.targetNodeId || e.TargetNodeID || '';
+      const s = e[sourceKey] || e[altSrc] || '';
+      const t = e[targetKey] || e[altTgt] || '';
       edgeCounts.set(s, (edgeCounts.get(s) || 0) + 1);
       edgeCounts.set(t, (edgeCounts.get(t) || 0) + 1);
     }
+
     // Start nodes in a circle in the middle of sim space
     const cx = SIM_W / 2, cy = SIM_H / 2;
     nodes = rawNodes.map((n: any, i: number) => {
@@ -82,22 +132,36 @@
       const ec = edgeCounts.get(id) || 0;
       const angle = (i / rawNodes.length) * Math.PI * 2;
       const r = 80 + Math.random() * 120;
+      // In memories view we have a 'title' instead of 'name'; both are useful.
+      const label = n.title || n.Title || n.name || n.Name || id;
+      // In memories view, scale node radius by strength too — strong memories
+      // are visually heavier.
+      const strength = n.strength ?? n.Strength ?? 0;
+      const baseRadius = mode === 'memories'
+        ? Math.max(4, Math.min(20, 4 + ec * 0.6 + strength * 0.8))
+        : Math.max(4, Math.min(18, 4 + ec * 1.8));
       return {
-        id, type: n.type || n.Type || 'other', name: n.name || n.Name || id,
+        id, type: n.type || n.Type || 'other', name: label,
         x: cx + Math.cos(angle) * r,
         y: cy + Math.sin(angle) * r,
         vx: (Math.random() - 0.5) * 0.5,
         vy: (Math.random() - 0.5) * 0.5,
         edges: ec,
-        radius: Math.max(4, Math.min(18, 4 + ec * 1.8)),
+        radius: baseRadius,
       };
     });
+
     edges = [];
     for (const e of rawEdges) {
-      const si = nodeMap.get(e.sourceNodeId || e.SourceNodeID || '');
-      const ti = nodeMap.get(e.targetNodeId || e.TargetNodeID || '');
-      if (si !== undefined && ti !== undefined)
-        edges.push({ source: si, target: ti, type: e.type || e.Type || '' });
+      const si = nodeMap.get(e[sourceKey] || e[altSrc] || '');
+      const ti = nodeMap.get(e[targetKey] || e[altTgt] || '');
+      if (si !== undefined && ti !== undefined) {
+        edges.push({
+          source: si,
+          target: ti,
+          type: mode === 'memories' ? `weight:${e.weight ?? 1}` : (e.type || e.Type || ''),
+        });
+      }
     }
   }
 
@@ -282,6 +346,10 @@
       <h3>Knowledge Graph</h3>
     </div>
     <div class="graph-controls">
+      <div class="view-toggle">
+        <button class="view-btn" class:active={view === 'concepts'} onclick={() => setView('concepts')}>Concepts</button>
+        <button class="view-btn" class:active={view === 'memories'} onclick={() => setView('memories')}>Memories</button>
+      </div>
       <span class="stat-mini mono">{nodeCount} nodes · {edgeCount} edges</span>
       <button class="btn" onclick={resetView}>Reset</button>
       <button class="btn btn-icon" onclick={toggleFullscreen} title={fullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}>
@@ -361,6 +429,27 @@
   .graph-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; }
   .graph-header h3 { font-family:var(--font-display); font-size:16px; font-weight:600; }
   .graph-controls { display:flex; align-items:center; gap:12px; }
+  .view-toggle {
+    display: inline-flex;
+    border: 1px solid var(--border);
+  }
+  .view-btn {
+    background: transparent;
+    border: none;
+    border-right: 1px solid var(--border);
+    padding: 5px 12px;
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s var(--ease);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .view-btn:last-child { border-right: none; }
+  .view-btn:hover:not(.active) { color: var(--text-primary); background: var(--bg-hover); }
+  .view-btn.active { color: var(--accent); background: var(--accent-muted); }
   .stat-mini { font-size:11px; color:var(--text-muted); }
   .btn-icon { padding:6px 10px; font-size:16px; }
 
