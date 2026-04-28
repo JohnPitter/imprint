@@ -30,6 +30,7 @@ export const api = {
   // Memories
   listMemories: (type = '', limit = 50, offset = 0) => request<unknown>('GET', `/memories?type=${type}&limit=${limit}&offset=${offset}`),
   topConcepts: (limit = 20) => request<unknown>('GET', `/memories/concepts?limit=${limit}`),
+  memoryHistory: (id: string) => request<unknown>('GET', `/memories/history?id=${encodeURIComponent(id)}`),
   remember: (data: Record<string, unknown>) => request<unknown>('POST', '/remember', data),
   forget: (data: Record<string, unknown>) => request<unknown>('POST', '/forget', data),
   evolve: (data: Record<string, unknown>) => request<unknown>('POST', '/evolve', data),
@@ -50,6 +51,7 @@ export const api = {
   // Lessons
   listLessons: (limit = 50, offset = 0) => request<unknown>('GET', `/lessons?limit=${limit}&offset=${offset}`),
   searchLessons: (query: string) => request<unknown>('POST', '/lessons/search', { query }),
+  dismissLesson: (id: string) => request<unknown>('POST', '/lessons/dismiss', { id }),
 
   // Insights
   listInsights: (limit = 50, offset = 0) => request<unknown>('GET', `/insights?limit=${limit}&offset=${offset}`),

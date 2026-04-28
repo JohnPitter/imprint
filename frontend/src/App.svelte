@@ -22,6 +22,38 @@
   let searchResults: any[] = $state([]);
   let searchError = $state('');
 
+  // Search filters: subset of types to show, plus a minimum-score floor.
+  // Score in the API is roughly RRF-normalized to ~0.005..0.020; default the
+  // floor at 0 so we don't hide results, but expose the slider.
+  let searchTypeFilter: Set<string> = $state(new Set());
+  let searchMinScore = $state(0);
+
+  let searchTypeCounts = $derived(((): Record<string, number> => {
+    const out: Record<string, number> = {};
+    for (const r of searchResults) {
+      const t = (r.type || 'note').toLowerCase();
+      out[t] = (out[t] || 0) + 1;
+    }
+    return out;
+  })());
+
+  let visibleResults = $derived(searchResults.filter((r) => {
+    if (searchMinScore > 0 && (r.score || 0) * 1000 < searchMinScore) return false;
+    if (searchTypeFilter.size === 0) return true;
+    const t = (r.type || 'note').toLowerCase();
+    return searchTypeFilter.has(t);
+  }));
+
+  function toggleSearchType(t: string) {
+    if (searchTypeFilter.has(t)) searchTypeFilter.delete(t);
+    else searchTypeFilter.add(t);
+    searchTypeFilter = new Set(searchTypeFilter);
+  }
+  function clearSearchFilters() {
+    searchTypeFilter = new Set();
+    searchMinScore = 0;
+  }
+
   // Header now passes a plain callback prop instead of dispatching an event.
   async function handleSearch(detail: { query: string }) {
     const q = (detail.query || '').trim();
@@ -31,6 +63,7 @@
     searchLoading = true;
     searchError = '';
     searchResults = [];
+    clearSearchFilters();
     try {
       const r: any = await api.search(q, 25);
       searchResults = r.results || [];
@@ -79,9 +112,33 @@
         <div class="search-panel-header">
           <span class="search-panel-label">RESULTS FOR</span>
           <span class="search-panel-query">{searchQuery}</span>
-          <span class="search-panel-count">{searchResults.length}</span>
+          <span class="search-panel-count">{visibleResults.length}{#if searchResults.length !== visibleResults.length} / {searchResults.length}{/if}</span>
           <button class="search-panel-close" onclick={closeSearch} aria-label="Close">×</button>
         </div>
+
+        {#if searchResults.length > 0}
+          <div class="search-filters">
+            <div class="search-filter-chips">
+              {#each Object.entries(searchTypeCounts) as [t, n]}
+                <button
+                  class="search-filter-chip"
+                  class:search-filter-chip-active={searchTypeFilter.has(t)}
+                  onclick={() => toggleSearchType(t)}
+                >
+                  {t} <span class="search-filter-chip-count">{n}</span>
+                </button>
+              {/each}
+              {#if searchTypeFilter.size > 0 || searchMinScore > 0}
+                <button class="search-filter-clear" onclick={clearSearchFilters}>clear</button>
+              {/if}
+            </div>
+            <label class="search-filter-score">
+              <span class="search-filter-score-label">MIN SCORE</span>
+              <input type="range" min="0" max="20" step="1" bind:value={searchMinScore} />
+              <span class="search-filter-score-val mono">{searchMinScore}</span>
+            </label>
+          </div>
+        {/if}
 
         <div class="search-panel-body">
           {#if searchLoading}
@@ -90,9 +147,11 @@
             <div class="search-empty search-error">{searchError}</div>
           {:else if searchResults.length === 0}
             <div class="search-empty">No matches for "{searchQuery}"</div>
+          {:else if visibleResults.length === 0}
+            <div class="search-empty">All {searchResults.length} results filtered out — clear filters to see them.</div>
           {:else}
             <ul class="search-results">
-              {#each searchResults as r}
+              {#each visibleResults as r}
                 <li class="search-result">
                   <div class="search-result-head">
                     <span class="search-result-type">{r.type || 'note'}</span>
@@ -187,6 +246,87 @@
     flex: 1;
     overflow-y: auto;
     padding: 8px 0;
+  }
+
+  /* Filters bar */
+  .search-filters {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .search-filter-chips {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .search-filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: all 0.15s var(--ease);
+  }
+  .search-filter-chip:hover { color: var(--text-primary); border-color: var(--text-dim); }
+  .search-filter-chip-active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--accent-muted);
+  }
+  .search-filter-chip-count {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    opacity: 0.7;
+  }
+  .search-filter-clear {
+    margin-left: 6px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-family: var(--font-ui);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    padding: 4px 6px;
+  }
+  .search-filter-clear:hover { color: var(--accent); }
+  .search-filter-score {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .search-filter-score-label {
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .search-filter-score input[type="range"] {
+    width: 100px;
+    accent-color: var(--accent);
+    height: 4px;
+  }
+  .search-filter-score-val {
+    font-size: 11px;
+    color: var(--text-secondary);
+    min-width: 18px;
+    text-align: right;
   }
   .search-empty {
     padding: 32px;

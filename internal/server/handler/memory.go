@@ -127,6 +127,23 @@ func (h *MemoryHandler) HandleList(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// HandleHistory handles GET /imprint/memories/history?id=mem_xxx. Returns
+// every version of the memory in oldest-first order so the UI can render a
+// timeline.
+func (h *MemoryHandler) HandleHistory(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "id query parameter is required")
+		return
+	}
+	versions, err := h.svc.History(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"versions": versions})
+}
+
 // HandleConcepts handles GET /imprint/memories/concepts. Returns the top
 // concepts aggregated server-side from all latest memories.
 func (h *MemoryHandler) HandleConcepts(w http.ResponseWriter, r *http.Request) {

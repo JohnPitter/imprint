@@ -165,6 +165,20 @@ func (s *LessonStore) Search(query string, limit int) ([]LessonRow, error) {
 }
 
 // Strengthen increments reinforcements, boosts confidence, and updates lastReinforcedAt.
+// Dismiss soft-deletes a lesson by flipping deleted=1. Lessons stay in the
+// table so the audit trail (and any /governance reversal) is preserved.
+func (s *LessonStore) Dismiss(id string) error {
+	res, err := s.db.Exec(`UPDATE lessons SET deleted = 1 WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("dismiss lesson: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("lesson not found: %s", id)
+	}
+	return nil
+}
+
 func (s *LessonStore) Strengthen(id string) error {
 	now := TimeToString(time.Now())
 	_, err := s.db.Exec(`

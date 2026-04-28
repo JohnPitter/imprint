@@ -177,3 +177,11 @@ func (s *RememberService) Count() (int, error) {
 func (s *RememberService) TopConcepts(limit int) ([]store.ConceptCount, error) {
 	return s.c.Memories.TopConcepts(limit)
 }
+
+// History returns every version of the memory, oldest first.
+func (s *RememberService) History(id string) ([]store.MemoryRow, error) {
+	if id == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+	return s.c.Memories.History(id)
+}

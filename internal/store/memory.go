@@ -95,6 +95,40 @@ func (s *MemoryStore) GetByID(id string) (*MemoryRow, error) {
 	return s.scanRow(row)
 }
 
+// History walks the parent_id chain backward from the given memory and
+// returns every version, oldest first. The starting row is included as the
+// last element. Returns at most 100 versions to guard against accidental
+// cycles in old data.
+func (s *MemoryStore) History(id string) ([]MemoryRow, error) {
+	const maxDepth = 100
+	chain := make([]MemoryRow, 0, 4)
+	cur := id
+	seen := map[string]bool{}
+	for i := 0; i < maxDepth && cur != ""; i++ {
+		if seen[cur] {
+			break // cycle guard
+		}
+		seen[cur] = true
+		row, err := s.GetByID(cur)
+		if err != nil {
+			if i == 0 {
+				return nil, err // first lookup must succeed
+			}
+			break // parent missing — stop quietly
+		}
+		chain = append(chain, *row)
+		if row.ParentID == nil {
+			break
+		}
+		cur = *row.ParentID
+	}
+	// Reverse to oldest-first.
+	for i, j := 0, len(chain)-1; i < j; i, j = i+1, j-1 {
+		chain[i], chain[j] = chain[j], chain[i]
+	}
+	return chain, nil
+}
+
 // List returns latest memories, optionally filtered by type.
 // Pass empty string for memType to list all types.
 func (s *MemoryStore) List(memType string, limit, offset int) ([]MemoryRow, error) {

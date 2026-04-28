@@ -321,6 +321,19 @@ func (s *AdvancedService) StrengthenLesson(id string) error {
 	return s.c.Lessons.Strengthen(id)
 }
 
+// DismissLesson soft-deletes a lesson and writes an audit entry so the
+// governance log shows who/when the dismissal happened.
+func (s *AdvancedService) DismissLesson(id string) error {
+	if id == "" {
+		return fmt.Errorf("id is required")
+	}
+	if err := s.c.Lessons.Dismiss(id); err != nil {
+		return err
+	}
+	s.c.LogAudit("lesson.dismiss", id, "lesson", map[string]any{})
+	return nil
+}
+
 // ---------------------------------------------------------------------------
 // Insights
 // ---------------------------------------------------------------------------

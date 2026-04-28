@@ -402,6 +402,23 @@ func (h *AdvancedHandler) HandleStrengthenLesson(w http.ResponseWriter, r *http.
 	writeJSON(w, http.StatusOK, map[string]string{"status": "strengthened"})
 }
 
+// HandleDismissLesson handles POST /lessons/dismiss. Soft-deletes the lesson
+// (deleted=1) so it disappears from /lessons listings.
+func (h *AdvancedHandler) HandleDismissLesson(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if err := h.svc.DismissLesson(req.ID); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "dismissed"})
+}
+
 // ---------------------------------------------------------------------------
 // Insights
 // ---------------------------------------------------------------------------

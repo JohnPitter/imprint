@@ -114,12 +114,14 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 			r.Post("/forget", deps.Memories.HandleForget)
 			r.Get("/memories", deps.Memories.HandleList)
 			r.Get("/memories/concepts", deps.Memories.HandleConcepts)
+			r.Get("/memories/history", deps.Memories.HandleHistory)
 			r.Post("/evolve", deps.Memories.HandleEvolve)
 		} else {
 			r.Post("/remember", notImplemented)
 			r.Post("/forget", notImplemented)
 			r.Get("/memories", notImplemented)
 			r.Get("/memories/concepts", notImplemented)
+			r.Get("/memories/history", notImplemented)
 			r.Post("/evolve", notImplemented)
 		}
 
@@ -212,6 +214,7 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 			r.Get("/lessons", deps.Advanced.HandleListLessons)
 			r.Post("/lessons/search", deps.Advanced.HandleSearchLessons)
 			r.Post("/lessons/strengthen", deps.Advanced.HandleStrengthenLesson)
+			r.Post("/lessons/dismiss", deps.Advanced.HandleDismissLesson)
 			r.Get("/insights", deps.Advanced.HandleListInsights)
 			r.Post("/insights/search", deps.Advanced.HandleSearchInsights)
 			r.Post("/facets", deps.Advanced.HandleCreateFacet)
@@ -244,6 +247,7 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 			r.Get("/lessons", notImplemented)
 			r.Post("/lessons/search", notImplemented)
 			r.Post("/lessons/strengthen", notImplemented)
+			r.Post("/lessons/dismiss", notImplemented)
 			r.Get("/insights", notImplemented)
 			r.Post("/insights/search", notImplemented)
 			r.Post("/facets", notImplemented)

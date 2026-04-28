@@ -118,6 +118,29 @@
     }
     return Array.isArray(tags) ? tags : [];
   }
+
+  // Lessons being dismissed: shown as "(dismissing…)" until the response
+  // returns and the next poll removes them. Set, not array, for O(1) lookup.
+  let dismissingIds: Set<string> = $state(new Set());
+
+  async function dismissLesson(id: string, e: MouseEvent) {
+    e.stopPropagation();
+    if (dismissingIds.has(id)) return;
+    dismissingIds.add(id);
+    dismissingIds = new Set(dismissingIds);
+    try {
+      await api.dismissLesson(id);
+      // Optimistic: drop from current page so it disappears immediately,
+      // poll will reconcile counts.
+      lessons = lessons.filter((l: any) => l.id !== id);
+      lessonsTotal = Math.max(0, lessonsTotal - 1);
+    } catch (e) {
+      console.error('dismiss lesson failed:', e);
+    } finally {
+      dismissingIds.delete(id);
+      dismissingIds = new Set(dismissingIds);
+    }
+  }
 </script>
 
 <div class="lessons-container">
@@ -161,7 +184,7 @@
           {:else}
             <div class="lessons-list">
               {#each lessons as l}
-                <div class="lesson-card">
+                <div class="lesson-card" class:lesson-card-dismissing={dismissingIds.has(l.id)}>
                   <p class="lesson-content">{l.content}</p>
                   <div class="lesson-meta">
                     <div class="gauge-row">
@@ -169,6 +192,12 @@
                       <span class="mono gauge-label">{Math.round((l.confidence || 0) * 100)}%</span>
                     </div>
                     <span class="mono reinforcement-count">{l.reinforcements || 0}x</span>
+                    <button
+                      class="lesson-dismiss"
+                      onclick={(e) => dismissLesson(l.id, e)}
+                      disabled={dismissingIds.has(l.id)}
+                      title="Dismiss this lesson (soft delete)"
+                    >{dismissingIds.has(l.id) ? '…' : 'dismiss'}</button>
                   </div>
                   {#if parseTags(l.tags).length > 0}
                     <div class="lesson-tags">
@@ -432,6 +461,25 @@
     color: var(--text-muted);
     flex-shrink: 0;
   }
+  .lesson-dismiss {
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-muted);
+    font-family: var(--font-ui);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 3px 8px;
+    cursor: pointer;
+    transition: all 0.15s var(--ease);
+  }
+  .lesson-dismiss:hover:not(:disabled) {
+    color: var(--danger, #ef4444);
+    border-color: rgba(239, 68, 68, 0.3);
+  }
+  .lesson-dismiss:disabled { opacity: 0.5; cursor: not-allowed; }
+  .lesson-card-dismissing { opacity: 0.5; }
   .lesson-tags {
     display: flex;
     gap: 6px;

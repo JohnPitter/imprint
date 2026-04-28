@@ -23,6 +23,10 @@
   let saving = $state(false);
   let confirmingForget = $state(false);
   let modalError = $state('');
+  // History panel within the modal: empty until lazy-loaded.
+  let history: any[] = $state([]);
+  let historyLoading = $state(false);
+  let historyExpanded = $state(false);
 
   onMount(() => {
     load(true);
@@ -63,6 +67,8 @@
     editStrength = m.strength ?? 5;
     confirmingForget = false;
     modalError = '';
+    history = [];
+    historyExpanded = false;
   }
 
   function closeModal() {
@@ -70,6 +76,30 @@
     editing = null;
     confirmingForget = false;
     modalError = '';
+    history = [];
+    historyExpanded = false;
+  }
+
+  async function toggleHistory() {
+    if (!editing) return;
+    if (historyExpanded) { historyExpanded = false; return; }
+    historyExpanded = true;
+    if (history.length === 0) {
+      historyLoading = true;
+      try {
+        const r = await api.memoryHistory(editing.id) as any;
+        history = r.versions || [];
+      } catch (e) {
+        // Surface in the modal error band — small failure, not blocking.
+        modalError = (e as any)?.message || 'Failed to load history';
+      }
+      historyLoading = false;
+    }
+  }
+
+  function fmtTime(ts: string): string {
+    if (!ts) return '';
+    try { return new Date(ts).toLocaleString(); } catch { return ts; }
   }
 
   async function saveEdit() {
@@ -217,6 +247,40 @@
 
         {#if modalError}
           <div class="modal-error">{modalError}</div>
+        {/if}
+
+        {#if editing.version > 1}
+          <div class="history-section">
+            <button class="history-toggle" onclick={toggleHistory} disabled={saving}>
+              {historyExpanded ? '−' : '+'} Version history (v1 … v{editing.version})
+            </button>
+            {#if historyExpanded}
+              {#if historyLoading}
+                <div class="history-loading">Loading…</div>
+              {:else if history.length === 0}
+                <div class="history-empty">No prior versions found.</div>
+              {:else}
+                <ol class="history-list">
+                  {#each history as v}
+                    <li class="history-item" class:history-item-current={v.id === editing.id}>
+                      <div class="history-head">
+                        <span class="history-version mono">v{v.version}</span>
+                        <span class="history-id mono">{v.id}</span>
+                        <span class="history-time">{fmtTime(v.updatedAt || v.createdAt)}</span>
+                        {#if v.id === editing.id}<span class="history-current">current</span>{/if}
+                      </div>
+                      <div class="history-meta">
+                        <span class="history-meta-item">{v.type}</span>
+                        <span class="history-meta-item">strength {v.strength}/10</span>
+                      </div>
+                      <div class="history-title">{v.title}</div>
+                      <p class="history-content">{v.content}</p>
+                    </li>
+                  {/each}
+                </ol>
+              {/if}
+            {/if}
+          </div>
         {/if}
       </div>
 
@@ -551,5 +615,109 @@
     flex: 1;
     font-size: 13px;
     color: var(--text-primary);
+  }
+
+  /* History panel */
+  .history-section {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .history-toggle {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    padding: 4px 0;
+  }
+  .history-toggle:hover { color: var(--accent); }
+  .history-toggle:disabled { opacity: 0.5; cursor: not-allowed; }
+  .history-loading {
+    padding: 12px 0;
+    font-family: var(--font-ui);
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .history-empty {
+    padding: 12px 0;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .history-list {
+    list-style: none;
+    margin: 12px 0 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  .history-item {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+  }
+  .history-item-current {
+    border-color: var(--accent);
+    background: var(--accent-muted);
+  }
+  .history-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+  .history-version {
+    font-size: 12px;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .history-id {
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+  .history-time {
+    font-size: 11px;
+    color: var(--text-muted);
+    flex: 1;
+  }
+  .history-current {
+    font-family: var(--font-ui);
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+  }
+  .history-meta {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 4px;
+  }
+  .history-meta-item {
+    font-family: var(--font-ui);
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .history-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .history-content {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    white-space: pre-wrap;
+    margin: 0;
   }
 </style>
