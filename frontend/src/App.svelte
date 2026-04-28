@@ -72,7 +72,7 @@
 
   {#if searchOpen}
     <div class="search-overlay" on:click={closeSearch} on:keydown={(e) => e.key === 'Escape' && closeSearch()} role="presentation">
-      <div class="search-panel" on:click|stopPropagation role="dialog" aria-label="Search results">
+      <div class="search-panel" on:click|stopPropagation on:keydown|stopPropagation role="dialog" aria-label="Search results" tabindex="-1">
         <div class="search-panel-header">
           <span class="search-panel-label">RESULTS FOR</span>
           <span class="search-panel-query">{searchQuery}</span>

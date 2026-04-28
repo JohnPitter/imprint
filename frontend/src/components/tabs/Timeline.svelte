@@ -118,8 +118,8 @@
   <!-- Controls Bar -->
   <div class="tl-controls">
     <div class="tl-control-group">
-      <label class="tl-label">SESSION</label>
-      <select class="tl-select" bind:value={selectedSessionId} on:change={() => loadObservations(selectedSessionId)}>
+      <label class="tl-label" for="tl-session-select">SESSION</label>
+      <select id="tl-session-select" class="tl-select" bind:value={selectedSessionId} on:change={() => loadObservations(selectedSessionId)}>
         {#each sessions as s}
           <option value={s.ID || s.id}>
             {s.Project || s.project || truncate(s.ID || s.id, 20)} {'\u2014'} {s.ObservationCount || s.observationCount || 0} obs
@@ -129,8 +129,8 @@
     </div>
 
     <div class="tl-control-group">
-      <label class="tl-label">MIN IMPORTANCE: {minImportance}</label>
-      <input type="range" min="1" max="10" bind:value={minImportance} on:input={() => { currentPage = 0; }} class="tl-range" />
+      <label class="tl-label" for="tl-importance-range">MIN IMPORTANCE: {minImportance}</label>
+      <input id="tl-importance-range" type="range" min="1" max="10" bind:value={minImportance} on:input={() => { currentPage = 0; }} class="tl-range" />
     </div>
   </div>
 
