@@ -166,8 +166,8 @@ func TestCallTool_RoutesPaths(t *testing.T) {
 		"memory_save":        "/imprint/remember",
 		"memory_forget":      "/imprint/forget",
 		"memory_context":     "/imprint/context",
-		"memory_profiles":    "/imprint/profile",
-		"memory_patterns":    "/imprint/patterns",
+		"memory_profiles":    "/imprint/graph/stats",
+		"memory_patterns":    "/imprint/insights",
 		"memory_graph_query": "/imprint/graph/query",
 	}
 	for tool, wantPath := range cases {

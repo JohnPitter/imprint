@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+	"unicode/utf8"
 
 	"imprint/internal/privacy"
 	"imprint/internal/store"
@@ -159,13 +160,37 @@ func (s *ObserveService) ListCompressed(sessionID string, limit, offset int) ([]
 	return s.c.Observations.ListCompressed(sessionID, limit, offset)
 }
 
-// truncateRawJSON truncates a JSON raw message to maxLen bytes.
-// Returns the original if it is within the limit.
+// truncateRawJSON returns a JSON raw message no longer than maxLen bytes.
+// If the raw message is a JSON string, it is decoded, the inner string is
+// truncated on a UTF-8 rune boundary, and re-encoded so the result stays
+// valid JSON. For non-string JSON values (objects/arrays/numbers/etc) we
+// fall back to a JSON-encoded marker string instead of slicing bytes,
+// since cutting JSON mid-token would produce invalid JSON.
 func truncateRawJSON(raw json.RawMessage, maxLen int) json.RawMessage {
 	if len(raw) <= maxLen {
 		return raw
 	}
-	return raw[:maxLen]
+	// Try to decode as a JSON string and truncate the contents.
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		// JSON string: budget for the surrounding quotes.
+		inner := maxLen - 2
+		if inner < 0 {
+			inner = 0
+		}
+		if len(s) > inner {
+			i := inner
+			for i > 0 && !utf8.RuneStart(s[i]) {
+				i--
+			}
+			s = s[:i]
+		}
+		out, _ := json.Marshal(s)
+		return out
+	}
+	// Non-string JSON: replace with a marker so we never store invalid JSON.
+	out, _ := json.Marshal(fmt.Sprintf("[truncated %d bytes]", len(raw)))
+	return out
 }
 
 // scrubRawJSON strips private data from a JSON raw message.

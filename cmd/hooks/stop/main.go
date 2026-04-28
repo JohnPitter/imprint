@@ -86,10 +86,7 @@ func processTranscript(cfg hooks.Config, transcriptPath, sessionID string) {
 			continue
 		}
 
-		toolOutput := extractToolOutput(entry.ToolResponse)
-		if len(toolOutput) > 8000 {
-			toolOutput = toolOutput[:8000]
-		}
+		toolOutput := hooks.TruncateString(extractToolOutput(entry.ToolResponse), 8000)
 
 		payload := map[string]any{
 			"session_id":  sessionID,

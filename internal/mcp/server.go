@@ -188,9 +188,13 @@ func (s *Server) callTool(ctx context.Context, name string, args map[string]any)
 	case "memory_context":
 		return s.post(ctx, "/imprint/context", args)
 	case "memory_profiles":
-		return s.get(ctx, "/imprint/profile")
+		// /imprint/profile is not implemented; expose graph stats which carries
+		// nodes/edges per type — the usable signal a "profile" tool would offer.
+		return s.get(ctx, "/imprint/graph/stats")
 	case "memory_patterns":
-		return s.post(ctx, "/imprint/patterns", args)
+		// /imprint/patterns is not implemented; insights are the consolidated
+		// patterns the pipeline already extracts, so route there instead.
+		return s.get(ctx, "/imprint/insights")
 	case "memory_graph_query":
 		return s.post(ctx, "/imprint/graph/query", args)
 	default:

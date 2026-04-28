@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"unicode/utf8"
 
 	"imprint/internal/hooks"
 )
@@ -35,9 +36,12 @@ func main() {
 
 	// Surface the active task in the kanban as "in_progress" so the user
 	// can see what Claude is working on right now.
+	// Truncate by rune count, not bytes, so multi-byte chars (acentos, emoji)
+	// don't get sliced in half and produce invalid UTF-8.
 	title := prompt
-	if len(title) > 80 {
-		title = title[:77] + "..."
+	if utf8.RuneCountInString(title) > 80 {
+		runes := []rune(title)
+		title = string(runes[:77]) + "..."
 	}
 	hooks.Post(cfg, "/imprint/actions/from-task", map[string]any{
 		"sessionId":   sessionID,

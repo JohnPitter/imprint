@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"unicode/utf8"
 
 	"imprint/internal/llm"
 	"imprint/internal/store"
@@ -98,10 +99,16 @@ func (c *Compressor) Compress(ctx context.Context, raw *store.RawObservationRow)
 	return compressed, nil
 }
 
-// truncate shortens a string to maxLen characters, appending "..." if truncated.
+// truncate shortens a string to at most maxLen bytes, appending "..." if
+// truncated. Walks back to a rune boundary so multi-byte UTF-8 chars don't
+// get cut in half.
 func truncate(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s
 	}
-	return s[:maxLen] + "..."
+	i := maxLen
+	for i > 0 && !utf8.RuneStart(s[i]) {
+		i--
+	}
+	return s[:i] + "..."
 }

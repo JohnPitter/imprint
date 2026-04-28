@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"time"
+	"unicode/utf8"
 )
 
 var (
@@ -118,10 +119,16 @@ func GetString(m map[string]any, key string) string {
 	return ""
 }
 
-// TruncateString truncates a string to maxLen.
+// TruncateString truncates a string to at most maxLen bytes without splitting
+// a multi-byte UTF-8 sequence. The result is always valid UTF-8.
 func TruncateString(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s
 	}
-	return s[:maxLen]
+	// Walk back to the start of the rune that contains byte index maxLen.
+	i := maxLen
+	for i > 0 && !utf8.RuneStart(s[i]) {
+		i--
+	}
+	return s[:i]
 }
