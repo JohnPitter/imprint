@@ -1,22 +1,41 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { api } from '../../lib/api';
 
   let sessions: any[] = [];
   let memories: any[] = [];
   let graphStats: any = null;
+  let sessionsTotal = 0;
+  let memoriesTotal = 0;
   let loading = true;
+  let pollTimer: ReturnType<typeof setInterval> | undefined;
 
-  onMount(async () => {
+  async function refresh(initial: boolean) {
+    if (initial) loading = true;
     try {
+      // sessions: pull a generous page so totalObs reflects reality, not a tiny window
+      // memories: 200 is enough for a representative concept cloud; total comes from .total
       const [s, m, g] = await Promise.all([
-        api.listSessions(100), api.listMemories('', 100), api.graphStats().catch(() => null)
+        api.listSessions(500, 0).catch(() => ({ sessions: [], total: 0 })),
+        api.listMemories('', 200, 0).catch(() => ({ memories: [], total: 0 })),
+        api.graphStats().catch(() => null),
       ]);
-      sessions = s.sessions || [];
-      memories = m.memories || [];
+      sessions = (s as any).sessions || [];
+      sessionsTotal = (s as any).total ?? sessions.length;
+      memories = (m as any).memories || [];
+      memoriesTotal = (m as any).total ?? memories.length;
       graphStats = g;
     } catch(e) { console.error(e); }
-    loading = false;
+    if (initial) loading = false;
+  }
+
+  onMount(() => {
+    refresh(true);
+    pollTimer = setInterval(() => refresh(false), 15000);
+  });
+
+  onDestroy(() => {
+    if (pollTimer) clearInterval(pollTimer);
   });
 
   $: totalObs = sessions.reduce((sum: number, s: any) => sum + (s.ObservationCount || s.observationCount || 0), 0);
@@ -55,7 +74,7 @@
     <!-- Stats Grid -->
     <div class="stats-grid">
       <div class="stat-card">
-        <div class="stat-value">{sessions.length}</div>
+        <div class="stat-value">{sessionsTotal}</div>
         <div class="stat-label">SESSIONS</div>
       </div>
       <div class="stat-card">
@@ -63,7 +82,7 @@
         <div class="stat-label">OBSERVATIONS</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value">{memories.length}</div>
+        <div class="stat-value">{memoriesTotal}</div>
         <div class="stat-label">MEMORIES</div>
       </div>
       <div class="stat-card">
