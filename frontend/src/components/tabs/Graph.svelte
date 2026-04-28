@@ -27,6 +27,7 @@
   let dragging = false;
   let dragStartX = 0, dragStartY = 0;
   let panStartX = 0, panStartY = 0;
+  let pollTimer: ReturnType<typeof setInterval> | undefined;
 
   const typeColors: Record<string, string> = {
     concept: '#e8a065', file: '#5ba3d9', function: '#4ecdc4', error: '#ef4444',
@@ -36,20 +37,32 @@
   function getColor(type: string): string { return typeColors[type] || '#555'; }
 
   onMount(async () => {
+    await refresh(true);
+    // Poll every 10s; only rebuild the simulation when node/edge counts actually change.
+    pollTimer = setInterval(() => refresh(false), 10000);
+  });
+
+  onDestroy(() => {
+    if (animFrame) cancelAnimationFrame(animFrame);
+    if (pollTimer) clearInterval(pollTimer);
+  });
+
+  async function refresh(initial: boolean) {
     try {
       const [s, g] = await Promise.all([api.graphStats(), api.graphAll()]) as any[];
+      const newNodeCount = s?.totalNodes || 0;
+      const newEdgeCount = s?.totalEdges || 0;
+      const structureChanged = newNodeCount !== nodeCount || newEdgeCount !== edgeCount;
       stats = s;
-      nodeCount = s?.totalNodes || 0;
-      edgeCount = s?.totalEdges || 0;
-      if (g?.nodes?.length > 0) {
+      nodeCount = newNodeCount;
+      edgeCount = newEdgeCount;
+      if ((initial || structureChanged) && g?.nodes?.length > 0) {
         buildSimulation(g.nodes, g.edges || []);
         startSimulation();
       }
     } catch (e) { console.error(e); }
-    loading = false;
-  });
-
-  onDestroy(() => { if (animFrame) cancelAnimationFrame(animFrame); });
+    if (initial) loading = false;
+  }
 
   function buildSimulation(rawNodes: any[], rawEdges: any[]) {
     const nodeMap = new Map<string, number>();
