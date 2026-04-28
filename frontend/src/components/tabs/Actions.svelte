@@ -2,11 +2,15 @@
   import { onMount, onDestroy } from 'svelte';
   import { api } from '../../lib/api';
 
-  let actions: any[] = [];
+  let pending: any[] = [];
+  let inProgress: any[] = [];
+  let done: any[] = [];
   let frontier: any[] = [];
   let loading = true;
-  let offset = 0;
-  const limit = 30;
+  let doneOffset = 0;
+  const doneLimit = 30;
+  // Pending/in_progress columns load everything; only "done" paginates because it grows unbounded.
+  const activeLimit = 200;
   let pollTimer: ReturnType<typeof setInterval> | undefined;
 
   onMount(() => {
@@ -23,22 +27,26 @@
   async function load(initial: boolean) {
     if (initial) loading = true;
     try {
-      const [a, f] = await Promise.all([api.listActions('', limit, offset), api.frontier()]);
-      actions = a.actions || [];
+      const [p, ip, d, f] = await Promise.all([
+        api.listActions('pending', activeLimit, 0),
+        api.listActions('in_progress', activeLimit, 0),
+        api.listActions('done', doneLimit, doneOffset),
+        api.frontier(),
+      ]);
+      pending = p.actions || [];
+      inProgress = ip.actions || [];
+      done = d.actions || [];
       frontier = f.actions || [];
     } catch(e) { console.error(e); }
     if (initial) loading = false;
   }
 
-  function prev() { if (offset >= limit) { offset -= limit; load(true); } }
-  function next() { if (actions.length >= limit) { offset += limit; load(true); } }
+  function prev() { if (doneOffset >= doneLimit) { doneOffset -= doneLimit; load(true); } }
+  function next() { if (done.length >= doneLimit) { doneOffset += doneLimit; load(true); } }
 
-  $: currentPage = Math.floor(offset / limit) + 1;
-  $: totalPages = actions.length < limit ? currentPage : currentPage + 1;
-
-  $: pending = actions.filter(a => a.status === 'pending');
-  $: inProgress = actions.filter(a => a.status === 'in_progress');
-  $: done = actions.filter(a => a.status === 'done');
+  $: currentPage = Math.floor(doneOffset / doneLimit) + 1;
+  $: totalPages = done.length < doneLimit ? currentPage : currentPage + 1;
+  $: anyActions = pending.length + inProgress.length + done.length > 0;
 
   function priorityBadge(p: number): string {
     if (p >= 8) return 'act-priority-high';
@@ -74,7 +82,7 @@
   {/if}
 
   <!-- Kanban -->
-  {#if actions.length === 0}
+  {#if !anyActions}
     <div class="empty-state">
       <div class="act-empty-icon">{'\u25A0'}</div>
       <p style="font-family:var(--font-ui);font-size:13px">No actions yet</p>
@@ -170,9 +178,9 @@
     </div>
 
     <div class="pagination">
-      <button class="pagination-btn" on:click={prev} disabled={offset === 0}>{'\u2190'} PREV</button>
-      <span class="pagination-info">PAGE {currentPage} OF {totalPages}</span>
-      <button class="pagination-btn" on:click={next} disabled={actions.length < limit}>NEXT {'\u2192'}</button>
+      <button class="pagination-btn" on:click={prev} disabled={doneOffset === 0}>{'\u2190'} PREV</button>
+      <span class="pagination-info">DONE PAGE {currentPage} OF {totalPages}</span>
+      <button class="pagination-btn" on:click={next} disabled={done.length < doneLimit}>NEXT {'\u2192'}</button>
     </div>
   {/if}
 {/if}
