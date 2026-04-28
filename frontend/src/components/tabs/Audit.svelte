@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { api } from '../../lib/api';
   import { timeAgo } from '../../lib/format';
 
@@ -7,20 +7,28 @@
   let loading = true;
   let offset = 0;
   const limit = 50;
+  let pollTimer: ReturnType<typeof setInterval> | undefined;
 
-  onMount(() => load());
+  onMount(() => {
+    load(true);
+    pollTimer = setInterval(() => load(false), 10000);
+  });
 
-  async function load() {
-    loading = true;
+  onDestroy(() => {
+    if (pollTimer) clearInterval(pollTimer);
+  });
+
+  async function load(initial: boolean) {
+    if (initial) loading = true;
     try {
       const r = await api.listAudit(limit, offset);
       entries = r.entries || [];
     } catch(e) { console.error(e); }
-    loading = false;
+    if (initial) loading = false;
   }
 
-  function prev() { if (offset >= limit) { offset -= limit; load(); } }
-  function next() { if (entries.length >= limit) { offset += limit; load(); } }
+  function prev() { if (offset >= limit) { offset -= limit; load(true); } }
+  function next() { if (entries.length >= limit) { offset += limit; load(true); } }
 
   $: currentPage = Math.floor(offset / limit) + 1;
   $: totalPages = entries.length < limit ? currentPage : currentPage + 1;
