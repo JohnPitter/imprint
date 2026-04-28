@@ -417,7 +417,11 @@ func (h *AdvancedHandler) HandleListInsights(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"insights": orEmpty(insights)})
+	total, _ := h.svc.CountInsights(project)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"insights": orEmpty(insights),
+		"total":    total,
+	})
 }
 
 // HandleSearchInsights handles POST /insights/search.

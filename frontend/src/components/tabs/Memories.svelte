@@ -1,29 +1,42 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { api } from '../../lib/api';
   import { truncate } from '../../lib/format';
 
   let memories: any[] = [];
+  let memoriesTotal = 0;
   let filter = '';
   let loading = true;
   let offset = 0;
   const limit = 30;
   const types = ['', 'pattern', 'preference', 'architecture', 'bug', 'workflow', 'fact'];
+  let pollTimer: ReturnType<typeof setInterval> | undefined;
 
-  onMount(() => load());
+  onMount(() => {
+    load(true);
+    pollTimer = setInterval(() => load(false), 15000);
+  });
 
-  async function load() {
-    loading = true;
-    try { const r = await api.listMemories(filter, limit, offset); memories = r.memories || []; } catch(e) { console.error(e); }
-    loading = false;
+  onDestroy(() => {
+    if (pollTimer) clearInterval(pollTimer);
+  });
+
+  async function load(initial: boolean) {
+    if (initial) loading = true;
+    try {
+      const r: any = await api.listMemories(filter, limit, offset);
+      memories = r.memories || [];
+      memoriesTotal = r.total ?? memories.length;
+    } catch(e) { console.error(e); }
+    if (initial) loading = false;
   }
 
-  function setFilter(t: string) { filter = t; offset = 0; load(); }
-  function prev() { if (offset >= limit) { offset -= limit; load(); } }
-  function next() { if (memories.length >= limit) { offset += limit; load(); } }
+  function setFilter(t: string) { filter = t; offset = 0; load(true); }
+  function prev() { if (offset >= limit) { offset -= limit; load(true); } }
+  function next() { if (offset + limit < memoriesTotal) { offset += limit; load(true); } }
 
   $: currentPage = Math.floor(offset / limit) + 1;
-  $: totalPages = memories.length < limit ? currentPage : currentPage + 1;
+  $: totalPages = Math.max(1, Math.ceil(memoriesTotal / limit));
 
   const typeColors: Record<string, string> = {
     pattern: 'badge-info', preference: 'badge-purple', architecture: 'badge-accent',
@@ -95,7 +108,7 @@
   <div class="pagination">
     <button class="pagination-btn" on:click={prev} disabled={offset === 0}>{'\u2190'} PREV</button>
     <span class="pagination-info">PAGE {currentPage} OF {totalPages}</span>
-    <button class="pagination-btn" on:click={next} disabled={memories.length < limit}>NEXT {'\u2192'}</button>
+    <button class="pagination-btn" on:click={next} disabled={offset + limit >= memoriesTotal}>NEXT {'\u2192'}</button>
   </div>
 {/if}
 

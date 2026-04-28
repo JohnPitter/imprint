@@ -1,53 +1,88 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { api } from '../../lib/api';
 
   let lessons: any[] = [];
   let insights: any[] = [];
+  let lessonsTotal = 0;
+  let insightsTotal = 0;
   let searchQuery = '';
+  let searching = false;
   let loading = true;
   let lessonsOffset = 0;
   let insightsOffset = 0;
   const limit = 30;
+  let pollTimer: ReturnType<typeof setInterval> | undefined;
 
-  onMount(() => loadAll());
+  onMount(() => {
+    loadAll(true);
+    pollTimer = setInterval(() => loadAll(false), 15000);
+  });
 
-  async function loadAll() {
-    loading = true;
+  onDestroy(() => {
+    if (pollTimer) clearInterval(pollTimer);
+  });
+
+  async function loadAll(initial: boolean) {
+    if (initial) loading = true;
     try {
-      const [l, i] = await Promise.all([
-        api.listLessons(limit, lessonsOffset),
-        api.listInsights(limit, insightsOffset),
-      ]);
-      lessons = l.lessons || [];
+      // While the user is viewing search results we don't clobber the lessons column,
+      // but we still keep the insights column live.
+      const tasks: Promise<any>[] = [api.listInsights(limit, insightsOffset)];
+      if (!searching) tasks.unshift(api.listLessons(limit, lessonsOffset));
+      const results = await Promise.all(tasks);
+      if (!searching) {
+        const l = results[0];
+        lessons = l.lessons || [];
+        lessonsTotal = l.total ?? lessons.length;
+      }
+      const i = results[searching ? 0 : 1];
       insights = i.insights || [];
+      insightsTotal = i.total ?? insights.length;
     } catch(e) { console.error(e); }
-    loading = false;
+    if (initial) loading = false;
   }
 
   async function loadLessons() {
-    try { const r = await api.listLessons(limit, lessonsOffset); lessons = r.lessons || []; } catch(e) { console.error(e); }
+    try {
+      const r = await api.listLessons(limit, lessonsOffset);
+      lessons = r.lessons || [];
+      lessonsTotal = r.total ?? lessons.length;
+    } catch(e) { console.error(e); }
   }
   async function loadInsights() {
-    try { const r = await api.listInsights(limit, insightsOffset); insights = r.insights || []; } catch(e) { console.error(e); }
+    try {
+      const r = await api.listInsights(limit, insightsOffset);
+      insights = r.insights || [];
+      insightsTotal = r.total ?? insights.length;
+    } catch(e) { console.error(e); }
   }
 
   function lessonsPrev() { if (lessonsOffset >= limit) { lessonsOffset -= limit; loadLessons(); } }
-  function lessonsNext() { if (lessons.length >= limit) { lessonsOffset += limit; loadLessons(); } }
+  function lessonsNext() { if (lessonsOffset + limit < lessonsTotal) { lessonsOffset += limit; loadLessons(); } }
   function insightsPrev() { if (insightsOffset >= limit) { insightsOffset -= limit; loadInsights(); } }
-  function insightsNext() { if (insights.length >= limit) { insightsOffset += limit; loadInsights(); } }
+  function insightsNext() { if (insightsOffset + limit < insightsTotal) { insightsOffset += limit; loadInsights(); } }
 
   $: lessonsPage = Math.floor(lessonsOffset / limit) + 1;
-  $: lessonsTotalPages = lessons.length < limit ? lessonsPage : lessonsPage + 1;
+  $: lessonsTotalPages = Math.max(1, Math.ceil(lessonsTotal / limit));
   $: insightsPage = Math.floor(insightsOffset / limit) + 1;
-  $: insightsTotalPages = insights.length < limit ? insightsPage : insightsPage + 1;
+  $: insightsTotalPages = Math.max(1, Math.ceil(insightsTotal / limit));
 
   async function doSearch() {
-    if (!searchQuery.trim()) return;
+    const q = searchQuery.trim();
+    if (!q) {
+      // Empty submit clears the search and goes back to the live list.
+      searching = false;
+      lessonsOffset = 0;
+      loadLessons();
+      return;
+    }
+    searching = true;
     lessonsOffset = 0;
     try {
-      const r = await api.searchLessons(searchQuery);
+      const r = await api.searchLessons(q);
       lessons = r.lessons || [];
+      lessonsTotal = lessons.length;
     } catch(e) { console.error(e); }
   }
 
@@ -86,12 +121,12 @@
           <div class="section-label-row">
             <div class="gold-line"></div>
             <span class="section-label">LESSONS</span>
-            <span class="section-count">{lessons.length}</span>
+            <span class="section-count">{searching ? lessons.length : lessonsTotal}</span>
           </div>
           <div class="pagination compact">
-            <button class="pagination-btn" on:click={lessonsPrev} disabled={lessonsOffset === 0}>{'\u2190'}</button>
+            <button class="pagination-btn" on:click={lessonsPrev} disabled={searching || lessonsOffset === 0}>{'\u2190'}</button>
             <span class="pagination-info">{lessonsPage}/{lessonsTotalPages}</span>
-            <button class="pagination-btn" on:click={lessonsNext} disabled={lessons.length < limit}>{'\u2192'}</button>
+            <button class="pagination-btn" on:click={lessonsNext} disabled={searching || lessonsOffset + limit >= lessonsTotal}>{'\u2192'}</button>
           </div>
         </div>
 
@@ -128,12 +163,12 @@
           <div class="section-label-row">
             <div class="gold-line"></div>
             <span class="section-label">INSIGHTS</span>
-            <span class="section-count">{insights.length}</span>
+            <span class="section-count">{insightsTotal}</span>
           </div>
           <div class="pagination compact">
             <button class="pagination-btn" on:click={insightsPrev} disabled={insightsOffset === 0}>{'\u2190'}</button>
             <span class="pagination-info">{insightsPage}/{insightsTotalPages}</span>
-            <button class="pagination-btn" on:click={insightsNext} disabled={insights.length < limit}>{'\u2192'}</button>
+            <button class="pagination-btn" on:click={insightsNext} disabled={insightsOffset + limit >= insightsTotal}>{'\u2192'}</button>
           </div>
         </div>
 

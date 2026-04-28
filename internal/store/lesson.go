@@ -93,9 +93,9 @@ func (s *LessonStore) Count(project string) (int, error) {
 		err   error
 	)
 	if project == "" {
-		err = s.db.QueryRow(`SELECT COUNT(*) FROM lessons WHERE deleted_at IS NULL`).Scan(&count)
+		err = s.db.QueryRow(`SELECT COUNT(*) FROM lessons WHERE deleted = 0`).Scan(&count)
 	} else {
-		err = s.db.QueryRow(`SELECT COUNT(*) FROM lessons WHERE deleted_at IS NULL AND project = ?`, project).Scan(&count)
+		err = s.db.QueryRow(`SELECT COUNT(*) FROM lessons WHERE deleted = 0 AND project = ?`, project).Scan(&count)
 	}
 	if err != nil {
 		return 0, fmt.Errorf("lesson count: %w", err)

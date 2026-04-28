@@ -333,6 +333,11 @@ func (s *AdvancedService) ListInsights(project string, limit, offset int) ([]sto
 	return s.c.Insights.List(project, limit, offset)
 }
 
+// CountInsights returns the total number of non-deleted insights.
+func (s *AdvancedService) CountInsights(project string) (int, error) {
+	return s.c.Insights.Count(project)
+}
+
 // SearchInsights performs a text search on insight content and title.
 func (s *AdvancedService) SearchInsights(query string, limit int) ([]store.InsightRow, error) {
 	if query == "" {

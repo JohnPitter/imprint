@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { api } from '../../lib/api';
   import { timeAgo, truncate } from '../../lib/format';
 
   let sessions: any[] = [];
+  let sessionsTotal = 0;
   let selected: any = null;
   let observations: any[] = [];
   let loading = true;
@@ -11,6 +12,7 @@
   let actionMessage = '';
   let offset = 0;
   const limit = 30;
+  let pollTimer: ReturnType<typeof setInterval> | undefined;
 
   const typeLabels: Record<string, string> = {
     file_operation: 'FILE',
@@ -80,24 +82,39 @@
     }
   }
 
-  onMount(() => loadSessions());
+  onMount(() => {
+    loadSessions(true);
+    pollTimer = setInterval(() => loadSessions(false), 10000);
+  });
 
-  async function loadSessions() {
-    loading = true;
+  onDestroy(() => {
+    if (pollTimer) clearInterval(pollTimer);
+  });
+
+  async function loadSessions(initial: boolean) {
+    if (initial) loading = true;
     try {
       const r: any = await api.listSessions(limit, offset);
       sessions = r.sessions || [];
+      sessionsTotal = r.total ?? sessions.length;
+      // Re-sync the selected session with whatever the server now reports for it
+      // so polling refreshes obs counts/status while the user keeps the panel open.
+      if (selected) {
+        const sid = getSessionId(selected);
+        const fresh = sessions.find((s: any) => getSessionId(s) === sid);
+        if (fresh) selected = fresh;
+      }
     } catch (e) {
       console.error(e);
     }
-    loading = false;
+    if (initial) loading = false;
   }
 
-  function prevPage() { if (offset >= limit) { offset -= limit; loadSessions(); } }
-  function nextPage() { if (sessions.length >= limit) { offset += limit; loadSessions(); } }
+  function prevPage() { if (offset >= limit) { offset -= limit; loadSessions(true); } }
+  function nextPage() { if (offset + limit < sessionsTotal) { offset += limit; loadSessions(true); } }
 
   $: currentPage = Math.floor(offset / limit) + 1;
-  $: totalPages = sessions.length < limit ? currentPage : currentPage + 1;
+  $: totalPages = Math.max(1, Math.ceil(sessionsTotal / limit));
 
   async function selectSession(s: any) {
     selected = s;
@@ -157,7 +174,7 @@
     <div class="ss-list">
       <div class="ss-list-header">
         <span class="ss-list-label">SESSIONS</span>
-        <span class="ss-list-count">{sessions.length}</span>
+        <span class="ss-list-count">{sessionsTotal}</span>
       </div>
       <div class="ss-list-scroll">
         {#each sessions as s}
@@ -185,7 +202,7 @@
       <div class="ss-pagination">
         <button class="pagination-btn" on:click={prevPage} disabled={offset === 0}>{'\u2190'} PREV</button>
         <span class="pagination-info">PAGE {currentPage} OF {totalPages}</span>
-        <button class="pagination-btn" on:click={nextPage} disabled={sessions.length < limit}>NEXT {'\u2192'}</button>
+        <button class="pagination-btn" on:click={nextPage} disabled={offset + limit >= sessionsTotal}>NEXT {'\u2192'}</button>
       </div>
     </div>
 

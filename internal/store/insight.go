@@ -136,6 +136,21 @@ func (s *InsightStore) List(project string, limit, offset int) ([]InsightRow, er
 	return s.scanRows(rows)
 }
 
+// Count returns the total number of non-deleted insights, optionally filtered by project.
+func (s *InsightStore) Count(project string) (int, error) {
+	var count int
+	var err error
+	if project != "" {
+		err = s.db.QueryRow(`SELECT COUNT(*) FROM insights WHERE deleted = 0 AND project = ?`, project).Scan(&count)
+	} else {
+		err = s.db.QueryRow(`SELECT COUNT(*) FROM insights WHERE deleted = 0`).Scan(&count)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("count insights: %w", err)
+	}
+	return count, nil
+}
+
 // Search performs a LIKE search on insight content and title, excluding soft-deleted.
 func (s *InsightStore) Search(query string, limit int) ([]InsightRow, error) {
 	if limit <= 0 {

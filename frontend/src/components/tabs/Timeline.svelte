@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { api } from '../../lib/api';
   import { timeAgo, truncate } from '../../lib/format';
 
@@ -7,6 +7,7 @@
   let observations: any[] = [];
   let loading = true;
   let selectedSessionId = '';
+  let pollTimer: ReturnType<typeof setInterval> | undefined;
 
   // Filters
   let minImportance = 1;
@@ -63,7 +64,7 @@
 
   onMount(async () => {
     try {
-      const r: any = await api.listSessions(50);
+      const r: any = await api.listSessions(200);
       sessions = r.sessions || [];
       if (sessions.length > 0) {
         const firstId = sessions[0].ID || sessions[0].id;
@@ -74,7 +75,25 @@
       console.error(e);
     }
     loading = false;
+    pollTimer = setInterval(refreshLive, 10000);
   });
+
+  onDestroy(() => {
+    if (pollTimer) clearInterval(pollTimer);
+  });
+
+  // Background refresh: pull the session list and refresh the active session's
+  // observations, but don't reset the user's filters or pagination.
+  async function refreshLive() {
+    try {
+      const r: any = await api.listSessions(200);
+      sessions = r.sessions || [];
+      if (selectedSessionId) {
+        const o: any = await api.listObservations(selectedSessionId);
+        observations = o.observations || [];
+      }
+    } catch (e) { /* silent */ }
+  }
 
   async function loadObservations(sessionId: string) {
     selectedSessionId = sessionId;
