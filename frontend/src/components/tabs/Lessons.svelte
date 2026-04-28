@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { api } from '../../lib/api';
+  import { createPoller } from '../../lib/poller';
 
   let lessons: any[] = [];
   let insights: any[] = [];
@@ -12,15 +13,15 @@
   let lessonsOffset = 0;
   let insightsOffset = 0;
   const limit = 30;
-  let pollTimer: ReturnType<typeof setInterval> | undefined;
+  let stopPoll: (() => void) | undefined;
 
   onMount(() => {
     loadAll(true);
-    pollTimer = setInterval(() => loadAll(false), 15000);
+    stopPoll = createPoller(() => loadAll(false), 15000);
   });
 
   onDestroy(() => {
-    if (pollTimer) clearInterval(pollTimer);
+    stopPoll?.();
   });
 
   async function loadAll(initial: boolean) {

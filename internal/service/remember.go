@@ -142,3 +142,8 @@ func (s *RememberService) List(memType string, limit, offset int) ([]store.Memor
 func (s *RememberService) Count() (int, error) {
 	return s.c.Memories.Count()
 }
+
+// TopConcepts returns the most common concepts across latest memories.
+func (s *RememberService) TopConcepts(limit int) ([]store.ConceptCount, error) {
+	return s.c.Memories.TopConcepts(limit)
+}

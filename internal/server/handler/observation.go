@@ -44,6 +44,17 @@ func (h *ObservationHandler) HandleObserve(w http.ResponseWriter, r *http.Reques
 	})
 }
 
+// HandleCount handles GET /imprint/observations/count.
+// Returns the total number of raw observations across every session.
+func (h *ObservationHandler) HandleCount(w http.ResponseWriter, r *http.Request) {
+	total, err := h.svc.CountAll()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"total": total})
+}
+
 // HandleList handles GET /imprint/observations.
 func (h *ObservationHandler) HandleList(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.URL.Query().Get("sessionId")

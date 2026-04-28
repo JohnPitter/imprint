@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { api } from '../../lib/api';
+  import { createPoller } from '../../lib/poller';
 
   let canvasEl: HTMLCanvasElement;
   let stats: any = null;
@@ -27,7 +28,7 @@
   let dragging = false;
   let dragStartX = 0, dragStartY = 0;
   let panStartX = 0, panStartY = 0;
-  let pollTimer: ReturnType<typeof setInterval> | undefined;
+  let stopPoll: (() => void) | undefined;
 
   const typeColors: Record<string, string> = {
     concept: '#e8a065', file: '#5ba3d9', function: '#4ecdc4', error: '#ef4444',
@@ -39,12 +40,12 @@
   onMount(async () => {
     await refresh(true);
     // Poll every 10s; only rebuild the simulation when node/edge counts actually change.
-    pollTimer = setInterval(() => refresh(false), 10000);
+    stopPoll = createPoller(() => refresh(false), 10000);
   });
 
   onDestroy(() => {
     if (animFrame) cancelAnimationFrame(animFrame);
-    if (pollTimer) clearInterval(pollTimer);
+    stopPoll?.();
   });
 
   async function refresh(initial: boolean) {

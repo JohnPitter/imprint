@@ -1,11 +1,13 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { api } from '../../lib/api';
+  import { createPoller } from '../../lib/poller';
   import { timeAgo, truncate } from '../../lib/format';
 
   let auditEntries: any[] = [];
   let loading = true;
-  let interval: ReturnType<typeof setInterval>;
+  let stopPoll: (() => void) | undefined;
+  let heatmapDays = 365; // 30 / 90 / 365 — selectable
 
   let heatmap: Map<string, number> = new Map();
   let heatmapWeeks: { day: number; date: string; count: number }[][] = [];
@@ -30,7 +32,8 @@
     const today = new Date();
     const weeks: { day: number; date: string; count: number }[][] = [];
     const start = new Date(today);
-    start.setDate(start.getDate() - (52 * 7) - start.getDay());
+    // Align to a Sunday so columns are full weeks; cover heatmapDays back from today.
+    start.setDate(start.getDate() - heatmapDays - start.getDay());
 
     let current = new Date(start);
     let week: { day: number; date: string; count: number }[] = [];
@@ -110,7 +113,7 @@
     try {
       const [list, hm] = await Promise.all([
         api.listAudit(200, 0) as Promise<any>,
-        api.auditHeatmap(365) as Promise<any>,
+        api.auditHeatmap(heatmapDays) as Promise<any>,
       ]);
       auditEntries = list.entries || list.audit || [];
       buildHeatmap(hm.buckets || []);
@@ -122,6 +125,12 @@
     loading = false;
   }
 
+  function setHeatmapRange(d: number) {
+    if (d === heatmapDays) return;
+    heatmapDays = d;
+    refresh();
+  }
+
   function feedPrev() { if (feedOffset >= feedLimit) { feedOffset -= feedLimit; feedEntries = auditEntries.slice(feedOffset, feedOffset + feedLimit); } }
   function feedNext() { if (feedOffset + feedLimit < auditEntries.length) { feedOffset += feedLimit; feedEntries = auditEntries.slice(feedOffset, feedOffset + feedLimit); } }
 
@@ -129,8 +138,8 @@
   $: feedTotalPages = Math.max(1, Math.ceil(auditEntries.length / feedLimit));
   $: heatmapTotal = [...heatmap.values()].reduce((a, b) => a + b, 0);
 
-  onMount(() => { refresh(); interval = setInterval(refresh, 10000); });
-  onDestroy(() => clearInterval(interval));
+  onMount(() => { refresh(); stopPoll = createPoller(refresh, 10000); });
+  onDestroy(() => stopPoll?.());
 </script>
 
 {#if loading}
@@ -150,7 +159,14 @@
         <div class="gold-line"></div>
         <h3>Activity Heatmap</h3>
       </div>
-      <span class="refresh-indicator">AUTO-REFRESH 10S  ·  {heatmapTotal} EVENTS / 365D</span>
+      <div class="heatmap-controls">
+        <div class="range-toggle">
+          <button class="range-btn" class:active={heatmapDays === 30} on:click={() => setHeatmapRange(30)}>30D</button>
+          <button class="range-btn" class:active={heatmapDays === 90} on:click={() => setHeatmapRange(90)}>90D</button>
+          <button class="range-btn" class:active={heatmapDays === 365} on:click={() => setHeatmapRange(365)}>1Y</button>
+        </div>
+        <span class="refresh-indicator">AUTO-REFRESH 10S  ·  {heatmapTotal} EVENTS / {heatmapDays}D</span>
+      </div>
     </div>
 
     <div class="heatmap-wrapper">
@@ -290,6 +306,35 @@
     text-transform: uppercase;
     letter-spacing: 0.1em;
     margin-top: 4px;
+  }
+  .heatmap-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+  }
+  .range-toggle {
+    display: inline-flex;
+    border: 1px solid var(--border);
+  }
+  .range-btn {
+    background: transparent;
+    border: none;
+    border-right: 1px solid var(--border);
+    padding: 4px 12px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.15s var(--ease), background 0.15s var(--ease);
+    letter-spacing: 0.04em;
+  }
+  .range-btn:last-child { border-right: none; }
+  .range-btn:hover:not(.active) { color: var(--text-primary); background: var(--bg-hover); }
+  .range-btn.active {
+    color: var(--accent);
+    background: var(--accent-muted);
   }
 
   /* Heatmap */

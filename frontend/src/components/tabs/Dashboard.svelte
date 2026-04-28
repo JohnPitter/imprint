@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { api } from '../../lib/api';
+  import { createPoller } from '../../lib/poller';
   import { timeAgo, formatNumber } from '../../lib/format';
 
   let health: any = null;
@@ -12,7 +13,7 @@
   let lessonsCount = 0;
   let loading = true;
   let lastRefresh = '';
-  let interval: ReturnType<typeof setInterval>;
+  let stopPoll: (() => void) | undefined;
 
   async function refresh() {
     try {
@@ -42,9 +43,9 @@
 
   onMount(() => {
     refresh();
-    interval = setInterval(refresh, 30000);
+    stopPoll = createPoller(refresh, 30000);
   });
-  onDestroy(() => clearInterval(interval));
+  onDestroy(() => stopPoll?.());
 
   function healthStatusDot(status: string): string {
     if (!status) return 'idle';

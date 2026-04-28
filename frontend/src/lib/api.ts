@@ -25,9 +25,11 @@ export const api = {
 
   // Observations
   listObservations: (sessionId: string) => request<unknown>('GET', `/observations?sessionId=${sessionId}`),
+  countObservations: () => request<unknown>('GET', `/observations/count`),
 
   // Memories
   listMemories: (type = '', limit = 50, offset = 0) => request<unknown>('GET', `/memories?type=${type}&limit=${limit}&offset=${offset}`),
+  topConcepts: (limit = 20) => request<unknown>('GET', `/memories/concepts?limit=${limit}`),
   remember: (data: Record<string, unknown>) => request<unknown>('POST', '/remember', data),
   forget: (data: Record<string, unknown>) => request<unknown>('POST', '/forget', data),
   evolve: (data: Record<string, unknown>) => request<unknown>('POST', '/evolve', data),

@@ -1,55 +1,47 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { api } from '../../lib/api';
+  import { createPoller } from '../../lib/poller';
 
-  let sessions: any[] = [];
-  let memories: any[] = [];
   let graphStats: any = null;
   let sessionsTotal = 0;
   let memoriesTotal = 0;
+  let observationsTotal = 0;
+  let concepts: { name: string; count: number }[] = [];
   let loading = true;
-  let pollTimer: ReturnType<typeof setInterval> | undefined;
+  let stopPoll: (() => void) | undefined;
 
   async function refresh(initial: boolean) {
     if (initial) loading = true;
     try {
-      // sessions: pull a generous page so totalObs reflects reality, not a tiny window
-      // memories: 200 is enough for a representative concept cloud; total comes from .total
-      const [s, m, g] = await Promise.all([
-        api.listSessions(500, 0).catch(() => ({ sessions: [], total: 0 })),
-        api.listMemories('', 200, 0).catch(() => ({ memories: [], total: 0 })),
+      // All four totals come from server-side aggregation now: no client-side
+      // sums over a paginated window, no concept extraction over a slice.
+      const [s, m, g, c, o] = await Promise.all([
+        api.listSessions(1, 0).catch(() => ({ sessions: [], total: 0 })),
+        api.listMemories('', 1, 0).catch(() => ({ memories: [], total: 0 })),
         api.graphStats().catch(() => null),
+        api.topConcepts(20).catch(() => ({ concepts: [] })),
+        api.countObservations().catch(() => ({ total: 0 })),
       ]);
-      sessions = (s as any).sessions || [];
-      sessionsTotal = (s as any).total ?? sessions.length;
-      memories = (m as any).memories || [];
-      memoriesTotal = (m as any).total ?? memories.length;
+      sessionsTotal = (s as any).total ?? 0;
+      memoriesTotal = (m as any).total ?? 0;
       graphStats = g;
+      concepts = (c as any).concepts || [];
+      observationsTotal = (o as any).total ?? 0;
     } catch(e) { console.error(e); }
     if (initial) loading = false;
   }
 
   onMount(() => {
     refresh(true);
-    pollTimer = setInterval(() => refresh(false), 15000);
+    stopPoll = createPoller(() => refresh(false), 15000);
   });
 
   onDestroy(() => {
-    if (pollTimer) clearInterval(pollTimer);
+    stopPoll?.();
   });
 
-  $: totalObs = sessions.reduce((sum: number, s: any) => sum + (s.ObservationCount || s.observationCount || 0), 0);
-  $: concepts = extractConcepts(memories);
   $: maxConceptCount = Math.max(1, ...concepts.map(c => c.count));
-
-  function extractConcepts(mems: any[]): {name:string,count:number}[] {
-    const counts: Record<string,number> = {};
-    for (const m of mems) {
-      const c = typeof m.concepts === 'string' ? JSON.parse(m.concepts || '[]') : (m.concepts || []);
-      for (const concept of c) counts[concept] = (counts[concept] || 0) + 1;
-    }
-    return Object.entries(counts).map(([name,count]) => ({name,count})).sort((a,b) => b.count - a.count).slice(0, 20);
-  }
 
   function conceptOpacity(count: number): number {
     return 0.4 + (count / maxConceptCount) * 0.6;
@@ -78,7 +70,7 @@
         <div class="stat-label">SESSIONS</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value">{totalObs}</div>
+        <div class="stat-value">{observationsTotal}</div>
         <div class="stat-label">OBSERVATIONS</div>
       </div>
       <div class="stat-card">

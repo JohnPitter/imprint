@@ -15,7 +15,9 @@ import (
 	"imprint/internal/server/handler"
 )
 
-// RouterDeps holds optional handler dependencies. Nil fields use notImplemented.
+// RouterDeps holds optional handler dependencies. Nil fields fall back to
+// notImplemented; in production main.go always populates every field, the
+// nil branches exist to keep tests usable with partial wiring.
 type RouterDeps struct {
 	Sessions     *handler.SessionHandler
 	Observations *handler.ObservationHandler
@@ -56,7 +58,6 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 	r.Get("/imprint/livez", handleLivez)
 	r.Get("/imprint/health", handleHealth)
 
-	// Route groups
 	r.Route("/imprint", func(r chi.Router) {
 		// Settings
 		if deps.Settings != nil {
@@ -64,7 +65,7 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 			r.Post("/settings", deps.Settings.HandleUpdateSettings)
 		}
 
-		// Session
+		// Sessions
 		if deps.Sessions != nil {
 			r.Post("/session/start", deps.Sessions.HandleStart)
 			r.Post("/session/end", deps.Sessions.HandleEnd)
@@ -78,40 +79,43 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 		// Observations
 		if deps.Observations != nil {
 			r.Get("/observations", deps.Observations.HandleList)
+			r.Get("/observations/count", deps.Observations.HandleCount)
 			r.Post("/observe", deps.Observations.HandleObserve)
 		} else {
 			r.Get("/observations", notImplemented)
+			r.Get("/observations/count", notImplemented)
 			r.Post("/observe", notImplemented)
 		}
+
+		// Search + Context
 		if deps.Search != nil {
+			r.Post("/search", deps.Search.HandleSearch)
+			r.Post("/smart-search", deps.Search.HandleSearch) // alias
 			r.Post("/context", deps.Search.HandleContext)
 			r.Post("/enrich", deps.Search.HandleEnrich)
 		} else {
+			r.Post("/search", notImplemented)
+			r.Post("/smart-search", notImplemented)
 			r.Post("/context", notImplemented)
 			r.Post("/enrich", notImplemented)
 		}
 
-		// Search
-		if deps.Search != nil {
-			r.Post("/search", deps.Search.HandleSearch)
-			r.Post("/smart-search", deps.Search.HandleSearch) // alias
-		} else {
-			r.Post("/search", notImplemented)
-			r.Post("/smart-search", notImplemented)
-		}
-
-		// Memory
+		// Memories
 		if deps.Memories != nil {
 			r.Post("/remember", deps.Memories.HandleRemember)
 			r.Post("/forget", deps.Memories.HandleForget)
 			r.Get("/memories", deps.Memories.HandleList)
+			r.Get("/memories/concepts", deps.Memories.HandleConcepts)
 			r.Post("/evolve", deps.Memories.HandleEvolve)
 		} else {
 			r.Post("/remember", notImplemented)
 			r.Post("/forget", notImplemented)
 			r.Get("/memories", notImplemented)
+			r.Get("/memories/concepts", notImplemented)
 			r.Post("/evolve", notImplemented)
 		}
+
+		// Pipeline
 		if deps.Pipeline != nil {
 			r.Post("/summarize", deps.Pipeline.HandleSummarize)
 			r.Post("/consolidate", deps.Pipeline.HandleFullPipeline)
@@ -123,11 +127,6 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 			r.Post("/consolidate-pipeline", notImplemented)
 			r.Post("/finalize", notImplemented)
 		}
-		r.Post("/file-context", notImplemented)
-		r.Post("/patterns", notImplemented)
-		r.Post("/generate-rules", notImplemented)
-		r.Post("/timeline", notImplemented)
-		r.Get("/profile", notImplemented)
 
 		// Graph
 		if deps.Graph != nil {
@@ -140,16 +139,9 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 			r.Post("/graph/extract", notImplemented)
 			r.Post("/graph/query", notImplemented)
 			r.Get("/graph/stats", notImplemented)
+			r.Get("/graph/all", notImplemented)
 			r.Post("/relations", notImplemented)
 		}
-
-		// Data management
-		r.Get("/export", notImplemented)
-		r.Post("/import", notImplemented)
-		r.Post("/migrate", notImplemented)
-		r.Post("/evict", notImplemented)
-		r.Post("/auto-forget", notImplemented)
-		r.Post("/flow/compress", notImplemented)
 
 		// Actions + Leases + Routines
 		if deps.Actions != nil {
@@ -188,7 +180,7 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 			r.Get("/routines/status", notImplemented)
 		}
 
-		// Advanced: Signals, Checkpoints, Sentinels, Sketches, Crystals, Lessons, Insights, Facets, Audit, Governance
+		// Advanced: Signals, Checkpoints, Sentinels, Sketches, Lessons, Insights, Facets, Audit, Governance
 		if deps.Advanced != nil {
 			r.Post("/signals/send", deps.Advanced.HandleSendSignal)
 			r.Get("/signals", deps.Advanced.HandleListSignals)
@@ -250,44 +242,10 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 			r.Post("/facets/query", notImplemented)
 			r.Get("/facets/stats", notImplemented)
 			r.Get("/audit", notImplemented)
+			r.Get("/audit/heatmap", notImplemented)
 			r.Delete("/governance/memories", notImplemented)
 			r.Post("/governance/bulk-delete", notImplemented)
 		}
-
-		r.Post("/reflect", notImplemented)
-
-		// Remaining stubs
-		r.Post("/diagnostics", notImplemented)
-		r.Post("/diagnostics/heal", notImplemented)
-		r.Post("/verify", notImplemented)
-		r.Post("/cascade-update", notImplemented)
-
-		// Team / Mesh / Branch / Snapshots (stubs for now)
-		r.Post("/team/share", notImplemented)
-		r.Get("/team/feed", notImplemented)
-		r.Get("/team/profile", notImplemented)
-		r.Post("/mesh/peers", notImplemented)
-		r.Get("/mesh/peers", notImplemented)
-		r.Post("/mesh/sync", notImplemented)
-		r.Post("/mesh/receive", notImplemented)
-		r.Get("/mesh/export", notImplemented)
-		r.Get("/branch/detect", notImplemented)
-		r.Get("/branch/worktrees", notImplemented)
-		r.Get("/branch/sessions", notImplemented)
-		r.Get("/snapshots", notImplemented)
-		r.Post("/snapshot/create", notImplemented)
-		r.Post("/snapshot/restore", notImplemented)
-
-		// Integration
-		r.Post("/obsidian/export", notImplemented)
-		r.Get("/claude-bridge/read", notImplemented)
-		r.Post("/claude-bridge/sync", notImplemented)
-
-		// MCP bridge
-		r.Get("/mcp/tools", notImplemented)
-		r.Post("/mcp/call", notImplemented)
-		r.Get("/mcp/resources", notImplemented)
-		r.Get("/mcp/prompts", notImplemented)
 	})
 
 	// Serve embedded frontend (SPA fallback)
@@ -295,7 +253,6 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 	if err == nil {
 		fileServer := http.FileServer(http.FS(frontendFS))
 		r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
-			// Try to serve the file directly
 			path := strings.TrimPrefix(r.URL.Path, "/")
 			if path == "" {
 				path = "index.html"
@@ -319,6 +276,15 @@ func handleLivez(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func notImplemented(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNotImplemented)
+	json.NewEncoder(w).Encode(map[string]any{
+		"error": "not implemented",
+		"path":  r.URL.Path,
+	})
+}
+
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
@@ -335,14 +301,5 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 			"numGC":   memStats.NumGC,
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	})
-}
-
-func notImplemented(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusNotImplemented)
-	json.NewEncoder(w).Encode(map[string]string{
-		"error": "not implemented",
-		"path":  r.URL.Path,
 	})
 }

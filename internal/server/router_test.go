@@ -95,7 +95,7 @@ func TestNotImplementedEndpoints(t *testing.T) {
 		{http.MethodPost, "/imprint/remember"},
 		{http.MethodGet, "/imprint/memories"},
 		{http.MethodPost, "/imprint/graph/extract"},
-		{http.MethodGet, "/imprint/export"},
+		{http.MethodGet, "/imprint/audit"},
 	}
 
 	for _, tt := range tests {

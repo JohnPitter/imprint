@@ -159,6 +159,16 @@ func (s *ObservationStore) IterateAllCompressed(fn func(*CompressedObservationRo
 	return nil
 }
 
+// CountAllRaw returns the total number of raw observations across every session.
+func (s *ObservationStore) CountAllRaw() (int, error) {
+	var count int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM raw_observations`).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("count all raw: %w", err)
+	}
+	return count, nil
+}
+
 // CountBySession returns the raw observation count for a session.
 func (s *ObservationStore) CountBySession(sessionID string) (int, error) {
 	var count int

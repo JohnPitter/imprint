@@ -117,3 +117,22 @@ func (h *MemoryHandler) HandleList(w http.ResponseWriter, r *http.Request) {
 		"total":    total,
 	})
 }
+
+// HandleConcepts handles GET /imprint/memories/concepts. Returns the top
+// concepts aggregated server-side from all latest memories.
+func (h *MemoryHandler) HandleConcepts(w http.ResponseWriter, r *http.Request) {
+	limit := 20
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	concepts, err := h.svc.TopConcepts(limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"concepts": concepts})
+}

@@ -2,12 +2,14 @@
   import { onMount, onDestroy } from 'svelte';
   import { api } from '../../lib/api';
   import { timeAgo, truncate } from '../../lib/format';
+  import { createPoller } from '../../lib/poller';
+  import { typeLabels, typeColors, getField, clean } from '../../lib/observations';
 
   let sessions: any[] = [];
   let observations: any[] = [];
   let loading = true;
   let selectedSessionId = '';
-  let pollTimer: ReturnType<typeof setInterval> | undefined;
+  let stopPoll: (() => void) | undefined;
 
   // Filters
   let minImportance = 1;
@@ -17,50 +19,6 @@
   // Pagination
   const PAGE_SIZE = 50;
   let currentPage = 0;
-
-  const typeLabels: Record<string, string> = {
-    file_operation: 'FILE',
-    command_execution: 'CMD',
-    search: 'SEARCH',
-    error: 'ERROR',
-    decision: 'DECISION',
-    discovery: 'DISCOVERY',
-    conversation: 'CONV',
-    notification: 'NOTIFY',
-    subagent_event: 'AGENT',
-    task: 'TASK',
-    other: 'OTHER',
-  };
-
-  const typeColors: Record<string, string> = {
-    file_operation: 'badge-info',
-    command_execution: 'badge-accent',
-    error: 'badge-danger',
-    decision: 'badge-warning',
-    discovery: 'badge-success',
-    search: 'badge-info',
-    conversation: 'badge-purple',
-    notification: 'badge-warning',
-    subagent_event: 'badge-accent',
-    task: 'badge-success',
-    other: 'badge-info',
-  };
-
-  function getField(o: any, ...keys: string[]): any {
-    for (const k of keys) {
-      if (o[k] !== undefined && o[k] !== null && o[k] !== '') return o[k];
-    }
-    return undefined;
-  }
-
-  function clean(s: string | undefined | null): string {
-    if (!s) return '';
-    return s
-      .replace(/^[\s\u2000-\u2BFF\u0080-\u00BF•·–—►▸▶→←↑↓\-]+/, '')
-      .replace(/\\u[0-9a-fA-F]{4}\s?/g, '')
-      .replace(/[\u2022\u2023\u2013\u2014\u2190\u2192\u2193\u2194\u25a0-\u25FF\u2600-\u26FF]+\s?/g, '')
-      .trim();
-  }
 
   onMount(async () => {
     try {
@@ -75,11 +33,11 @@
       console.error(e);
     }
     loading = false;
-    pollTimer = setInterval(refreshLive, 10000);
+    stopPoll = createPoller(refreshLive, 10000);
   });
 
   onDestroy(() => {
-    if (pollTimer) clearInterval(pollTimer);
+    stopPoll?.();
   });
 
   // Background refresh: pull the session list and refresh the active session's

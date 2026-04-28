@@ -2,6 +2,8 @@
   import { onMount, onDestroy } from 'svelte';
   import { api } from '../../lib/api';
   import { timeAgo, truncate } from '../../lib/format';
+  import { createPoller } from '../../lib/poller';
+  import { typeLabels, typeColors, getField, clean } from '../../lib/observations';
 
   let sessions: any[] = [];
   let sessionsTotal = 0;
@@ -12,51 +14,7 @@
   let actionMessage = '';
   let offset = 0;
   const limit = 30;
-  let pollTimer: ReturnType<typeof setInterval> | undefined;
-
-  const typeLabels: Record<string, string> = {
-    file_operation: 'FILE',
-    command_execution: 'CMD',
-    search: 'SEARCH',
-    error: 'ERROR',
-    decision: 'DECISION',
-    discovery: 'DISCOVERY',
-    conversation: 'CONV',
-    notification: 'NOTIFY',
-    subagent_event: 'AGENT',
-    task: 'TASK',
-    other: 'OTHER',
-  };
-
-  const typeColors: Record<string, string> = {
-    file_operation: 'badge-info',
-    command_execution: 'badge-accent',
-    error: 'badge-danger',
-    decision: 'badge-warning',
-    discovery: 'badge-success',
-    search: 'badge-info',
-    conversation: 'badge-purple',
-  };
-
-  function getField(o: any, ...keys: string[]): any {
-    for (const k of keys) {
-      if (o[k] !== undefined && o[k] !== null && o[k] !== '') return o[k];
-    }
-    return undefined;
-  }
-
-  // Strip unicode bullet artifacts that LLMs sometimes emit as literal text
-  function clean(s: string | undefined | null): string {
-    if (!s) return '';
-    return s
-      // Strip any non-printable or symbol char at the very start of the string
-      .replace(/^[\s\u2000-\u2BFF\u0080-\u00BF•·–—►▸▶→←↑↓\-]+/, '')
-      // Strip literal \uXXXX escape sequences (with or without backslash)
-      .replace(/\\?u[0-9a-fA-F]{4}\s?/g, '')
-      // Strip any run of unicode symbols throughout
-      .replace(/[\u2022\u2023\u2013\u2014\u2190\u2192\u2193\u2194\u25a0-\u25FF\u2600-\u26FF]+\s?/g, '')
-      .trim();
-  }
+  let stopPoll: (() => void) | undefined;
 
   function getSessionId(s: any): string {
     return s.ID || s.id || '';
@@ -84,12 +42,10 @@
 
   onMount(() => {
     loadSessions(true);
-    pollTimer = setInterval(() => loadSessions(false), 10000);
+    stopPoll = createPoller(() => loadSessions(false), 10000);
   });
 
-  onDestroy(() => {
-    if (pollTimer) clearInterval(pollTimer);
-  });
+  onDestroy(() => stopPoll?.());
 
   async function loadSessions(initial: boolean) {
     if (initial) loading = true;

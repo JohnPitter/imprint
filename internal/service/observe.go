@@ -138,6 +138,11 @@ func (s *ObserveService) Observe(payload *types.HookPayload) (*store.RawObservat
 	return obs, nil
 }
 
+// CountAll returns the total raw observation count across every session.
+func (s *ObserveService) CountAll() (int, error) {
+	return s.c.Observations.CountAllRaw()
+}
+
 // ListRaw returns raw observations for a session with pagination.
 func (s *ObserveService) ListRaw(sessionID string, limit, offset int) ([]store.RawObservationRow, error) {
 	if limit <= 0 {

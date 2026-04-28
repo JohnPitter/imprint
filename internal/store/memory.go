@@ -290,6 +290,43 @@ func (s *MemoryStore) Count() (int, error) {
 	return count, nil
 }
 
+// ConceptCount is the result of TopConcepts: a concept name and how many
+// latest memories carry it.
+type ConceptCount struct {
+	Name  string `json:"name"`
+	Count int    `json:"count"`
+}
+
+// TopConcepts returns the top N concepts across all latest memories,
+// aggregated server-side via json_each so the client doesn't have to scan
+// the full memories table to build a tag cloud.
+func (s *MemoryStore) TopConcepts(limit int) ([]ConceptCount, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	rows, err := s.db.Query(`
+		SELECT je.value AS concept, COUNT(*) AS c
+		FROM memories m, json_each(m.concepts) je
+		WHERE m.is_latest = 1 AND je.value IS NOT NULL AND je.value != ''
+		GROUP BY je.value
+		ORDER BY c DESC, concept ASC
+		LIMIT ?`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("top concepts: %w", err)
+	}
+	defer rows.Close()
+
+	var result []ConceptCount
+	for rows.Next() {
+		var cc ConceptCount
+		if err := rows.Scan(&cc.Name, &cc.Count); err != nil {
+			return nil, fmt.Errorf("scan concept: %w", err)
+		}
+		result = append(result, cc)
+	}
+	return result, rows.Err()
+}
+
 // ListExpired returns latest memories past their forget_after date.
 func (s *MemoryStore) ListExpired() ([]MemoryRow, error) {
 	now := TimeToString(time.Now())

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { api } from '../../lib/api';
+  import { createPoller } from '../../lib/poller';
 
   let pending: any[] = [];
   let inProgress: any[] = [];
@@ -11,16 +12,16 @@
   const doneLimit = 30;
   // Pending/in_progress columns load everything; only "done" paginates because it grows unbounded.
   const activeLimit = 200;
-  let pollTimer: ReturnType<typeof setInterval> | undefined;
+  let stopPoll: (() => void) | undefined;
 
   onMount(() => {
     load(true);
     // Refresh every 5s so the kanban tracks the agent's pending/in-progress/done state in near real time.
-    pollTimer = setInterval(() => load(false), 5000);
+    stopPoll = createPoller(() => load(false), 5000);
   });
 
   onDestroy(() => {
-    if (pollTimer) clearInterval(pollTimer);
+    stopPoll?.();
   });
 
   // initial=true shows the skeleton; subsequent polls update silently in place.

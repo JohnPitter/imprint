@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { api } from '../../lib/api';
+  import { createPoller } from '../../lib/poller';
   import { truncate } from '../../lib/format';
 
   let memories: any[] = [];
@@ -10,15 +11,15 @@
   let offset = 0;
   const limit = 30;
   const types = ['', 'pattern', 'preference', 'architecture', 'bug', 'workflow', 'fact'];
-  let pollTimer: ReturnType<typeof setInterval> | undefined;
+  let stopPoll: (() => void) | undefined;
 
   onMount(() => {
     load(true);
-    pollTimer = setInterval(() => load(false), 15000);
+    stopPoll = createPoller(() => load(false), 15000);
   });
 
   onDestroy(() => {
-    if (pollTimer) clearInterval(pollTimer);
+    stopPoll?.();
   });
 
   async function load(initial: boolean) {
