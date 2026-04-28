@@ -5,14 +5,14 @@
   import { createPoller } from '../../lib/poller';
   import { typeLabels, typeColors, getField, clean } from '../../lib/observations';
 
-  let sessions: any[] = [];
-  let sessionsTotal = 0;
-  let selected: any = null;
-  let observations: any[] = [];
-  let loading = true;
-  let actionLoading = '';
-  let actionMessage = '';
-  let offset = 0;
+  let sessions: any[] = $state([]);
+  let sessionsTotal = $state(0);
+  let selected: any = $state(null);
+  let observations: any[] = $state([]);
+  let loading = $state(true);
+  let actionLoading = $state('');
+  let actionMessage = $state('');
+  let offset = $state(0);
   const limit = 30;
   let stopPoll: (() => void) | undefined;
 
@@ -69,8 +69,8 @@
   function prevPage() { if (offset >= limit) { offset -= limit; loadSessions(true); } }
   function nextPage() { if (offset + limit < sessionsTotal) { offset += limit; loadSessions(true); } }
 
-  $: currentPage = Math.floor(offset / limit) + 1;
-  $: totalPages = Math.max(1, Math.ceil(sessionsTotal / limit));
+  let currentPage = $derived(Math.floor(offset / limit) + 1);
+  let totalPages = $derived(Math.max(1, Math.ceil(sessionsTotal / limit)));
 
   async function selectSession(s: any) {
     selected = s;
@@ -140,7 +140,7 @@
           <button
             class="ss-item"
             class:ss-item-active={isActive}
-            on:click={() => selectSession(s)}
+            onclick={() => selectSession(s)}
           >
             <div class="ss-item-top">
               <span class="ss-item-project">{s.Project || s.project || '\u2014'}</span>
@@ -156,9 +156,9 @@
         {/each}
       </div>
       <div class="ss-pagination">
-        <button class="pagination-btn" on:click={prevPage} disabled={offset === 0}>{'\u2190'} PREV</button>
+        <button class="pagination-btn" onclick={prevPage} disabled={offset === 0}>{'\u2190'} PREV</button>
         <span class="pagination-info">PAGE {currentPage} OF {totalPages}</span>
-        <button class="pagination-btn" on:click={nextPage} disabled={offset + limit >= sessionsTotal}>NEXT {'\u2192'}</button>
+        <button class="pagination-btn" onclick={nextPage} disabled={offset + limit >= sessionsTotal}>NEXT {'\u2192'}</button>
       </div>
     </div>
 
@@ -231,11 +231,11 @@
           <!-- Action Buttons -->
           <div class="ss-actions">
             {#if status === 'active'}
-              <button class="ss-btn-outlined" on:click={endSession} disabled={actionLoading === 'end'}>
+              <button class="ss-btn-outlined" onclick={endSession} disabled={actionLoading === 'end'}>
                 {actionLoading === 'end' ? 'Ending...' : 'End Session'}
               </button>
             {/if}
-            <button class="ss-btn-outlined" on:click={summarizeSession} disabled={actionLoading === 'summarize'}>
+            <button class="ss-btn-outlined" onclick={summarizeSession} disabled={actionLoading === 'summarize'}>
               {actionLoading === 'summarize' ? 'Summarizing...' : 'Summarize'}
             </button>
           </div>

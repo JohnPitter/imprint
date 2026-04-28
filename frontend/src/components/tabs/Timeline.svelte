@@ -5,20 +5,20 @@
   import { createPoller } from '../../lib/poller';
   import { typeLabels, typeColors, getField, clean } from '../../lib/observations';
 
-  let sessions: any[] = [];
-  let observations: any[] = [];
-  let loading = true;
-  let selectedSessionId = '';
+  let sessions: any[] = $state([]);
+  let observations: any[] = $state([]);
+  let loading = $state(true);
+  let selectedSessionId = $state('');
   let stopPoll: (() => void) | undefined;
 
   // Filters
-  let minImportance = 1;
-  let activeTypes: Set<string> = new Set();
-  let allTypesActive = true;
+  let minImportance = $state(1);
+  let activeTypes: Set<string> = $state(new Set());
+  let allTypesActive = $state(true);
 
   // Pagination
   const PAGE_SIZE = 50;
-  let currentPage = 0;
+  let currentPage = $state(0);
 
   onMount(async () => {
     try {
@@ -68,16 +68,16 @@
   }
 
   // Compute type counts from all observations
-  $: typeCounts = observations.reduce((acc: Record<string, number>, o: any) => {
+  let typeCounts = $derived(observations.reduce((acc: Record<string, number>, o: any) => {
     const t = getField(o, 'Type', 'type') || 'other';
     acc[t] = (acc[t] || 0) + 1;
     return acc;
-  }, {} as Record<string, number>);
+  }, {} as Record<string, number>));
 
-  $: typeList = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]);
+  let typeList = $derived(Object.entries(typeCounts).sort((a, b) => b[1] - a[1]));
 
   // Filtered observations
-  $: filtered = observations.filter((o: any) => {
+  let filtered = $derived(observations.filter((o: any) => {
     const imp = getField(o, 'Importance', 'importance') || 0;
     if (imp < minImportance) return false;
     if (!allTypesActive && activeTypes.size > 0) {
@@ -85,11 +85,11 @@
       if (!activeTypes.has(t)) return false;
     }
     return true;
-  });
+  }));
 
   // Paginated
-  $: totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  $: paginated = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+  let totalPages = $derived(Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)));
+  let paginated = $derived(filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE));
 
   function toggleType(t: string) {
     allTypesActive = false;
@@ -119,7 +119,7 @@
   <div class="tl-controls">
     <div class="tl-control-group">
       <label class="tl-label" for="tl-session-select">SESSION</label>
-      <select id="tl-session-select" class="tl-select" bind:value={selectedSessionId} on:change={() => loadObservations(selectedSessionId)}>
+      <select id="tl-session-select" class="tl-select" bind:value={selectedSessionId} onchange={() => loadObservations(selectedSessionId)}>
         {#each sessions as s}
           <option value={s.ID || s.id}>
             {s.Project || s.project || truncate(s.ID || s.id, 20)} {'\u2014'} {s.ObservationCount || s.observationCount || 0} obs
@@ -130,7 +130,7 @@
 
     <div class="tl-control-group">
       <label class="tl-label" for="tl-importance-range">MIN IMPORTANCE: {minImportance}</label>
-      <input id="tl-importance-range" type="range" min="1" max="10" bind:value={minImportance} on:input={() => { currentPage = 0; }} class="tl-range" />
+      <input id="tl-importance-range" type="range" min="1" max="10" bind:value={minImportance} oninput={() => { currentPage = 0; }} class="tl-range" />
     </div>
   </div>
 
@@ -140,7 +140,7 @@
       <button
         class="tl-chip"
         class:tl-chip-active={allTypesActive}
-        on:click={selectAll}
+        onclick={selectAll}
       >
         ALL <span class="tl-chip-count">{observations.length}</span>
       </button>
@@ -148,7 +148,7 @@
         <button
           class="tl-chip"
           class:tl-chip-active={!allTypesActive && activeTypes.has(type)}
-          on:click={() => toggleType(type)}
+          onclick={() => toggleType(type)}
         >
           {typeLabels[type] || type.replace('_', ' ').toUpperCase()}
           <span class="tl-chip-count">{count}</span>
@@ -228,11 +228,11 @@
   <!-- Pagination -->
   {#if totalPages > 1}
     <div class="tl-pagination">
-      <button class="tl-page-btn" disabled={currentPage === 0} on:click={() => { currentPage--; }}>
+      <button class="tl-page-btn" disabled={currentPage === 0} onclick={() => { currentPage--; }}>
         {'\u2039'}
       </button>
       <span class="tl-page-info mono">Page {currentPage + 1} of {totalPages}</span>
-      <button class="tl-page-btn" disabled={currentPage >= totalPages - 1} on:click={() => { currentPage++; }}>
+      <button class="tl-page-btn" disabled={currentPage >= totalPages - 1} onclick={() => { currentPage++; }}>
         {'\u203A'}
       </button>
     </div>

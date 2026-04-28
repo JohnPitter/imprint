@@ -3,12 +3,12 @@
   import { api } from '../../lib/api';
   import { createPoller } from '../../lib/poller';
 
-  let pending: any[] = [];
-  let inProgress: any[] = [];
-  let done: any[] = [];
-  let frontier: any[] = [];
-  let loading = true;
-  let doneOffset = 0;
+  let pending: any[] = $state([]);
+  let inProgress: any[] = $state([]);
+  let done: any[] = $state([]);
+  let frontier: any[] = $state([]);
+  let loading = $state(true);
+  let doneOffset = $state(0);
   const doneLimit = 30;
   // Pending/in_progress columns load everything; only "done" paginates because it grows unbounded.
   const activeLimit = 200;
@@ -45,9 +45,9 @@
   function prev() { if (doneOffset >= doneLimit) { doneOffset -= doneLimit; load(true); } }
   function next() { if (done.length >= doneLimit) { doneOffset += doneLimit; load(true); } }
 
-  $: currentPage = Math.floor(doneOffset / doneLimit) + 1;
-  $: totalPages = done.length < doneLimit ? currentPage : currentPage + 1;
-  $: anyActions = pending.length + inProgress.length + done.length > 0;
+  let currentPage = $derived(Math.floor(doneOffset / doneLimit) + 1);
+  let totalPages = $derived(done.length < doneLimit ? currentPage : currentPage + 1);
+  let anyActions = $derived(pending.length + inProgress.length + done.length > 0);
 
   function priorityBadge(p: number): string {
     if (p >= 8) return 'act-priority-high';
@@ -179,9 +179,9 @@
     </div>
 
     <div class="pagination">
-      <button class="pagination-btn" on:click={prev} disabled={doneOffset === 0}>{'\u2190'} PREV</button>
+      <button class="pagination-btn" onclick={prev} disabled={doneOffset === 0}>{'\u2190'} PREV</button>
       <span class="pagination-info">DONE PAGE {currentPage} OF {totalPages}</span>
-      <button class="pagination-btn" on:click={next} disabled={done.length < doneLimit}>NEXT {'\u2192'}</button>
+      <button class="pagination-btn" onclick={next} disabled={done.length < doneLimit}>NEXT {'\u2192'}</button>
     </div>
   {/if}
 {/if}

@@ -2,26 +2,26 @@
   import { onMount } from 'svelte';
   import { api } from '../../lib/api';
 
-  let settings: any = null;
-  let loading = true;
-  let saving = false;
-  let message = '';
+  let settings: any = $state(null);
+  let loading = $state(true);
+  let saving = $state(false);
+  let message = $state('');
 
   // Form state
-  let providerOrder = 'anthropic, openrouter, llamacpp';
-  let anthropicModel = '';
-  let anthropicApiKey = '';
-  let anthropicAuth = '';
-  let openrouterModel = '';
-  let openrouterApiKey = '';
-  let llamacppUrl = '';
-  let llamacppModel = '';
-  let bm25Weight = 0.4;
-  let vectorWeight = 0.4;
-  let compressWorkers = 4;
-  let consolidationEnabled = true;
-  let contextTokenBudget = 2000;
-  let pipelineIntervalMin = 5;
+  let providerOrder = $state('anthropic, openrouter, llamacpp');
+  let anthropicModel = $state('');
+  let anthropicApiKey = $state('');
+  let anthropicAuth = $state('');
+  let openrouterModel = $state('');
+  let openrouterApiKey = $state('');
+  let llamacppUrl = $state('');
+  let llamacppModel = $state('');
+  let bm25Weight = $state(0.4);
+  let vectorWeight = $state(0.4);
+  let compressWorkers = $state(4);
+  let consolidationEnabled = $state(true);
+  let contextTokenBudget = $state(2000);
+  let pipelineIntervalMin = $state(5);
 
   const anthropicModels = [
     'claude-haiku-4-5-20251001',
@@ -214,7 +214,7 @@
 
   <!-- Save bar -->
   <div class="save-bar">
-    <button class="btn-save" on:click={save} disabled={saving}>
+    <button class="btn-save" onclick={save} disabled={saving}>
       {saving ? 'Saving...' : 'Save Settings'}
     </button>
     {#if message}

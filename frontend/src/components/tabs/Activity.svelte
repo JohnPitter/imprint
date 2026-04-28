@@ -4,17 +4,17 @@
   import { createPoller } from '../../lib/poller';
   import { timeAgo, truncate } from '../../lib/format';
 
-  let auditEntries: any[] = [];
-  let loading = true;
+  let auditEntries: any[] = $state([]);
+  let loading = $state(true);
   let stopPoll: (() => void) | undefined;
-  let heatmapDays = 365; // 30 / 90 / 365 — selectable
+  let heatmapDays = $state(365); // 30 / 90 / 365 — selectable
 
-  let heatmap: Map<string, number> = new Map();
-  let heatmapWeeks: { day: number; date: string; count: number }[][] = [];
-  let maxCount = 1;
+  let heatmap: Map<string, number> = $state(new Map());
+  let heatmapWeeks: { day: number; date: string; count: number }[][] = $state([]);
+  let maxCount = $state(1);
 
-  let typeBreakdown: { type: string; count: number; pct: number }[] = [];
-  let feedEntries: any[] = [];
+  let typeBreakdown: { type: string; count: number; pct: number }[] = $state([]);
+  let feedEntries: any[] = $state([]);
 
   function toDateKey(d: Date): string {
     return d.toISOString().slice(0, 10);
@@ -106,7 +106,7 @@
     return markers;
   }
 
-  let feedOffset = 0;
+  let feedOffset = $state(0);
   const feedLimit = 20;
 
   async function refresh() {
@@ -134,9 +134,9 @@
   function feedPrev() { if (feedOffset >= feedLimit) { feedOffset -= feedLimit; feedEntries = auditEntries.slice(feedOffset, feedOffset + feedLimit); } }
   function feedNext() { if (feedOffset + feedLimit < auditEntries.length) { feedOffset += feedLimit; feedEntries = auditEntries.slice(feedOffset, feedOffset + feedLimit); } }
 
-  $: feedPage = Math.floor(feedOffset / feedLimit) + 1;
-  $: feedTotalPages = Math.max(1, Math.ceil(auditEntries.length / feedLimit));
-  $: heatmapTotal = [...heatmap.values()].reduce((a, b) => a + b, 0);
+  let feedPage = $derived(Math.floor(feedOffset / feedLimit) + 1);
+  let feedTotalPages = $derived(Math.max(1, Math.ceil(auditEntries.length / feedLimit)));
+  let heatmapTotal = $derived([...heatmap.values()].reduce((a, b) => a + b, 0));
 
   onMount(() => { refresh(); stopPoll = createPoller(refresh, 10000); });
   onDestroy(() => stopPoll?.());
@@ -161,9 +161,9 @@
       </div>
       <div class="heatmap-controls">
         <div class="range-toggle">
-          <button class="range-btn" class:active={heatmapDays === 30} on:click={() => setHeatmapRange(30)}>30D</button>
-          <button class="range-btn" class:active={heatmapDays === 90} on:click={() => setHeatmapRange(90)}>90D</button>
-          <button class="range-btn" class:active={heatmapDays === 365} on:click={() => setHeatmapRange(365)}>1Y</button>
+          <button class="range-btn" class:active={heatmapDays === 30} onclick={() => setHeatmapRange(30)}>30D</button>
+          <button class="range-btn" class:active={heatmapDays === 90} onclick={() => setHeatmapRange(90)}>90D</button>
+          <button class="range-btn" class:active={heatmapDays === 365} onclick={() => setHeatmapRange(365)}>1Y</button>
         </div>
         <span class="refresh-indicator">AUTO-REFRESH 10S  ·  {heatmapTotal} EVENTS / {heatmapDays}D</span>
       </div>
@@ -274,9 +274,9 @@
           {/each}
         </div>
         <div class="pagination">
-          <button class="pagination-btn" on:click={feedPrev} disabled={feedOffset === 0}>{'\u2190'} PREV</button>
+          <button class="pagination-btn" onclick={feedPrev} disabled={feedOffset === 0}>{'\u2190'} PREV</button>
           <span class="pagination-info">PAGE {feedPage} OF {feedTotalPages}</span>
-          <button class="pagination-btn" on:click={feedNext} disabled={feedOffset + feedLimit >= auditEntries.length}>NEXT {'\u2192'}</button>
+          <button class="pagination-btn" onclick={feedNext} disabled={feedOffset + feedLimit >= auditEntries.length}>NEXT {'\u2192'}</button>
         </div>
       {:else}
         <p class="no-data">No activity yet</p>

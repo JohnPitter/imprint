@@ -4,9 +4,9 @@
   import { createPoller } from '../../lib/poller';
   import { timeAgo } from '../../lib/format';
 
-  let entries: any[] = [];
-  let loading = true;
-  let offset = 0;
+  let entries: any[] = $state([]);
+  let loading = $state(true);
+  let offset = $state(0);
   const limit = 50;
   let stopPoll: (() => void) | undefined;
 
@@ -31,8 +31,8 @@
   function prev() { if (offset >= limit) { offset -= limit; load(true); } }
   function next() { if (entries.length >= limit) { offset += limit; load(true); } }
 
-  $: currentPage = Math.floor(offset / limit) + 1;
-  $: totalPages = entries.length < limit ? currentPage : currentPage + 1;
+  let currentPage = $derived(Math.floor(offset / limit) + 1);
+  let totalPages = $derived(entries.length < limit ? currentPage : currentPage + 1);
 
   const actionColors: Record<string, string> = {
     'session.start': 'badge-success', 'session.end': 'badge-info',
@@ -88,9 +88,9 @@
     </div>
 
     <div class="pagination">
-      <button class="pagination-btn" on:click={prev} disabled={offset === 0}>← PREV</button>
+      <button class="pagination-btn" onclick={prev} disabled={offset === 0}>← PREV</button>
       <span class="pagination-info">PAGE {currentPage} OF {totalPages}</span>
-      <button class="pagination-btn" on:click={next} disabled={entries.length < limit}>NEXT →</button>
+      <button class="pagination-btn" onclick={next} disabled={entries.length < limit}>NEXT →</button>
     </div>
   {/if}
 </div>

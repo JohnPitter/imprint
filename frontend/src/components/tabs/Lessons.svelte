@@ -3,15 +3,15 @@
   import { api } from '../../lib/api';
   import { createPoller } from '../../lib/poller';
 
-  let lessons: any[] = [];
-  let insights: any[] = [];
-  let lessonsTotal = 0;
-  let insightsTotal = 0;
-  let searchQuery = '';
-  let searching = false;
-  let loading = true;
-  let lessonsOffset = 0;
-  let insightsOffset = 0;
+  let lessons: any[] = $state([]);
+  let insights: any[] = $state([]);
+  let lessonsTotal = $state(0);
+  let insightsTotal = $state(0);
+  let searchQuery = $state('');
+  let searching = $state(false);
+  let loading = $state(true);
+  let lessonsOffset = $state(0);
+  let insightsOffset = $state(0);
   const limit = 30;
   let stopPoll: (() => void) | undefined;
 
@@ -64,10 +64,10 @@
   function insightsPrev() { if (insightsOffset >= limit) { insightsOffset -= limit; loadInsights(); } }
   function insightsNext() { if (insightsOffset + limit < insightsTotal) { insightsOffset += limit; loadInsights(); } }
 
-  $: lessonsPage = Math.floor(lessonsOffset / limit) + 1;
-  $: lessonsTotalPages = Math.max(1, Math.ceil(lessonsTotal / limit));
-  $: insightsPage = Math.floor(insightsOffset / limit) + 1;
-  $: insightsTotalPages = Math.max(1, Math.ceil(insightsTotal / limit));
+  let lessonsPage = $derived(Math.floor(lessonsOffset / limit) + 1);
+  let lessonsTotalPages = $derived(Math.max(1, Math.ceil(lessonsTotal / limit)));
+  let insightsPage = $derived(Math.floor(insightsOffset / limit) + 1);
+  let insightsTotalPages = $derived(Math.max(1, Math.ceil(insightsTotal / limit)));
 
   async function doSearch() {
     const q = searchQuery.trim();
@@ -99,7 +99,7 @@
 <div class="lessons-container">
   <!-- Search -->
   <div class="search-row">
-    <form on:submit|preventDefault={doSearch} class="search-form">
+    <form onsubmit={(e) => { e.preventDefault(); doSearch(); }} class="search-form">
       <input
         class="input search-input"
         bind:value={searchQuery}
@@ -125,9 +125,9 @@
             <span class="section-count">{searching ? lessons.length : lessonsTotal}</span>
           </div>
           <div class="pagination compact">
-            <button class="pagination-btn" on:click={lessonsPrev} disabled={searching || lessonsOffset === 0}>{'\u2190'}</button>
+            <button class="pagination-btn" onclick={lessonsPrev} disabled={searching || lessonsOffset === 0}>{'\u2190'}</button>
             <span class="pagination-info">{lessonsPage}/{lessonsTotalPages}</span>
-            <button class="pagination-btn" on:click={lessonsNext} disabled={searching || lessonsOffset + limit >= lessonsTotal}>{'\u2192'}</button>
+            <button class="pagination-btn" onclick={lessonsNext} disabled={searching || lessonsOffset + limit >= lessonsTotal}>{'\u2192'}</button>
           </div>
         </div>
 
@@ -167,9 +167,9 @@
             <span class="section-count">{insightsTotal}</span>
           </div>
           <div class="pagination compact">
-            <button class="pagination-btn" on:click={insightsPrev} disabled={insightsOffset === 0}>{'\u2190'}</button>
+            <button class="pagination-btn" onclick={insightsPrev} disabled={insightsOffset === 0}>{'\u2190'}</button>
             <span class="pagination-info">{insightsPage}/{insightsTotalPages}</span>
-            <button class="pagination-btn" on:click={insightsNext} disabled={insightsOffset + limit >= insightsTotal}>{'\u2192'}</button>
+            <button class="pagination-btn" onclick={insightsNext} disabled={insightsOffset + limit >= insightsTotal}>{'\u2192'}</button>
           </div>
         </div>
 

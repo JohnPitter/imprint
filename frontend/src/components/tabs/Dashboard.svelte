@@ -4,15 +4,15 @@
   import { createPoller } from '../../lib/poller';
   import { timeAgo, formatNumber } from '../../lib/format';
 
-  let health: any = null;
-  let sessions: any[] = [];
-  let sessionsTotal = 0;
-  let graph: any = null;
-  let auditEntries: any[] = [];
-  let memoriesCount = 0;
-  let lessonsCount = 0;
-  let loading = true;
-  let lastRefresh = '';
+  let health: any = $state(null);
+  let sessions: any[] = $state([]);
+  let sessionsTotal = $state(0);
+  let graph: any = $state(null);
+  let auditEntries: any[] = $state([]);
+  let memoriesCount = $state(0);
+  let lessonsCount = $state(0);
+  let loading = $state(true);
+  let lastRefresh = $state('');
   let stopPoll: (() => void) | undefined;
 
   async function refresh() {

@@ -1,8 +1,10 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-  const dispatch = createEventDispatcher();
-  let searchQuery = '';
-  let theme = localStorage.getItem('theme') || 'dark';
+  // Component event dispatchers are gone in Svelte 5 — parents pass callbacks
+  // as plain props. App.svelte calls us with onsearch={...}.
+  let { onsearch }: { onsearch?: (detail: { query: string }) => void } = $props();
+
+  let searchQuery = $state('');
+  let theme = $state(localStorage.getItem('theme') || 'dark');
 
   function toggleTheme() {
     theme = theme === 'dark' ? 'light' : 'dark';
@@ -10,20 +12,21 @@
     localStorage.setItem('theme', theme);
   }
 
-  function onSearch() {
-    if (searchQuery.trim()) dispatch('search', { query: searchQuery });
+  function submitSearch(e: SubmitEvent) {
+    e.preventDefault();
+    if (searchQuery.trim()) onsearch?.({ query: searchQuery });
   }
 </script>
 
 <header class="header">
   <div class="left"><h1 class="logo">Imprint</h1></div>
   <div class="center">
-    <form on:submit|preventDefault={onSearch}>
+    <form onsubmit={submitSearch}>
       <input class="input" bind:value={searchQuery} placeholder="Search memories, observations..." />
     </form>
   </div>
   <div class="right">
-    <button class="toggle" on:click={toggleTheme}>{theme === 'dark' ? '☀' : '☾'}</button>
+    <button class="toggle" onclick={toggleTheme}>{theme === 'dark' ? '☀' : '☾'}</button>
   </div>
 </header>
 

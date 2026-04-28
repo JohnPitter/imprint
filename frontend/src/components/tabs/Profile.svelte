@@ -3,12 +3,12 @@
   import { api } from '../../lib/api';
   import { createPoller } from '../../lib/poller';
 
-  let graphStats: any = null;
-  let sessionsTotal = 0;
-  let memoriesTotal = 0;
-  let observationsTotal = 0;
-  let concepts: { name: string; count: number }[] = [];
-  let loading = true;
+  let graphStats: any = $state(null);
+  let sessionsTotal = $state(0);
+  let memoriesTotal = $state(0);
+  let observationsTotal = $state(0);
+  let concepts: { name: string; count: number }[] = $state([]);
+  let loading = $state(true);
   let stopPoll: (() => void) | undefined;
 
   async function refresh(initial: boolean) {
@@ -41,7 +41,7 @@
     stopPoll?.();
   });
 
-  $: maxConceptCount = Math.max(1, ...concepts.map(c => c.count));
+  let maxConceptCount = $derived(Math.max(1, ...concepts.map(c => c.count)));
 
   function conceptOpacity(count: number): number {
     return 0.4 + (count / maxConceptCount) * 0.6;

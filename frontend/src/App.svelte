@@ -14,15 +14,16 @@
   import Settings from './components/tabs/Settings.svelte';
   import { api } from './lib/api';
 
-  let activeTab = 'dashboard';
-  let searchOpen = false;
-  let searchQuery = '';
-  let searchLoading = false;
-  let searchResults: any[] = [];
-  let searchError = '';
+  let activeTab = $state('dashboard');
+  let searchOpen = $state(false);
+  let searchQuery = $state('');
+  let searchLoading = $state(false);
+  let searchResults: any[] = $state([]);
+  let searchError = $state('');
 
-  async function handleSearch(e: CustomEvent) {
-    const q = (e.detail.query || '').trim();
+  // Header now passes a plain callback prop instead of dispatching an event.
+  async function handleSearch(detail: { query: string }) {
+    const q = (detail.query || '').trim();
     if (!q) return;
     searchQuery = q;
     searchOpen = true;
@@ -53,7 +54,7 @@
 </script>
 
 <div class="app">
-  <Header on:search={handleSearch} />
+  <Header onsearch={handleSearch} />
   <TabBar bind:activeTab />
   <main class="content" class:content-graph={activeTab === 'graph'}>
     {#if activeTab === 'dashboard'}<Dashboard />
@@ -71,13 +72,13 @@
   </main>
 
   {#if searchOpen}
-    <div class="search-overlay" on:click={closeSearch} on:keydown={(e) => e.key === 'Escape' && closeSearch()} role="presentation">
-      <div class="search-panel" on:click|stopPropagation on:keydown|stopPropagation role="dialog" aria-label="Search results" tabindex="-1">
+    <div class="search-overlay" onclick={closeSearch} onkeydown={(e) => e.key === 'Escape' && closeSearch()} role="presentation">
+      <div class="search-panel" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-label="Search results" tabindex="-1">
         <div class="search-panel-header">
           <span class="search-panel-label">RESULTS FOR</span>
           <span class="search-panel-query">{searchQuery}</span>
           <span class="search-panel-count">{searchResults.length}</span>
-          <button class="search-panel-close" on:click={closeSearch} aria-label="Close">×</button>
+          <button class="search-panel-close" onclick={closeSearch} aria-label="Close">×</button>
         </div>
 
         <div class="search-panel-body">

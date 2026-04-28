@@ -3,12 +3,12 @@
   import { api } from '../../lib/api';
   import { createPoller } from '../../lib/poller';
 
-  let canvasEl: HTMLCanvasElement;
-  let stats: any = null;
-  let loading = true;
-  let nodeCount = 0;
-  let edgeCount = 0;
-  let hoveredNode: any = null;
+  let canvasEl: HTMLCanvasElement = $state(undefined as any);
+  let stats: any = $state(null);
+  let loading = $state(true);
+  let nodeCount = $state(0);
+  let edgeCount = $state(0);
+  let hoveredNode: any = $state(null);
   let animFrame: number;
 
   // Simulation space: fixed coords, camera maps to canvas
@@ -21,8 +21,8 @@
   }
   interface SimEdge { source: number; target: number; type: string; }
 
-  let nodes: SimNode[] = [];
-  let edges: SimEdge[] = [];
+  let nodes: SimNode[] = $state([]);
+  let edges: SimEdge[] = $state([]);
   let zoom = 1;
   let panX = 0, panY = 0;
   let dragging = false;
@@ -102,7 +102,7 @@
   }
 
   function startSimulation() {
-    let iter = 0;
+    let iter = $state(0);
     function tick() {
       iter++;
       const rep = 2000, att = 0.003, damp = 0.87, grav = 0.003;
@@ -259,7 +259,7 @@
 
   function resetView() { zoom = 1; panX = 0; panY = 0; draw(); }
 
-  let fullscreen = false;
+  let fullscreen = $state(false);
 
   function toggleFullscreen() {
     fullscreen = !fullscreen;
@@ -273,7 +273,7 @@
   }
 </script>
 
-<svelte:window on:keydown={onKeyDown} />
+<svelte:window onkeydown={onKeyDown} />
 
 <div class="graph-page" class:is-fullscreen={fullscreen}>
   <div class="graph-header">
@@ -283,8 +283,8 @@
     </div>
     <div class="graph-controls">
       <span class="stat-mini mono">{nodeCount} nodes · {edgeCount} edges</span>
-      <button class="btn" on:click={resetView}>Reset</button>
-      <button class="btn btn-icon" on:click={toggleFullscreen} title={fullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}>
+      <button class="btn" onclick={resetView}>Reset</button>
+      <button class="btn btn-icon" onclick={toggleFullscreen} title={fullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}>
         {fullscreen ? '⊡' : '⊞'}
       </button>
     </div>
@@ -301,11 +301,11 @@
     <div class="canvas-wrapper">
       <canvas
         bind:this={canvasEl}
-        on:mousemove={onMouseMove}
-        on:mousedown={onMouseDown}
-        on:mouseup={onMouseUp}
-        on:mouseleave={onMouseUp}
-        on:wheel|preventDefault={onWheel}
+        onmousemove={onMouseMove}
+        onmousedown={onMouseDown}
+        onmouseup={onMouseUp}
+        onmouseleave={onMouseUp}
+        onwheel={(e) => { e.preventDefault(); onWheel(e); }}
       ></canvas>
       {#if hoveredNode}
         <div class="tooltip">

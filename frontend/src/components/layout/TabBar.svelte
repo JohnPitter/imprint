@@ -1,5 +1,6 @@
 <script lang="ts">
-  export let activeTab: string = 'dashboard';
+  // bindable so the parent's `bind:activeTab` keeps working in runes mode.
+  let { activeTab = $bindable('dashboard') }: { activeTab?: string } = $props();
   const tabs = [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'sessions', label: 'Sessions' },
@@ -17,7 +18,7 @@
 
 <nav class="tabbar">
   {#each tabs as tab}
-    <button class="tab" class:active={activeTab === tab.id} on:click={() => activeTab = tab.id}>
+    <button class="tab" class:active={activeTab === tab.id} onclick={() => activeTab = tab.id}>
       {tab.label}
     </button>
   {/each}
