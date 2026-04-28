@@ -154,6 +154,7 @@
           {#each done as a}
             <div class="act-card act-card-done">
               <div class="act-card-top">
+                <span class="act-done-mark" aria-hidden="true">{'✓'}</span>
                 <strong class="act-card-title">{a.title}</strong>
               </div>
               {#if a.description}
@@ -354,10 +355,16 @@
     box-shadow: var(--shadow-hover);
   }
   .act-card-done {
-    opacity: 0.5;
+    opacity: 0.78;
   }
   .act-card-done:hover {
-    opacity: 0.8;
+    opacity: 1;
+  }
+  .act-done-mark {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent);
+    flex-shrink: 0;
   }
   .act-card-top {
     display: flex;

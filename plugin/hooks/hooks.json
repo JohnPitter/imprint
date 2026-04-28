@@ -63,13 +63,6 @@
         "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/notification.exe"
       }]
     }],
-    "TaskCompleted": [{
-      "matcher": "",
-      "hooks": [{
-        "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/task-completed.exe"
-      }]
-    }],
     "Stop": [{
       "matcher": "",
       "hooks": [{

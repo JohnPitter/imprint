@@ -21,7 +21,7 @@ var hookNames = []string{
 	"session-start", "session-end", "prompt-submit",
 	"post-tool-use", "post-tool-failure", "pre-tool-use",
 	"pre-compact", "subagent-start", "subagent-stop",
-	"notification", "task-completed", "stop",
+	"notification", "stop",
 }
 
 func main() {

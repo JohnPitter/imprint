@@ -21,7 +21,7 @@ hooks:
 	@mkdir -p build/hooks
 	@for hook in session-start session-end prompt-submit post-tool-use \
 	             post-tool-failure pre-tool-use pre-compact subagent-start \
-	             subagent-stop notification task-completed stop; do \
+	             subagent-stop notification stop; do \
 		go build -ldflags="-s -w" -o build/hooks/$$hook.exe ./cmd/hooks/$$hook/ && \
 		echo "  $$hook.exe"; \
 	done

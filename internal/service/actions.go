@@ -95,6 +95,23 @@ func (s *ActionService) UpsertFromTask(title, description, status, sessionID str
 	return row, nil
 }
 
+// CompleteInProgressForSession marks all in_progress actions in the session's
+// project as done. Called when a turn ends (Stop hook) so the kanban does not
+// keep stale "in_progress" items past the turn that produced them.
+func (s *ActionService) CompleteInProgressForSession(sessionID string) (int64, error) {
+	if sessionID == "" {
+		return 0, fmt.Errorf("sessionId is required")
+	}
+	sess, err := s.c.Sessions.GetByID(sessionID)
+	if err != nil {
+		return 0, fmt.Errorf("get session: %w", err)
+	}
+	if sess.Project == "" {
+		return 0, nil
+	}
+	return s.c.Actions.CompleteInProgress(sess.Project)
+}
+
 // CreateAction creates a new action.
 func (s *ActionService) CreateAction(title, description, status string, priority int, project *string, tags []string) (*store.ActionRow, error) {
 	if title == "" {

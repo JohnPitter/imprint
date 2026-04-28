@@ -34,6 +34,13 @@ func main() {
 		os.Exit(0)
 	}
 
+	// Close the kanban turn: every action this turn opened (in_progress) is
+	// finalized as done. Stop fires at the end of each assistant response, so
+	// this matches the lifecycle the user sees in chat.
+	hooks.Post(cfg, "/imprint/actions/complete-in-progress", map[string]any{
+		"sessionId": sessionID,
+	})
+
 	// Process transcript JSONL to capture any missed observations.
 	// This is lightweight: just POSTs raw observations that the compression
 	// worker will handle asynchronously.

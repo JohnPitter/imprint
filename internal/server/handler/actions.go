@@ -143,6 +143,27 @@ func (h *ActionHandler) HandleFromTask(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"action": action})
 }
 
+// HandleCompleteInProgress handles POST /actions/complete-in-progress.
+// Marks every in_progress action in the session's project as done. Used by the
+// Stop hook to close out the action(s) opened by the matching prompt-submit.
+func (h *ActionHandler) HandleCompleteInProgress(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		SessionID string `json:"sessionId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	updated, err := h.svc.CompleteInProgressForSession(req.SessionID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"completed": updated})
+}
+
 // HandleCreateEdge handles POST /actions/edges.
 func (h *ActionHandler) HandleCreateEdge(w http.ResponseWriter, r *http.Request) {
 	var req struct {
