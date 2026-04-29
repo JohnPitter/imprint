@@ -127,9 +127,9 @@ func cmdSearch(args []string) int {
 	var resp struct {
 		Count   int `json:"count"`
 		Results []struct {
-			Title    string  `json:"title"`
-			Type     string  `json:"type"`
-			Score    float64 `json:"score"`
+			Title    string   `json:"title"`
+			Type     string   `json:"type"`
+			Score    float64  `json:"score"`
 			Concepts []string `json:"concepts"`
 		} `json:"results"`
 	}
@@ -158,14 +158,14 @@ func cmdStatus(args []string) int {
 	fs.Parse(args)
 
 	var stats struct {
-		RawCount        int                       `json:"rawCount"`
-		CompressedCount int                       `json:"compressedCount"`
-		MemoryCount     int                       `json:"memoryCount"`
-		LessonCount     int                       `json:"lessonCount"`
-		InsightCount    int                       `json:"insightCount"`
-		ActiveSessions  int                       `json:"activeSessions"`
-		Backlog         int                       `json:"backlog"`
-		LastByAction    map[string]any            `json:"lastByAction"`
+		RawCount        int            `json:"rawCount"`
+		CompressedCount int            `json:"compressedCount"`
+		MemoryCount     int            `json:"memoryCount"`
+		LessonCount     int            `json:"lessonCount"`
+		InsightCount    int            `json:"insightCount"`
+		ActiveSessions  int            `json:"activeSessions"`
+		Backlog         int            `json:"backlog"`
+		LastByAction    map[string]any `json:"lastByAction"`
 		Usage           struct {
 			Calls        int64 `json:"calls"`
 			Failures     int64 `json:"failures"`

@@ -373,7 +373,7 @@ func (s *MemoryStore) MemoryGraph(topN, minShared int) ([]MemoryGraphNode, []Mem
 	defer rows.Close()
 
 	type memWithConcepts struct {
-		node     MemoryGraphNode
+		node       MemoryGraphNode
 		conceptSet map[string]struct{}
 	}
 	mems := make([]memWithConcepts, 0, topN)

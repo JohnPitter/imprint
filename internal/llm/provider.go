@@ -50,11 +50,11 @@ type providerUsage struct {
 
 // UsageSnapshot is the read-only view returned by Snapshot.
 type UsageSnapshot struct {
-	Calls       int64                     `json:"calls"`
-	Failures    int64                     `json:"failures"`
-	PromptTokens int64                    `json:"promptTokens"`
-	OutputTokens int64                    `json:"outputTokens"`
-	ByProvider  map[string]*providerUsage `json:"byProvider"`
+	Calls        int64                     `json:"calls"`
+	Failures     int64                     `json:"failures"`
+	PromptTokens int64                     `json:"promptTokens"`
+	OutputTokens int64                     `json:"outputTokens"`
+	ByProvider   map[string]*providerUsage `json:"byProvider"`
 }
 
 // GlobalUsage is the meter every provider records into. main.go wires it via
