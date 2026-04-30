@@ -4,77 +4,77 @@
       "matcher": "",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/bin/ensure-server.exe && ${CLAUDE_PLUGIN_ROOT}/bin/hooks/session-start.exe"
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/ensure-server && ${CLAUDE_PLUGIN_ROOT}/bin/hooks/session-start"
       }]
     }],
     "UserPromptSubmit": [{
       "matcher": "",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/prompt-submit.exe"
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/prompt-submit"
       }]
     }],
     "PreToolUse": [{
       "matcher": "Edit|Write|Read|Glob|Grep",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/pre-tool-use.exe"
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/pre-tool-use"
       }]
     }],
     "PostToolUse": [{
       "matcher": "",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/post-tool-use.exe"
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/post-tool-use"
       }]
     }],
     "PostToolUseFailure": [{
       "matcher": "",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/post-tool-failure.exe"
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/post-tool-failure"
       }]
     }],
     "PreCompact": [{
       "matcher": "",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/pre-compact.exe"
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/pre-compact"
       }]
     }],
     "SubagentStart": [{
       "matcher": "",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/subagent-start.exe"
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/subagent-start"
       }]
     }],
     "SubagentStop": [{
       "matcher": "",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/subagent-stop.exe"
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/subagent-stop"
       }]
     }],
     "Notification": [{
       "matcher": "",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/notification.exe"
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/notification"
       }]
     }],
     "Stop": [{
       "matcher": "",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/stop.exe"
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/stop"
       }]
     }],
     "SessionEnd": [{
       "matcher": "",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/session-end.exe"
+        "command": "${CLAUDE_PLUGIN_ROOT}/bin/hooks/session-end"
       }]
     }]
   }

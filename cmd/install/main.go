@@ -156,11 +156,10 @@ func registerPlugin(settingsPath, pluginDir string) {
 	// But for persistent installation, we register hooks directly pointing to plugin/bin/
 	hooksMap := getOrCreateMap(settings, "hooks")
 	pluginBinHooks := filepath.ToSlash(filepath.Join(pluginDir, "bin", "hooks"))
-	ext := ""
-	if runtime.GOOS == "windows" {
-		ext = ".exe"
-	}
-	ensureBin := filepath.ToSlash(filepath.Join(pluginDir, "bin", "ensure-server"+ext))
+	// Hooks run under bash on every platform (Claude Code default), so we omit
+	// the .exe suffix in the registered command. Git Bash on Windows resolves
+	// the absolute path to imprint.exe via PATHEXT-style stat fallback.
+	ensureBin := filepath.ToSlash(filepath.Join(pluginDir, "bin", "ensure-server"))
 
 	type hookDef struct {
 		event   string
@@ -182,7 +181,7 @@ func registerPlugin(settingsPath, pluginDir string) {
 
 	for _, hook := range hookNames {
 		def := hookDefs[hook]
-		hookBin := filepath.ToSlash(filepath.Join(pluginBinHooks, hook+ext))
+		hookBin := filepath.ToSlash(filepath.Join(pluginBinHooks, hook))
 
 		// SessionStart gets the ensure-server prefix so the server is up
 		// before session-start tries to POST to it.
@@ -213,10 +212,15 @@ func registerPlugin(settingsPath, pluginDir string) {
 	}
 	settings["hooks"] = hooksMap
 
-	// Register MCP server
+	// Register MCP server. MCP servers are spawned directly by Claude Code (not
+	// through bash), so the .exe suffix must be present on Windows.
+	mcpExt := ""
+	if runtime.GOOS == "windows" {
+		mcpExt = ".exe"
+	}
 	mcpServers := getOrCreateMap(settings, "mcpServers")
 	mcpServers["imprint"] = map[string]any{
-		"command": filepath.ToSlash(filepath.Join(pluginDir, "bin", "mcp-server"+ext)),
+		"command": filepath.ToSlash(filepath.Join(pluginDir, "bin", "mcp-server"+mcpExt)),
 		"args":    []string{},
 	}
 	settings["mcpServers"] = mcpServers
