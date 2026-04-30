@@ -20,6 +20,9 @@ func main() {
 	}
 
 	sessionID := hooks.GetString(input, "session_id")
+	if sessionID == "" {
+		os.Exit(0)
+	}
 
 	// The user's prompt is the most valuable signal — it captures intent.
 	// Store as a conversation observation with high importance so the

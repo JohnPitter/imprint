@@ -15,6 +15,9 @@ func main() {
 	}
 
 	sessionID := hooks.GetString(input, "session_id")
+	if sessionID == "" {
+		os.Exit(0)
+	}
 	cwd := hooks.GetString(input, "cwd")
 
 	// 1. Save a snapshot observation before context is lost.

@@ -14,6 +14,11 @@ func main() {
 		os.Exit(0)
 	}
 
+	sessionID := hooks.GetString(input, "session_id")
+	if sessionID == "" {
+		os.Exit(0)
+	}
+
 	// Claude Code sends "tool_response" (can be string or object)
 	toolOutput := ""
 	if v, ok := input["tool_response"]; ok {
@@ -27,7 +32,7 @@ func main() {
 	}
 
 	hooks.Post(cfg, "/imprint/observe", map[string]any{
-		"session_id":  hooks.GetString(input, "session_id"),
+		"session_id":  sessionID,
 		"hook_type":   "post_tool_use",
 		"tool_name":   hooks.GetString(input, "tool_name"),
 		"tool_input":  input["tool_input"],

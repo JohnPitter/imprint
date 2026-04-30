@@ -14,6 +14,11 @@ func main() {
 		os.Exit(0)
 	}
 
+	sessionID := hooks.GetString(input, "session_id")
+	if sessionID == "" {
+		os.Exit(0)
+	}
+
 	toolName := hooks.GetString(input, "tool_name")
 
 	// Extract tool response (can be string or object)
@@ -39,7 +44,7 @@ func main() {
 	// repeated error patterns and auto-generate lessons.
 	// The error output is the key signal for learning.
 	hooks.Post(cfg, "/imprint/observe", map[string]any{
-		"session_id":  hooks.GetString(input, "session_id"),
+		"session_id":  sessionID,
 		"hook_type":   "tool_error",
 		"tool_name":   &toolName,
 		"tool_input":  toolInput,

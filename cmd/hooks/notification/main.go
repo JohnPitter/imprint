@@ -19,6 +19,9 @@ func main() {
 	}
 
 	sessionID := hooks.GetString(input, "session_id")
+	if sessionID == "" {
+		os.Exit(0)
+	}
 	message := hooks.GetString(input, "message")
 
 	hooks.Post(cfg, "/imprint/observe", map[string]any{
