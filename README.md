@@ -30,7 +30,7 @@ Inspired by [agentmemory](https://github.com/rohitg00/agentmemory) (Node.js + Do
 
 | Category | What you get |
 |---|---|
-| **Automatic Capture** | 12 hooks capture every tool use, prompt, error, and decision — zero manual effort |
+| **Automatic Capture** | 11 hooks capture every tool use, prompt, error, and decision — zero manual effort |
 | **LLM Compression** | Raw observations compressed into structured memories with concepts, files, and importance scores |
 | **Background Pipeline** | Scheduler runs summarize + consolidate + action extraction every N minutes during active sessions (configurable) |
 | **Hybrid Search** | BM25 (Bleve) + vector cosine similarity with Reciprocal Rank Fusion |
@@ -97,7 +97,7 @@ graph TD
 
 ### The Pipeline
 
-1. **Capture** — 12 compiled Go hooks intercept Claude Code events (tool use, prompts, errors, task completions, permission prompts)
+1. **Capture** — 11 compiled Go hooks intercept Claude Code events (tool use, prompts, errors, task completions, permission prompts)
 2. **Scrub** — 16 regex patterns strip API keys, tokens, JWTs, and secrets before storage
 3. **Compress** — Background workers send raw observations to an LLM (Anthropic / OpenRouter / llama.cpp with circuit breaker + fallback), producing structured summaries with type, title, narrative, importance (1-10), concepts, and files
 4. **Index** — Each compressed observation is immediately indexed into Bleve (BM25) inside the worker. On startup, an empty BM25 with rows in the DB triggers a self-heal reindex of every compressed observation
@@ -116,7 +116,6 @@ graph TD
 | **post-tool-failure** | Tool fails | Records error with distinct type for pattern detection |
 | **pre-compact** | Context compaction | Saves snapshot before context is lost, injects recovered context |
 | **notification** | Permission prompt | Surfaces the prompt as a `pending` action so the user sees Claude is waiting on them |
-| **task-completed** | Task marked done | Marks the corresponding action `done` |
 | **subagent-start / subagent-stop** | Task agent spawned/finished | Records subagent lifecycle for the activity feed |
 | **stop** | Session ends | Processes transcript for missed observations |
 | **session-end** | Session finalizes | Runs finalize pipeline (graph, actions, reflect) |
@@ -154,7 +153,7 @@ cd imprint
 go run ./cmd/install
 ```
 
-This builds all binaries (server, 12 hooks, MCP server), registers hooks and MCP in Claude Code settings, and sets up auto-start.
+This builds all binaries (server, 11 hooks, ensure-server launcher, MCP server), registers hooks and MCP in Claude Code settings, and sets up auto-start.
 
 ### What Happens After Install
 
@@ -184,7 +183,7 @@ go run ./cmd/install --uninstall
 | **Frontend** | Svelte 3 + TypeScript + Vite |
 | **LLM** | Anthropic, OpenRouter, llama.cpp (configurable fallback chain) |
 | **Protocol** | MCP (JSON-RPC over stdio) |
-| **Hooks** | 12 compiled Go binaries (~6MB each, <50ms startup) |
+| **Hooks** | 11 compiled Go binaries + ensure-server launcher (~6MB each, <50ms startup) |
 | **Testing** | Go testing + httptest |
 | **CI/CD** | GitHub Actions (lint, test, build, security) |
 
@@ -232,7 +231,8 @@ imprint/
     mcp/                     # MCP JSON-RPC server
     hooks/                   # Shared hook library
   cmd/
-    hooks/                   # 12 hook binaries
+    hooks/                   # 11 hook binaries
+    ensure-server/           # cross-platform auto-start launcher invoked by SessionStart
     mcp-server/              # Standalone MCP binary
     install/                 # One-command installer
   frontend/                  # Svelte 3 + TypeScript UI

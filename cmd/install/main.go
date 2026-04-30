@@ -63,7 +63,12 @@ func main() {
 	fmt.Println("[build] Building MCP server...")
 	buildGo(projectRoot, filepath.Join(binDir, "mcp-server"+ext), "./cmd/mcp-server")
 
-	// 5. Make scripts executable
+	// 5. Build ensure-server → plugin/bin/ensure-server[.exe]
+	// Cross-platform launcher invoked by SessionStart before session-start hook.
+	fmt.Println("[build] Building ensure-server...")
+	buildGo(projectRoot, filepath.Join(binDir, "ensure-server"+ext), "./cmd/ensure-server")
+
+	// 6. Make scripts executable
 	scriptsDir := filepath.Join(pluginDir, "scripts")
 	if entries, err := os.ReadDir(scriptsDir); err == nil {
 		for _, e := range entries {
@@ -71,7 +76,7 @@ func main() {
 		}
 	}
 
-	// 6. Create data directory
+	// 7. Create data directory
 	home, _ := os.UserHomeDir()
 	dataDir := filepath.Join(home, ".imprint")
 	os.MkdirAll(dataDir, 0o755)
@@ -82,7 +87,7 @@ func main() {
 		return
 	}
 
-	// 7. Register in Claude Code settings.json
+	// 8. Register in Claude Code settings.json
 	fmt.Println("[install] Registering plugin in Claude Code settings...")
 	settingsPath := filepath.Join(home, ".claude", "settings.json")
 	registerPlugin(settingsPath, pluginDir)
@@ -151,11 +156,11 @@ func registerPlugin(settingsPath, pluginDir string) {
 	// But for persistent installation, we register hooks directly pointing to plugin/bin/
 	hooksMap := getOrCreateMap(settings, "hooks")
 	pluginBinHooks := filepath.ToSlash(filepath.Join(pluginDir, "bin", "hooks"))
-	ensureScript := filepath.ToSlash(filepath.Join(pluginDir, "scripts", "ensure-server.sh"))
 	ext := ""
 	if runtime.GOOS == "windows" {
 		ext = ".exe"
 	}
+	ensureBin := filepath.ToSlash(filepath.Join(pluginDir, "bin", "ensure-server"+ext))
 
 	type hookDef struct {
 		event   string
@@ -172,7 +177,6 @@ func registerPlugin(settingsPath, pluginDir string) {
 		"subagent-start":    {"SubagentStart", ""},
 		"subagent-stop":     {"SubagentStop", ""},
 		"notification":      {"Notification", ""},
-		"task-completed":    {"TaskCompleted", ""},
 		"stop":              {"Stop", ""},
 	}
 
@@ -180,10 +184,11 @@ func registerPlugin(settingsPath, pluginDir string) {
 		def := hookDefs[hook]
 		hookBin := filepath.ToSlash(filepath.Join(pluginBinHooks, hook+ext))
 
-		// SessionStart gets the ensure-server prefix
+		// SessionStart gets the ensure-server prefix so the server is up
+		// before session-start tries to POST to it.
 		cmd := hookBin
 		if hook == "session-start" {
-			cmd = ensureScript + " && " + hookBin
+			cmd = ensureBin + " && " + hookBin
 		}
 
 		entry := map[string]any{
