@@ -4,7 +4,7 @@
       "matcher": "",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/bin/ensure-server && ${CLAUDE_PLUGIN_ROOT}/bin/hooks/session-start"
+        "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/ensure-binaries.sh && ${CLAUDE_PLUGIN_ROOT}/bin/ensure-server && ${CLAUDE_PLUGIN_ROOT}/bin/hooks/session-start"
       }]
     }],
     "UserPromptSubmit": [{

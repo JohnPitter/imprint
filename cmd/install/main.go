@@ -1,10 +1,15 @@
-// install.go builds Imprint binaries and installs as a Claude Code plugin.
+// install.go builds Imprint binaries.
 //
 // Usage:
 //
-//	go run ./cmd/install          # Build + install
-//	go run ./cmd/install --uninstall   # Remove from settings
-//	go run ./cmd/install --build-only  # Build binaries only (no settings change)
+//	go run ./cmd/install                # Build binaries only (default)
+//	go run ./cmd/install --register     # Build + register hooks/MCP in ~/.claude/settings.json (legacy)
+//	go run ./cmd/install --uninstall    # Remove legacy registration from settings.json
+//	go run ./cmd/install --build-only   # Alias for the default; preserved for old docs
+//
+// The marketplace install path (`/plugin install imprint@imprint-tools`) auto-discovers
+// hooks and MCP from plugin.json — no settings.json changes needed. The --register flag
+// is only useful when running this binary against a `--plugin-dir` checkout.
 package main
 
 import (
@@ -25,11 +30,17 @@ var hookNames = []string{
 }
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "--uninstall" {
+	flag := ""
+	if len(os.Args) > 1 {
+		flag = os.Args[1]
+	}
+	if flag == "--uninstall" {
 		doUninstall()
 		return
 	}
-	buildOnly := len(os.Args) > 1 && os.Args[1] == "--build-only"
+	// Default behavior is build-only. --register opts into the legacy
+	// settings.json registration. --build-only is preserved for old docs.
+	register := flag == "--register"
 
 	projectRoot := findProjectRoot()
 	pluginDir := filepath.Join(projectRoot, "plugin")
@@ -81,19 +92,25 @@ func main() {
 	dataDir := filepath.Join(home, ".imprint")
 	os.MkdirAll(dataDir, 0o755)
 
-	if buildOnly {
+	if !register {
 		fmt.Println("\n[build] Done! Binaries built in plugin/bin/")
-		fmt.Println("  Test with: claude --plugin-dir", filepath.ToSlash(pluginDir))
+		fmt.Println("  Plugin dir:", filepath.ToSlash(pluginDir))
+		fmt.Println("  Data dir: ", filepath.ToSlash(dataDir))
+		fmt.Println()
+		fmt.Println("  Marketplace install (recommended): /plugin install imprint@imprint-tools")
+		fmt.Println("  Direct test:                       claude --plugin-dir", filepath.ToSlash(pluginDir))
 		return
 	}
 
-	// 8. Register in Claude Code settings.json
-	fmt.Println("[install] Registering plugin in Claude Code settings...")
+	// Legacy --register path: write directly into ~/.claude/settings.json. This
+	// duplicates what the marketplace install does via auto-discovery, so use
+	// only for `--plugin-dir` workflows that don't go through the marketplace.
+	fmt.Println("[install] --register: writing hooks/MCP to ~/.claude/settings.json (legacy path)")
 	settingsPath := filepath.Join(home, ".claude", "settings.json")
 	registerPlugin(settingsPath, pluginDir)
 
 	fmt.Println()
-	fmt.Println("[install] Done! Imprint installed as Claude Code plugin.")
+	fmt.Println("[install] Done! Imprint registered as Claude Code plugin.")
 	fmt.Println()
 	fmt.Println("  Plugin dir:", filepath.ToSlash(pluginDir))
 	fmt.Println("  Data dir:  ", filepath.ToSlash(dataDir))
@@ -101,10 +118,7 @@ func main() {
 	fmt.Println("  The server auto-starts when you open Claude Code.")
 	fmt.Println("  Web UI:     http://localhost:3111")
 	fmt.Println()
-	fmt.Println("  To test without installing:")
-	fmt.Printf("    claude --plugin-dir %s\n", filepath.ToSlash(pluginDir))
-	fmt.Println()
-	fmt.Println("  To uninstall:")
+	fmt.Println("  To remove the legacy registration:")
 	fmt.Println("    go run ./cmd/install --uninstall")
 }
 

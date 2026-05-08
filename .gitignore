@@ -2,6 +2,8 @@
 *.exe
 *.exe~
 build/
+plugin/bin/
+dist/
 
 # Frontend
 frontend/node_modules/

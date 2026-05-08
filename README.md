@@ -124,12 +124,7 @@ graph TD
 
 ## Install
 
-### Prerequisites
-
-- Go 1.25+
-- Node.js 18+ (for frontend build)
-
-### Option 1: Claude Code Plugin Marketplace
+### Option 1: Claude Code Plugin Marketplace (recommended)
 
 ```bash
 # Add the marketplace (one time)
@@ -139,21 +134,40 @@ graph TD
 /plugin install imprint@imprint-tools
 ```
 
-Then build the binaries:
-```bash
-cd ~/.claude/plugins/cache/imprint-tools/imprint/1.0.0
-go run ./cmd/install
-```
+Restart Claude Code once. The **SessionStart** hook downloads the prebuilt
+binaries for your platform (`darwin-arm64`, `darwin-amd64`, `linux-amd64`,
+`linux-arm64`, `windows-amd64`) from the matching GitHub release on first
+run. Subsequent sessions reuse the cached binaries (~ms).
 
-### Option 2: Clone and Install
+No Go or Node toolchain required. Releases are signed with sha256 checksums
+([latest](https://github.com/JohnPitter/imprint/releases/latest)).
+
+### Option 2: Build from source
+
+For development, plugin authoring, or unsupported platforms:
 
 ```bash
 git clone https://github.com/JohnPitter/imprint.git
 cd imprint
-go run ./cmd/install
+go run ./cmd/install            # build all binaries into plugin/bin/
 ```
 
-This builds all binaries (server, 11 hooks, ensure-server launcher, MCP server), registers hooks and MCP in Claude Code settings, and sets up auto-start.
+Add the local plugin directly:
+
+```bash
+claude --plugin-dir $(pwd)/plugin
+```
+
+#### Legacy direct install
+
+If you prefer the pre-marketplace flow that writes hooks/MCP straight into
+`~/.claude/settings.json` (no marketplace required), pass `--register`:
+
+```bash
+go run ./cmd/install --register
+```
+
+This is kept for backwards compatibility. New users should use Option 1.
 
 ### What Happens After Install
 

@@ -1,0 +1,160 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build (e.g. v1.0.1)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: darwin-arm64
+            runner: macos-latest
+            goos: darwin
+            goarch: arm64
+            ext: ""
+          - target: darwin-amd64
+            runner: macos-latest
+            goos: darwin
+            goarch: amd64
+            ext: ""
+          - target: linux-amd64
+            runner: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            ext: ""
+          - target: linux-arm64
+            runner: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            ext: ""
+          - target: windows-amd64
+            runner: windows-latest
+            goos: windows
+            goarch: amd64
+            ext: ".exe"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.9"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build frontend
+        shell: bash
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Build all binaries
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+          TARGET: ${{ matrix.target }}
+          EXT: ${{ matrix.ext }}
+        run: |
+          set -euxo pipefail
+          OUT="dist/imprint-${TARGET}/bin"
+          mkdir -p "$OUT/hooks"
+
+          go build -ldflags="-s -w" -o "$OUT/imprint$EXT" .
+          go build -ldflags="-s -w" -o "$OUT/mcp-server$EXT" ./cmd/mcp-server
+          go build -ldflags="-s -w" -o "$OUT/ensure-server$EXT" ./cmd/ensure-server
+
+          for hook in session-start session-end prompt-submit \
+                      post-tool-use post-tool-failure pre-tool-use \
+                      pre-compact subagent-start subagent-stop \
+                      notification stop; do
+            go build -ldflags="-s -w" -o "$OUT/hooks/$hook$EXT" "./cmd/hooks/$hook"
+          done
+
+      - name: Package archive (unix)
+        if: matrix.goos != 'windows'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          cd dist
+          tar -czf "imprint-${TARGET}.tar.gz" "imprint-${TARGET}"
+          shasum -a 256 "imprint-${TARGET}.tar.gz" > "imprint-${TARGET}.tar.gz.sha256"
+
+      - name: Package archive (windows)
+        if: matrix.goos == 'windows'
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          Set-Location dist
+          $target = $env:TARGET
+          Compress-Archive -Path "imprint-$target" -DestinationPath "imprint-$target.zip"
+          $hash = Get-FileHash -Algorithm SHA256 "imprint-$target.zip"
+          "$($hash.Hash.ToLower())  imprint-$target.zip" | Out-File -Encoding ascii "imprint-$target.zip.sha256"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: imprint-${{ matrix.target }}
+          path: |
+            dist/imprint-${{ matrix.target }}.tar.gz
+            dist/imprint-${{ matrix.target }}.tar.gz.sha256
+            dist/imprint-${{ matrix.target }}.zip
+            dist/imprint-${{ matrix.target }}.zip.sha256
+          if-no-files-found: ignore
+
+  publish:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Resolve tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          REF: ${{ github.ref }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            artifacts/imprint-*.tar.gz
+            artifacts/imprint-*.tar.gz.sha256
+            artifacts/imprint-*.zip
+            artifacts/imprint-*.zip.sha256
