@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "imprint": {
-      "command": "${CLAUDE_PLUGIN_ROOT}/bin/mcp-server.exe",
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/mcp-server",
       "args": [],
       "env": {
         "IMPRINT_URL": "http://localhost:3111"
