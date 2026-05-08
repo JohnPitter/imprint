@@ -25,12 +25,13 @@ PLUGIN_JSON="$PLUGIN_ROOT/.claude-plugin/plugin.json"
 REPO="JohnPitter/imprint"
 
 # Read the plugin version so we know which release tag to fetch.
+# Uses awk to avoid taking on a Python or jq dependency.
 read_version() {
   if [ ! -f "$PLUGIN_JSON" ]; then
     echo ""
     return
   fi
-  python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("version",""))' "$PLUGIN_JSON" 2>/dev/null
+  awk -F\" '/"version"[[:space:]]*:/ { print $4; exit }' "$PLUGIN_JSON"
 }
 
 VERSION="$(read_version)"
