@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// Decay configuration. We don't expose these as config — the values are
+// conservative enough that surfacing them in env vars would just be a
+// footgun. Memories below `decayStrengthThreshold` strength that are older
+// than `decayMaxAgeDays` get soft-deleted so retrieval stays focused on
+// signal. Strong memories (4+) survive forever; recent memories survive
+// regardless of strength.
+const (
+	decayStrengthThreshold = 3
+	decayMaxAgeDays        = 30
+	decayRunInterval       = 6 * time.Hour
+)
+
 // Scheduler runs the pipeline periodically for active sessions.
 // It ticks at the configured interval and processes summarize + consolidate
 // for each active session, keeping memories up-to-date during the session
@@ -16,10 +28,11 @@ type Scheduler struct {
 	sessions *SessionService
 	interval time.Duration
 
-	mu      sync.Mutex
-	running bool
-	stopCh  chan struct{}
-	doneCh  chan struct{}
+	mu          sync.Mutex
+	running     bool
+	stopCh      chan struct{}
+	doneCh      chan struct{}
+	lastDecayAt time.Time
 }
 
 // NewScheduler creates a new Scheduler. If intervalMin <= 0, the scheduler is disabled.
@@ -127,5 +140,19 @@ func (s *Scheduler) tick() {
 		}
 
 		cancel()
+	}
+
+	// Decay sweep: low-strength memories older than the cutoff get
+	// soft-deleted. Runs at most once every decayRunInterval so we don't
+	// thrash the DB with UPDATEs every 5 minutes — once every few hours
+	// is plenty for a TTL of 30 days.
+	if time.Since(s.lastDecayAt) >= decayRunInterval {
+		n, err := s.pipeline.c.Memories.DecayOld(decayStrengthThreshold, decayMaxAgeDays)
+		if err != nil {
+			log.Printf("[scheduler] Decay failed: %v", err)
+		} else if n > 0 {
+			log.Printf("[scheduler] Decay: archived %d low-strength memories older than %dd", n, decayMaxAgeDays)
+		}
+		s.lastDecayAt = time.Now()
 	}
 }

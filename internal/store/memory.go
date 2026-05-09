@@ -203,6 +203,33 @@ func (s *MemoryStore) Delete(id string) error {
 	return nil
 }
 
+// DecayOld soft-deletes memories whose `strength` is at or below the
+// threshold AND whose age exceeds maxAgeDays. The intent is to retire
+// low-importance, stale rows so the retrieval index isn't dragged down by
+// trivia from sessions weeks ago. Strong memories (high strength) are
+// preserved regardless of age — those are the ones the user explicitly
+// values. Returns the number of memories that were decayed.
+//
+// Implemented as a single UPDATE so the operation is atomic and cheap; the
+// existing idx_memories_strength + idx_memories_created_at indexes make the
+// scan range-efficient.
+func (s *MemoryStore) DecayOld(strengthThreshold int, maxAgeDays int) (int64, error) {
+	cutoff := TimeToString(time.Now().AddDate(0, 0, -maxAgeDays))
+	res, err := s.db.Exec(`
+		UPDATE memories
+		   SET is_latest = 0,
+		       updated_at = ?
+		 WHERE is_latest  = 1
+		   AND strength  <= ?
+		   AND created_at < ?`,
+		TimeToString(time.Now()), strengthThreshold, cutoff)
+	if err != nil {
+		return 0, fmt.Errorf("decay memories: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
 // HardDelete permanently removes a memory from the database.
 func (s *MemoryStore) HardDelete(id string) error {
 	_, err := s.db.Exec(`DELETE FROM memories WHERE id = ?`, id)
