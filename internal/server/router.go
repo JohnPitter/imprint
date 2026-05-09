@@ -162,6 +162,7 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 		if deps.Actions != nil {
 			r.Post("/actions", deps.Actions.HandleCreateAction)
 			r.Get("/actions", deps.Actions.HandleListActions)
+			r.Get("/actions/stream", deps.Actions.HandleActionsStream)
 			r.Post("/actions/update", deps.Actions.HandleUpdateAction)
 			r.Post("/actions/from-task", deps.Actions.HandleFromTask)
 			r.Post("/actions/complete-in-progress", deps.Actions.HandleCompleteInProgress)

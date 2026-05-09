@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"imprint/internal/config"
+	"imprint/internal/eventbus"
 	"imprint/internal/llm"
 	"imprint/internal/pipeline"
 	"imprint/internal/search"
@@ -117,6 +118,12 @@ func main() {
 	actionSvc := service.NewActionService(container)
 	advancedSvc := service.NewAdvancedService(container)
 
+	// Wire the kanban-change pubsub: every action mutation publishes to the
+	// bus so SSE subscribers can refresh the kanban without waiting for the
+	// next poll. The publish is fire-and-forget and never blocks the store.
+	actionsBus := eventbus.New()
+	container.Actions.SetOnChange(func() { actionsBus.Publish("actions:changed") })
+
 	// Recall: searches via SearchService, then asks the LLM to synthesise.
 	recallSvc := service.NewRecallService(searchSvc, llmProvider)
 
@@ -127,7 +134,7 @@ func main() {
 		Memories:     handler.NewMemoryHandler(rememberSvc),
 		Search:       handler.NewSearchHandler(searchSvc, contextSvc, container.Eval),
 		Graph:        handler.NewGraphHandler(graphSvc),
-		Actions:      handler.NewActionHandler(actionSvc),
+		Actions:      handler.NewActionHandler(actionSvc, actionsBus),
 		Advanced:     handler.NewAdvancedHandler(advancedSvc),
 		Settings:     handler.NewSettingsHandler(cfg),
 		Pipeline:     handler.NewPipelineHandler(pipelineSvc),

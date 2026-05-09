@@ -37,6 +37,7 @@ Inspired by [agentmemory](https://github.com/rohitg00/agentmemory) (Node.js + Do
 | **Memory Decay** *(v1.3.0)* | Low-strength memories (≤3) older than 30 days are soft-archived every 6 hours so retrieval stays focused on signal. Strong memories survive forever. |
 | **Backlink-Boosted Ranking** *(v1.3.0)* | Optional graph in-degree multiplier on hybrid search. A memory referenced by N other nodes ranks higher; activates once a graph provider is attached. |
 | **Eval Capture** *(v1.3.0, opt-in)* | With `IMPRINT_EVAL_CAPTURE=1`, every search/recall captures (query, returned ids) into an `eval_candidates` table after PII scrubbing. Export via `GET /imprint/eval/export` (NDJSON). Replay tooling lands in a follow-up. |
+| **Live Actions Kanban** *(v1.4.0)* | The Actions tab now streams updates via Server-Sent Events on `GET /imprint/actions/stream`. Cards animate between Pending/In Progress/Done columns the moment the agent moves them, no 5-second poll wait. Each card carries a session badge so you can tell which Claude Code session produced it. Polling stays as a fallback when SSE is unavailable. |
 | **Background Pipeline** | Scheduler runs summarize + consolidate + action extraction every N minutes during active sessions (configurable) |
 | **Hybrid Search** | BM25 (Bleve) + vector cosine similarity with Reciprocal Rank Fusion |
 | **Knowledge Graph** | Entity extraction builds a graph of files, functions, concepts, and their relationships |

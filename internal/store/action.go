@@ -16,6 +16,7 @@ type ActionRow struct {
 	Priority     int             `json:"priority"`
 	Assignee     *string         `json:"assignee"`
 	Project      *string         `json:"project"`
+	SessionID    *string         `json:"sessionId"`
 	Tags         json.RawMessage `json:"tags"`
 	ParentID     *string         `json:"parentId"`
 	SketchID     *string         `json:"sketchId"`
@@ -35,12 +36,29 @@ type ActionEdgeRow struct {
 
 // ActionStore provides CRUD operations for the actions and action_edges tables.
 type ActionStore struct {
-	db *DB
+	db       *DB
+	onChange func() // optional; invoked after successful Create/Update/CompleteInProgress
 }
 
 // NewActionStore creates a new ActionStore.
 func NewActionStore(db *DB) *ActionStore {
 	return &ActionStore{db: db}
+}
+
+// SetOnChange registers a callback fired after every successful mutation.
+// Used by main.go to wire the store into the event bus so SSE subscribers
+// hear about kanban changes immediately. The callback is best-effort: if
+// it panics or blocks, the underlying store operation still succeeded.
+func (s *ActionStore) SetOnChange(fn func()) {
+	s.onChange = fn
+}
+
+func (s *ActionStore) notifyChange() {
+	if s.onChange == nil {
+		return
+	}
+	defer func() { _ = recover() }()
+	s.onChange()
 }
 
 // --- Actions ---
@@ -65,11 +83,11 @@ func (s *ActionStore) Create(row *ActionRow) error {
 	}
 
 	_, err := s.db.Exec(
-		`INSERT INTO actions (id, title, description, status, priority, assignee, project,
+		`INSERT INTO actions (id, title, description, status, priority, assignee, project, session_id,
 		    tags, parent_id, sketch_id, crystallized, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		row.ID, row.Title, row.Description, row.Status, row.Priority,
-		NullString(row.Assignee), NullString(row.Project),
+		NullString(row.Assignee), NullString(row.Project), NullString(row.SessionID),
 		string(row.Tags),
 		NullString(row.ParentID), NullString(row.SketchID),
 		row.Crystallized, row.CreatedAt, row.UpdatedAt,
@@ -77,13 +95,14 @@ func (s *ActionStore) Create(row *ActionRow) error {
 	if err != nil {
 		return fmt.Errorf("insert action: %w", err)
 	}
+	s.notifyChange()
 	return nil
 }
 
 // GetByID retrieves an action by ID.
 func (s *ActionStore) GetByID(id string) (*ActionRow, error) {
 	row := s.db.QueryRow(
-		`SELECT id, title, description, status, priority, assignee, project,
+		`SELECT id, title, description, status, priority, assignee, project, session_id,
 		        COALESCE(tags,'[]'), parent_id, sketch_id, crystallized, created_at, updated_at
 		 FROM actions WHERE id = ?`, id)
 	return s.scanAction(row)
@@ -95,7 +114,7 @@ func (s *ActionStore) List(status, project string, limit, offset int) ([]ActionR
 		limit = 100
 	}
 
-	query := `SELECT id, title, description, status, priority, assignee, project,
+	query := `SELECT id, title, description, status, priority, assignee, project, session_id,
 	                  COALESCE(tags,'[]'), parent_id, sketch_id, crystallized, created_at, updated_at
 	           FROM actions WHERE 1=1`
 	args := []any{}
@@ -130,11 +149,11 @@ func (s *ActionStore) Update(row *ActionRow) error {
 
 	_, err := s.db.Exec(
 		`UPDATE actions SET title = ?, description = ?, status = ?, priority = ?,
-		    assignee = ?, project = ?, tags = ?, parent_id = ?, sketch_id = ?,
+		    assignee = ?, project = ?, session_id = ?, tags = ?, parent_id = ?, sketch_id = ?,
 		    crystallized = ?, updated_at = ?
 		 WHERE id = ?`,
 		row.Title, row.Description, row.Status, row.Priority,
-		NullString(row.Assignee), NullString(row.Project),
+		NullString(row.Assignee), NullString(row.Project), NullString(row.SessionID),
 		string(row.Tags),
 		NullString(row.ParentID), NullString(row.SketchID),
 		row.Crystallized, row.UpdatedAt, row.ID,
@@ -142,6 +161,7 @@ func (s *ActionStore) Update(row *ActionRow) error {
 	if err != nil {
 		return fmt.Errorf("update action: %w", err)
 	}
+	s.notifyChange()
 	return nil
 }
 
@@ -151,6 +171,7 @@ func (s *ActionStore) Delete(id string) error {
 	if err != nil {
 		return fmt.Errorf("delete action: %w", err)
 	}
+	s.notifyChange()
 	return nil
 }
 
@@ -174,7 +195,11 @@ func (s *ActionStore) CompleteInProgress(project string) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("complete in_progress: %w", err)
 	}
-	return res.RowsAffected()
+	n, err := res.RowsAffected()
+	if err == nil && n > 0 {
+		s.notifyChange()
+	}
+	return n, err
 }
 
 // --- Action Edges ---
@@ -199,7 +224,7 @@ func (s *ActionStore) CreateEdge(edge *ActionEdgeRow) error {
 // GetFrontier returns pending actions that have no unsatisfied blocking edges.
 func (s *ActionStore) GetFrontier() ([]ActionRow, error) {
 	rows, err := s.db.Query(`
-		SELECT a.id, a.title, a.description, a.status, a.priority, a.assignee, a.project,
+		SELECT a.id, a.title, a.description, a.status, a.priority, a.assignee, a.project, a.session_id,
 		       COALESCE(a.tags,'[]'), a.parent_id, a.sketch_id, a.crystallized, a.created_at, a.updated_at
 		FROM actions a
 		WHERE a.status = 'pending'
@@ -220,7 +245,7 @@ func (s *ActionStore) GetFrontier() ([]ActionRow, error) {
 // GetNext returns the highest priority action from the frontier.
 func (s *ActionStore) GetNext() (*ActionRow, error) {
 	row := s.db.QueryRow(`
-		SELECT a.id, a.title, a.description, a.status, a.priority, a.assignee, a.project,
+		SELECT a.id, a.title, a.description, a.status, a.priority, a.assignee, a.project, a.session_id,
 		       COALESCE(a.tags,'[]'), a.parent_id, a.sketch_id, a.crystallized, a.created_at, a.updated_at
 		FROM actions a
 		WHERE a.status = 'pending'
@@ -239,10 +264,10 @@ func (s *ActionStore) GetNext() (*ActionRow, error) {
 func (s *ActionStore) scanAction(row *sql.Row) (*ActionRow, error) {
 	var a ActionRow
 	var tags string
-	var assignee, project, parentID, sketchID sql.NullString
+	var assignee, project, sessionID, parentID, sketchID sql.NullString
 
 	err := row.Scan(&a.ID, &a.Title, &a.Description, &a.Status, &a.Priority,
-		&assignee, &project, &tags, &parentID, &sketchID,
+		&assignee, &project, &sessionID, &tags, &parentID, &sketchID,
 		&a.Crystallized, &a.CreatedAt, &a.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -257,6 +282,9 @@ func (s *ActionStore) scanAction(row *sql.Row) (*ActionRow, error) {
 	}
 	if project.Valid {
 		a.Project = &project.String
+	}
+	if sessionID.Valid {
+		a.SessionID = &sessionID.String
 	}
 	if parentID.Valid {
 		a.ParentID = &parentID.String
@@ -273,10 +301,10 @@ func (s *ActionStore) scanActions(rows *sql.Rows) ([]ActionRow, error) {
 	for rows.Next() {
 		var a ActionRow
 		var tags string
-		var assignee, project, parentID, sketchID sql.NullString
+		var assignee, project, sessionID, parentID, sketchID sql.NullString
 
 		if err := rows.Scan(&a.ID, &a.Title, &a.Description, &a.Status, &a.Priority,
-			&assignee, &project, &tags, &parentID, &sketchID,
+			&assignee, &project, &sessionID, &tags, &parentID, &sketchID,
 			&a.Crystallized, &a.CreatedAt, &a.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan action row: %w", err)
 		}
@@ -287,6 +315,9 @@ func (s *ActionStore) scanActions(rows *sql.Rows) ([]ActionRow, error) {
 		}
 		if project.Valid {
 			a.Project = &project.String
+		}
+		if sessionID.Valid {
+			a.SessionID = &sessionID.String
 		}
 		if parentID.Valid {
 			a.ParentID = &parentID.String

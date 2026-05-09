@@ -308,6 +308,8 @@ func (s *PipelineService) ExtractActions(ctx context.Context, sessionID string) 
 		if session.Project != "" {
 			project = &session.Project
 		}
+		sid := sessionID
+		sidPtr := &sid
 
 		tagsJSON, _ := json.Marshal(o.Concepts)
 		row := &store.ActionRow{
@@ -317,6 +319,7 @@ func (s *PipelineService) ExtractActions(ctx context.Context, sessionID string) 
 			Status:      status,
 			Priority:    o.Importance,
 			Project:     project,
+			SessionID:   sidPtr,
 			Tags:        json.RawMessage(tagsJSON),
 			CreatedAt:   now,
 			UpdatedAt:   now,

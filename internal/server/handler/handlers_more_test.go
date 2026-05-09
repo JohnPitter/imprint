@@ -31,7 +31,7 @@ func newTestContainer(t *testing.T) *service.Container {
 func newActionHandler(t *testing.T) *ActionHandler {
 	t.Helper()
 	c := newTestContainer(t)
-	return NewActionHandler(service.NewActionService(c))
+	return NewActionHandler(service.NewActionService(c), nil)
 }
 
 func newAdvancedHandler(t *testing.T) (*AdvancedHandler, *service.Container) {

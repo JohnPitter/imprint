@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { flip } from 'svelte/animate';
   import { api } from '../../lib/api';
   import { createPoller } from '../../lib/poller';
 
@@ -9,20 +10,48 @@
   let frontier: any[] = $state([]);
   let loading = $state(true);
   let doneOffset = $state(0);
+  // Visual indicator that the SSE stream is connected. Pulses on every push.
+  let live = $state(false);
+  let pulseAt = $state(0);
   const doneLimit = 30;
   // Pending/in_progress columns load everything; only "done" paginates because it grows unbounded.
   const activeLimit = 200;
   let stopPoll: (() => void) | undefined;
+  let evtSource: EventSource | undefined;
 
   onMount(() => {
     load(true);
-    // Refresh every 5s so the kanban tracks the agent's pending/in-progress/done state in near real time.
+    // Two refresh paths run side-by-side:
+    //   1. EventSource — server pushes "actions:changed" the instant a row
+    //      moves between statuses; we re-fetch immediately for kanban
+    //      updates that feel real-time.
+    //   2. Poll fallback every 5s — covers proxies that strip SSE, lost
+    //      reconnects, and the very first paint before the stream opens.
+    connectStream();
     stopPoll = createPoller(() => load(false), 5000);
   });
 
   onDestroy(() => {
     stopPoll?.();
+    evtSource?.close();
   });
+
+  function connectStream() {
+    try {
+      evtSource = new EventSource('/imprint/actions/stream');
+      evtSource.onopen = () => { live = true; };
+      evtSource.onmessage = () => {
+        pulseAt = Date.now();
+        load(false);
+      };
+      evtSource.onerror = () => {
+        live = false;
+        // EventSource auto-reconnects with backoff; no manual handling needed.
+      };
+    } catch {
+      live = false;
+    }
+  }
 
   // initial=true shows the skeleton; subsequent polls update silently in place.
   async function load(initial: boolean) {
@@ -53,6 +82,20 @@
     if (p >= 8) return 'act-priority-high';
     if (p >= 5) return 'act-priority-med';
     return 'act-priority-low';
+  }
+
+  // Build the session label shown on each card. Prefer the project name
+  // (human-readable) and fall back to a short slice of the session id when
+  // project is missing. Returns null for legacy actions with no session
+  // attached so the badge is hidden entirely instead of rendering empty.
+  function sessionLabel(a: any): string | null {
+    if (a.project) {
+      const last = String(a.project).split('/').filter(Boolean).pop() || a.project;
+      const sid = a.sessionId ? String(a.sessionId).slice(0, 6) : '';
+      return sid ? `${last} · ${sid}` : last;
+    }
+    if (a.sessionId) return String(a.sessionId).slice(0, 8);
+    return null;
   }
 </script>
 
@@ -89,6 +132,11 @@
       <p style="font-family:var(--font-ui);font-size:13px">No actions yet</p>
     </div>
   {:else}
+    <div class="act-live-row">
+      <span class="act-live-dot {live ? 'live-on' : 'live-off'}" class:pulse={pulseAt > 0 && Date.now() - pulseAt < 800}></span>
+      <span class="act-live-label">{live ? 'LIVE' : 'POLLING'}</span>
+    </div>
+
     <div class="act-kanban">
       <!-- Pending Column -->
       <div class="act-column">
@@ -100,14 +148,17 @@
           <div class="act-col-underline"></div>
         </div>
         <div class="act-col-body">
-          {#each pending as a}
-            <div class="act-card">
+          {#each pending as a (a.id)}
+            <div class="act-card" animate:flip={{ duration: 250 }}>
               <div class="act-card-top">
                 <span class="act-priority {priorityBadge(a.priority)}">P{a.priority}</span>
                 <strong class="act-card-title">{a.title}</strong>
               </div>
               {#if a.description}
                 <p class="act-card-desc">{a.description}</p>
+              {/if}
+              {#if sessionLabel(a)}
+                <div class="act-card-session" title={a.sessionId || ''}>{sessionLabel(a)}</div>
               {/if}
             </div>
           {/each}
@@ -130,14 +181,17 @@
           <div class="act-col-underline"></div>
         </div>
         <div class="act-col-body">
-          {#each inProgress as a}
-            <div class="act-card">
+          {#each inProgress as a (a.id)}
+            <div class="act-card" animate:flip={{ duration: 250 }}>
               <div class="act-card-top">
                 <span class="act-priority {priorityBadge(a.priority)}">P{a.priority}</span>
                 <strong class="act-card-title">{a.title}</strong>
               </div>
               {#if a.description}
                 <p class="act-card-desc">{a.description}</p>
+              {/if}
+              {#if sessionLabel(a)}
+                <div class="act-card-session" title={a.sessionId || ''}>{sessionLabel(a)}</div>
               {/if}
             </div>
           {/each}
@@ -160,14 +214,17 @@
           <div class="act-col-underline"></div>
         </div>
         <div class="act-col-body">
-          {#each done as a}
-            <div class="act-card act-card-done">
+          {#each done as a (a.id)}
+            <div class="act-card act-card-done" animate:flip={{ duration: 250 }}>
               <div class="act-card-top">
                 <span class="act-done-mark" aria-hidden="true">{'✓'}</span>
                 <strong class="act-card-title">{a.title}</strong>
               </div>
               {#if a.description}
                 <p class="act-card-desc">{a.description}</p>
+              {/if}
+              {#if sessionLabel(a)}
+                <div class="act-card-session" title={a.sessionId || ''}>{sessionLabel(a)}</div>
               {/if}
             </div>
           {/each}
@@ -392,5 +449,53 @@
     color: var(--text-muted);
     margin-top: 6px;
     line-height: 1.5;
+  }
+
+  /* Session badge: a small monospace tag at the bottom of each card so
+     the user can tell at a glance which Claude Code session produced
+     this action. Truncates with ellipsis on narrow columns. */
+  .act-card-session {
+    margin-top: 8px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Live indicator: a small dot + label at the top of the kanban that
+     turns the page from "polled" to "live". Pulses briefly each time
+     an SSE push arrives so the user has a visible cue that the data
+     just refreshed. */
+  .act-live-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .act-live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    transition: box-shadow 0.3s ease, background 0.3s ease;
+  }
+  .live-on { background: #34d399; box-shadow: 0 0 6px rgba(52,211,153,0.6); }
+  .live-off { background: var(--text-muted); }
+  .pulse {
+    animation: act-pulse 0.7s ease-out;
+  }
+  @keyframes act-pulse {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.6); box-shadow: 0 0 12px rgba(52,211,153,0.9); }
+    100% { transform: scale(1); }
+  }
+  .act-live-label {
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.12em;
   }
 </style>

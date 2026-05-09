@@ -2,20 +2,90 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
+	"imprint/internal/eventbus"
 	"imprint/internal/service"
 )
 
 // ActionHandler holds HTTP handlers for action, lease, and routine endpoints.
 type ActionHandler struct {
 	svc *service.ActionService
+	bus *eventbus.Bus // optional; when set, /actions/stream pushes via SSE
 }
 
-// NewActionHandler creates a new ActionHandler.
-func NewActionHandler(svc *service.ActionService) *ActionHandler {
-	return &ActionHandler{svc: svc}
+// NewActionHandler creates a new ActionHandler. The bus argument is optional;
+// pass nil if SSE streaming is not needed (the kanban will fall back to its
+// poll loop and still work).
+func NewActionHandler(svc *service.ActionService, bus *eventbus.Bus) *ActionHandler {
+	return &ActionHandler{svc: svc, bus: bus}
+}
+
+// HandleActionsStream is GET /actions/stream — long-lived Server-Sent Events
+// connection that emits a "data: changed\n\n" line every time an action is
+// created, updated, or moved between statuses. Clients use this as a hint
+// to immediately re-fetch the kanban instead of waiting for the next poll
+// tick. Falls back gracefully: a 503 is returned when the bus is missing
+// (legacy install) and the frontend keeps polling at its default cadence.
+func (h *ActionHandler) HandleActionsStream(w http.ResponseWriter, r *http.Request) {
+	if h.bus == nil {
+		http.Error(w, "event bus disabled", http.StatusServiceUnavailable)
+		return
+	}
+
+	// http.NewResponseController is the Go 1.20+ way to access Flush even
+	// when the ResponseWriter has been wrapped by middleware (logger, etc.)
+	// that hide the http.Flusher interface from a direct type assertion.
+	rc := http.NewResponseController(w)
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	// Initial event so the client knows the connection is live before the
+	// first publish. Clients use this to immediately do a fresh fetch on
+	// reconnect rather than waiting for the next mutation.
+	if _, err := fmt.Fprint(w, "event: hello\ndata: connected\n\n"); err != nil {
+		return
+	}
+	if err := rc.Flush(); err != nil {
+		// Underlying writer doesn't support flushing; close the connection.
+		return
+	}
+
+	ch, cancel := h.bus.Subscribe()
+	defer cancel()
+
+	// Keepalive: SSE clients (and any intermediate proxy) drop the
+	// connection after long idle periods. A comment line every 25s
+	// passes through SSE parsers as a no-op while keeping the TCP and
+	// HTTP-level timers alive.
+	heartbeat := time.NewTicker(25 * time.Second)
+	defer heartbeat.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case ev, ok := <-ch:
+			if !ok {
+				return
+			}
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", ev); err != nil {
+				return
+			}
+			_ = rc.Flush()
+		case <-heartbeat.C:
+			if _, err := fmt.Fprint(w, ": ping\n\n"); err != nil {
+				return
+			}
+			_ = rc.Flush()
+		}
+	}
 }
 
 // HandleCreateAction handles POST /actions.

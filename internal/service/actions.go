@@ -68,9 +68,12 @@ func (s *ActionService) UpsertFromTask(title, description, status, sessionID str
 	id := "act_" + uuid.New().String()[:8]
 	now := store.TimeToString(time.Now())
 
-	// Get project from session if available
+	// Get project from session if available, and stash the session id on the
+	// row so the kanban can show which session the action came from.
 	var project *string
+	var sidPtr *string
 	if sessionID != "" {
+		sidPtr = &sessionID
 		if sess, err := s.c.Sessions.GetByID(sessionID); err == nil {
 			project = &sess.Project
 		}
@@ -83,6 +86,7 @@ func (s *ActionService) UpsertFromTask(title, description, status, sessionID str
 		Status:      status,
 		Priority:    7,
 		Project:     project,
+		SessionID:   sidPtr,
 		Tags:        json.RawMessage("[]"),
 		CreatedAt:   now,
 		UpdatedAt:   now,

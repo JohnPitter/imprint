@@ -71,3 +71,11 @@ func (w *statusWriter) WriteHeader(status int) {
 	w.status = status
 	w.ResponseWriter.WriteHeader(status)
 }
+
+// Unwrap exposes the underlying ResponseWriter so http.NewResponseController
+// can reach the real Flusher / Hijacker / etc. on the stdlib writer
+// underneath. Without this, the SSE stream handler cannot flush — the
+// embedded ResponseWriter interface field is opaque to the controller.
+func (w *statusWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
