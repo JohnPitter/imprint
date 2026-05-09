@@ -2,7 +2,6 @@ package config
 
 import (
 	"bufio"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -114,43 +113,15 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
-// detectClaudeCodeOAuth reads the Claude Code OAuth token from ~/.claude/.credentials.json
+// detectClaudeCodeOAuth reads the Claude Code OAuth token from the
+// platform-appropriate credential store (Keychain on macOS, file on Linux,
+// file fallback on Windows). Returns "" if missing or expired.
 func detectClaudeCodeOAuth() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
+	data, err := readClaudeCodeCredentialsRaw()
+	if err != nil || len(data) == 0 {
 		return ""
 	}
-	credPath := filepath.Join(home, ".claude", ".credentials.json")
-	data, err := os.ReadFile(credPath)
-	if err != nil {
-		return ""
-	}
-
-	// Minimal JSON parsing to extract claudeAiOauth.accessToken
-	type oauthCred struct {
-		ClaudeAiOauth struct {
-			AccessToken string `json:"accessToken"`
-			ExpiresAt   int64  `json:"expiresAt"`
-		} `json:"claudeAiOauth"`
-	}
-	var cred oauthCred
-	if err := json.Unmarshal(data, &cred); err != nil {
-		return ""
-	}
-
-	// Check token is not empty and not expired
-	if cred.ClaudeAiOauth.AccessToken == "" {
-		return ""
-	}
-	// expiresAt is in milliseconds
-	if cred.ClaudeAiOauth.ExpiresAt > 0 {
-		expiresAt := cred.ClaudeAiOauth.ExpiresAt / 1000
-		if expiresAt < currentUnixTime() {
-			return ""
-		}
-	}
-
-	return cred.ClaudeAiOauth.AccessToken
+	return extractOAuthToken(data, currentUnixTime())
 }
 
 // currentUnixTime returns the current Unix timestamp in seconds.
