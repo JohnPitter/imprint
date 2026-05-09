@@ -54,6 +54,7 @@
 
   onDestroy(() => {
     if (animFrame) cancelAnimationFrame(animFrame);
+    if (pendingDrawFrame) cancelAnimationFrame(pendingDrawFrame);
     stopPoll?.();
   });
 
@@ -165,20 +166,31 @@
     }
   }
 
+  // Stop the simulation when total kinetic energy falls below this threshold
+  // (settled layout) — saves browser cycles instead of running 500 fixed iters.
+  const ENERGY_FLOOR = 0.05;
+  // Hard cap so a chaotic layout cannot loop forever.
+  const MAX_ITERS = 500;
+
   function startSimulation() {
-    let iter = $state(0);
+    let iter = 0;
     function tick() {
       iter++;
       const rep = 2000, att = 0.003, damp = 0.87, grav = 0.003;
       const cx = SIM_W / 2, cy = SIM_H / 2;
-      for (let i = 0; i < nodes.length; i++) {
-        for (let j = i + 1; j < nodes.length; j++) {
-          const dx = nodes[j].x - nodes[i].x, dy = nodes[j].y - nodes[i].y;
-          const d = Math.max(1, Math.sqrt(dx*dx + dy*dy));
-          const f = rep / (d * d);
+      const n = nodes.length;
+      for (let i = 0; i < n; i++) {
+        const a = nodes[i];
+        for (let j = i + 1; j < n; j++) {
+          const b = nodes[j];
+          const dx = b.x - a.x, dy = b.y - a.y;
+          const d2 = dx*dx + dy*dy;
+          if (d2 < 1) continue;
+          const d = Math.sqrt(d2);
+          const f = rep / d2;
           const fx = (dx/d)*f, fy = (dy/d)*f;
-          nodes[i].vx -= fx; nodes[i].vy -= fy;
-          nodes[j].vx += fx; nodes[j].vy += fy;
+          a.vx -= fx; a.vy -= fy;
+          b.vx += fx; b.vy += fy;
         }
       }
       for (const e of edges) {
@@ -189,17 +201,22 @@
         const fx = (dx/d)*f, fy = (dy/d)*f;
         s.vx += fx; s.vy += fy; t.vx -= fx; t.vy -= fy;
       }
-      for (const n of nodes) {
-        n.vx += (cx - n.x) * grav; n.vy += (cy - n.y) * grav;
-        n.vx *= damp; n.vy *= damp;
-        n.x += n.vx; n.y += n.vy;
+      let energy = 0;
+      for (const node of nodes) {
+        node.vx += (cx - node.x) * grav; node.vy += (cy - node.y) * grav;
+        node.vx *= damp; node.vy *= damp;
+        node.x += node.vx; node.y += node.vy;
         // Clamp to sim bounds
-        n.x = Math.max(n.radius, Math.min(SIM_W - n.radius, n.x));
-        n.y = Math.max(n.radius, Math.min(SIM_H - n.radius, n.y));
+        node.x = Math.max(node.radius, Math.min(SIM_W - node.radius, node.x));
+        node.y = Math.max(node.radius, Math.min(SIM_H - node.radius, node.y));
+        energy += node.vx * node.vx + node.vy * node.vy;
       }
       draw();
-      if (iter < 500) animFrame = requestAnimationFrame(tick);
-      else draw();
+      // Early termination once the layout has settled, plus the hard cap.
+      const settled = iter > 60 && energy / Math.max(1, n) < ENERGY_FLOOR;
+      if (!settled && iter < MAX_ITERS) {
+        animFrame = requestAnimationFrame(tick);
+      }
     }
     animFrame = requestAnimationFrame(tick);
   }
@@ -291,20 +308,35 @@
     return [sx, sy];
   }
 
+  // Mouse moves fire ~60Hz; collapse them into a single draw per animation
+  // frame so we never queue up redundant work.
+  let pendingDrawFrame = 0;
+  function scheduleDraw() {
+    if (pendingDrawFrame) return;
+    pendingDrawFrame = requestAnimationFrame(() => {
+      pendingDrawFrame = 0;
+      draw();
+    });
+  }
+
   function onMouseMove(e: MouseEvent) {
     if (dragging) {
       panX = panStartX + (e.clientX - dragStartX);
       panY = panStartY + (e.clientY - dragStartY);
-      draw(); return;
+      scheduleDraw();
+      return;
     }
     const [mx, my] = getSimCoords(e.clientX, e.clientY);
+    const prev = hoveredNode;
     hoveredNode = null;
     for (const n of nodes) {
       const dx = n.x - mx, dy = n.y - my;
-      if (dx*dx + dy*dy < (n.radius+6)*(n.radius+6)) { hoveredNode = n; break; }
+      const r = n.radius + 6;
+      if (dx*dx + dy*dy < r*r) { hoveredNode = n; break; }
     }
     if (canvasEl) canvasEl.style.cursor = hoveredNode ? 'pointer' : 'grab';
-    draw();
+    // Only redraw if hover state actually changed.
+    if (prev !== hoveredNode) scheduleDraw();
   }
 
   function onMouseDown(e: MouseEvent) {
@@ -318,10 +350,10 @@
     e.preventDefault();
     zoom *= e.deltaY > 0 ? 0.92 : 1.08;
     zoom = Math.max(0.15, Math.min(8, zoom));
-    draw();
+    scheduleDraw();
   }
 
-  function resetView() { zoom = 1; panX = 0; panY = 0; draw(); }
+  function resetView() { zoom = 1; panX = 0; panY = 0; scheduleDraw(); }
 
   let fullscreen = $state(false);
 
