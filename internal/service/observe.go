@@ -92,9 +92,11 @@ func (s *ObserveService) Observe(payload *types.HookPayload) (*store.RawObservat
 		return nil, nil // duplicate, skip
 	}
 
-	// Build raw JSON payload for the raw column.
+	// Build raw JSON payload for the raw column. ScrubAll runs both the
+	// secret stripper and the injection neutralizer so the audit copy of
+	// the observation cannot replay a malicious payload either.
 	rawBytes, _ := json.Marshal(payload)
-	rawJSON := json.RawMessage(privacy.StripPrivateData(string(rawBytes)))
+	rawJSON := json.RawMessage(privacy.ScrubAll(string(rawBytes)))
 
 	obsID := "obs_" + uuid.New().String()[:8]
 	obs := &store.RawObservationRow{
@@ -198,10 +200,13 @@ func truncateRawJSON(raw json.RawMessage, maxLen int) json.RawMessage {
 	return out
 }
 
-// scrubRawJSON strips private data from a JSON raw message.
+// scrubRawJSON strips secrets and neutralizes prompt-injection patterns from
+// a JSON raw message. Used for tool_input and tool_output, both of which can
+// carry attacker-controlled content (file contents, stdout, search hits)
+// that we never want flowing back into the LLM as a memory unmodified.
 func scrubRawJSON(raw json.RawMessage) json.RawMessage {
 	if len(raw) == 0 {
 		return raw
 	}
-	return json.RawMessage(privacy.StripPrivateData(string(raw)))
+	return json.RawMessage(privacy.ScrubAll(string(raw)))
 }
