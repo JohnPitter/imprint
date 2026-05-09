@@ -32,6 +32,7 @@ Inspired by [agentmemory](https://github.com/rohitg00/agentmemory) (Node.js + Do
 |---|---|
 | **Automatic Capture** | 11 hooks capture every tool use, prompt, error, and decision — zero manual effort |
 | **LLM Compression** | Raw observations compressed into structured memories with concepts, files, and importance scores |
+| **Hybrid Extraction** *(v1.2.0)* | Regex pre-pass extracts files, PascalCase concepts, URLs, error markers, and git refs deterministically. The LLM only writes title/narrative/importance — fewer tokens, faster, half the Haiku spend. Toggle with `IMPRINT_EXTRACTION_MODE=llm-only` to revert. |
 | **Background Pipeline** | Scheduler runs summarize + consolidate + action extraction every N minutes during active sessions (configurable) |
 | **Hybrid Search** | BM25 (Bleve) + vector cosine similarity with Reciprocal Rank Fusion |
 | **Knowledge Graph** | Entity extraction builds a graph of files, functions, concepts, and their relationships |
@@ -99,11 +100,12 @@ graph TD
 
 1. **Capture** — 11 compiled Go hooks intercept Claude Code events (tool use, prompts, errors, task completions, permission prompts)
 2. **Scrub** — 16 regex patterns strip API keys, tokens, JWTs, and secrets before storage
-3. **Compress** — Background workers send raw observations to an LLM (Anthropic / OpenRouter / llama.cpp with circuit breaker + fallback), producing structured summaries with type, title, narrative, importance (1-10), concepts, and files
-4. **Index** — Each compressed observation is immediately indexed into Bleve (BM25) inside the worker. On startup, an empty BM25 with rows in the DB triggers a self-heal reindex of every compressed observation
-5. **Schedule** — Background scheduler runs summarize + consolidate + action extraction periodically during active sessions
-6. **Extract** — LLM extracts entities (files, functions, concepts) and relations into a knowledge graph
-7. **Inject** — On new sessions, token-budgeted context blocks are built from recent summaries, high-importance observations, and strong memories
+3. **Pre-extract** *(v1.2.0)* — A deterministic regex pass pulls file paths, PascalCase concepts, URLs, error markers, and git refs out of the observation. The LLM never has to re-extract the easy mechanical entities, cutting Haiku spend.
+4. **Compress** — Background workers send the remaining work to an LLM (Anthropic / OpenRouter / llama.cpp with circuit breaker + fallback), producing structured summaries with type, title, narrative, importance (1-10), concepts (merged with the pre-pass), and files (already extracted)
+5. **Index** — Each compressed observation is immediately indexed into Bleve (BM25) inside the worker. On startup, an empty BM25 with rows in the DB triggers a self-heal reindex of every compressed observation
+6. **Schedule** — Background scheduler runs summarize + consolidate + action extraction periodically during active sessions
+7. **Extract** — LLM extracts entities (files, functions, concepts) and relations into a knowledge graph
+8. **Inject** — On new sessions, token-budgeted context blocks are built from recent summaries, high-importance observations, and strong memories
 
 ### Hook Architecture
 

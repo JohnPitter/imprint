@@ -36,10 +36,13 @@ type Config struct {
 	GraphWeight  float64 // GRAPH_WEIGHT, default 0.2
 
 	// Pipeline
-	CompressWorkers      int  // COMPRESS_WORKERS, default 4
-	ConsolidationEnabled bool // CONSOLIDATION_ENABLED, default true
-	ClaudeBridgeEnabled  bool // CLAUDE_MEMORY_BRIDGE, default false
-	PipelineIntervalMin  int  // PIPELINE_INTERVAL_MIN, default 5 (0 = disabled)
+	CompressWorkers      int    // COMPRESS_WORKERS, default 4
+	ConsolidationEnabled bool   // CONSOLIDATION_ENABLED, default true
+	ClaudeBridgeEnabled  bool   // CLAUDE_MEMORY_BRIDGE, default false
+	PipelineIntervalMin  int    // PIPELINE_INTERVAL_MIN, default 5 (0 = disabled)
+	ExtractionMode       string // IMPRINT_EXTRACTION_MODE, "hybrid" (default) | "llm-only"
+	//                          // hybrid:   regex pre-pass for files/concepts/etc, LLM only for narrative
+	//                          // llm-only: legacy behavior, send everything to the LLM
 
 	// Limits
 	MaxObservationsPerSession int // MAX_OBS_PER_SESSION, default 500
@@ -89,6 +92,7 @@ func Load() (*Config, error) {
 		ConsolidationEnabled: envBool("CONSOLIDATION_ENABLED", true),
 		ClaudeBridgeEnabled:  envBool("CLAUDE_MEMORY_BRIDGE", false),
 		PipelineIntervalMin:  envInt("PIPELINE_INTERVAL_MIN", 5),
+		ExtractionMode:       envStr("IMPRINT_EXTRACTION_MODE", "hybrid"),
 
 		MaxObservationsPerSession: envInt("MAX_OBS_PER_SESSION", 500),
 		ContextTokenBudget:        envInt("CONTEXT_TOKEN_BUDGET", 2000),

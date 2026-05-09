@@ -124,7 +124,7 @@ const mockCompressResponse = `<observation>
 
 func TestCompressor_Compress(t *testing.T) {
 	mock := &mockLLMProvider{response: mockCompressResponse}
-	comp := NewCompressor(mock)
+	comp := NewCompressor(mock, "llm-only")
 
 	toolName := "Edit"
 	raw := &store.RawObservationRow{
@@ -293,7 +293,7 @@ func TestWorker_ProcessesJobs(t *testing.T) {
 	_, obsStore := setupWorkerTestDB(t)
 
 	mock := &mockLLMProvider{response: mockCompressResponse}
-	comp := NewCompressor(mock)
+	comp := NewCompressor(mock, "llm-only")
 	worker := NewWorker(comp, obsStore, 2)
 
 	// Submit raw observations.
@@ -336,7 +336,7 @@ func TestWorker_Stop(t *testing.T) {
 	_, obsStore := setupWorkerTestDB(t)
 
 	mock := &mockLLMProvider{response: mockCompressResponse}
-	comp := NewCompressor(mock)
+	comp := NewCompressor(mock, "llm-only")
 	worker := NewWorker(comp, obsStore, 2)
 
 	// Stop immediately without submitting any jobs.

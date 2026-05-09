@@ -89,7 +89,8 @@ func main() {
 	}
 
 	// Create pipeline components
-	compressor := pipeline.NewCompressor(llmProvider)
+	compressor := pipeline.NewCompressor(llmProvider, cfg.ExtractionMode)
+	log.Printf("[app] Extraction mode: %s", cfg.ExtractionMode)
 	worker := pipeline.NewWorkerWithIndex(compressor, container.Observations, bm25, cfg.CompressWorkers)
 	log.Printf("[app] Compression worker pool started (%d workers)", cfg.CompressWorkers)
 
