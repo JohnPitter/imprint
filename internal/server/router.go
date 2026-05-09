@@ -94,6 +94,7 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 			r.Post("/smart-search", deps.Search.HandleSearch) // alias
 			r.Post("/context", deps.Search.HandleContext)
 			r.Post("/enrich", deps.Search.HandleEnrich)
+			r.Get("/eval/export", deps.Search.HandleEvalExport)
 		} else {
 			r.Post("/search", notImplemented)
 			r.Post("/smart-search", notImplemented)

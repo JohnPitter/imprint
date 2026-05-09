@@ -93,7 +93,7 @@ func setupSearchHandlerTest(t *testing.T) *SearchHandler {
 	searchSvc := service.NewSearchService(c, searcher)
 	contextSvc := service.NewContextService(c, 10000)
 
-	return NewSearchHandler(searchSvc, contextSvc)
+	return NewSearchHandler(searchSvc, contextSvc, nil)
 }
 
 // ---------------------------------------------------------------------------

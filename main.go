@@ -125,7 +125,7 @@ func main() {
 		Sessions:     handler.NewSessionHandler(sessionSvc),
 		Observations: handler.NewObservationHandler(observeSvc),
 		Memories:     handler.NewMemoryHandler(rememberSvc),
-		Search:       handler.NewSearchHandler(searchSvc, contextSvc),
+		Search:       handler.NewSearchHandler(searchSvc, contextSvc, container.Eval),
 		Graph:        handler.NewGraphHandler(graphSvc),
 		Actions:      handler.NewActionHandler(actionSvc),
 		Advanced:     handler.NewAdvancedHandler(advancedSvc),

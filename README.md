@@ -33,6 +33,10 @@ Inspired by [agentmemory](https://github.com/rohitg00/agentmemory) (Node.js + Do
 | **Automatic Capture** | 11 hooks capture every tool use, prompt, error, and decision — zero manual effort |
 | **LLM Compression** | Raw observations compressed into structured memories with concepts, files, and importance scores |
 | **Hybrid Extraction** *(v1.2.0)* | Regex pre-pass extracts files, PascalCase concepts, URLs, error markers, and git refs deterministically. The LLM only writes title/narrative/importance — fewer tokens, faster, half the Haiku spend. Toggle with `IMPRINT_EXTRACTION_MODE=llm-only` to revert. |
+| **Prompt-Injection Defense** *(v1.3.0)* | Tool outputs are scrubbed for ~12 known injection patterns ("ignore previous instructions", role-hijack, system-tag spoofs, exfil prompts, fence breakouts) before storage. Suspicious spans become `[FLAGGED:reason]` markers in the audit log. |
+| **Memory Decay** *(v1.3.0)* | Low-strength memories (≤3) older than 30 days are soft-archived every 6 hours so retrieval stays focused on signal. Strong memories survive forever. |
+| **Backlink-Boosted Ranking** *(v1.3.0)* | Optional graph in-degree multiplier on hybrid search. A memory referenced by N other nodes ranks higher; activates once a graph provider is attached. |
+| **Eval Capture** *(v1.3.0, opt-in)* | With `IMPRINT_EVAL_CAPTURE=1`, every search/recall captures (query, returned ids) into an `eval_candidates` table after PII scrubbing. Export via `GET /imprint/eval/export` (NDJSON). Replay tooling lands in a follow-up. |
 | **Background Pipeline** | Scheduler runs summarize + consolidate + action extraction every N minutes during active sessions (configurable) |
 | **Hybrid Search** | BM25 (Bleve) + vector cosine similarity with Reciprocal Rank Fusion |
 | **Knowledge Graph** | Entity extraction builds a graph of files, functions, concepts, and their relationships |

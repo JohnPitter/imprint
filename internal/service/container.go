@@ -21,6 +21,7 @@ type Container struct {
 	Insights     *store.InsightStore
 	Facets       *store.FacetStore
 	Audit        *store.AuditStore
+	Eval         *store.EvalStore
 	WAL          *store.WAL // file-based write-ahead log (optional, nil-safe)
 }
 
@@ -44,5 +45,6 @@ func NewContainer(db *store.DB) *Container {
 		Insights:     store.NewInsightStore(db),
 		Facets:       store.NewFacetStore(db),
 		Audit:        store.NewAuditStore(db),
+		Eval:         store.NewEvalStore(db),
 	}
 }
