@@ -41,6 +41,14 @@ func main() {
 		"sessionId": sessionID,
 	})
 
+	// Heartbeat: marca a sessão como viva. O scheduler usa a ausência desse
+	// sinal por sessionIdleThreshold pra disparar finalize, substituindo a
+	// dependência no hook SessionEnd do Claude Code (que não dispara consistente
+	// no /exit).
+	hooks.Post(cfg, "/imprint/session/heartbeat", map[string]string{
+		"sessionId": sessionID,
+	})
+
 	// Process transcript JSONL to capture any missed observations.
 	// This is lightweight: just POSTs raw observations that the compression
 	// worker will handle asynchronously.
