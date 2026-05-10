@@ -551,6 +551,14 @@
     // nodes) pra ficarem sobre as linhas mas atrás dos núcleos.
     // Cada pulse: lerp posição source→target conforme tempo decorrido.
     // Visual: disc com glow radial; opacidade decai no fim pra fade-out.
+    //
+    // Tamanho compensa o zoom: em zoom baixo (fitScale aplicado encolhe
+    // tudo), pulse cresce no sim space pra continuar visível em px.
+    // Cap em 0.4 evita que em zoom muito longe o pulse fique gigante.
+    const effScale = zoom * fitScale;
+    const sizeBoost = 1 / Math.max(0.4, effScale);
+    const glowR = 16 * sizeBoost;
+    const coreR = 4 * sizeBoost;
     for (const p of pulses) {
       const e = edges[p.eIdx];
       if (!e) continue;
@@ -565,17 +573,16 @@
       // Curva sin(πt) dá esse "swell" característico de pulso elétrico.
       const alpha = Math.sin(progress * Math.PI);
       // Glow externo (suave)
-      const glowR = 8;
       const grad = ctx.createRadialGradient(px, py, 0, px, py, glowR);
-      grad.addColorStop(0, p.color + 'cc');
-      grad.addColorStop(0.4, p.color + '55');
+      grad.addColorStop(0, p.color + 'ee');
+      grad.addColorStop(0.35, p.color + '77');
       grad.addColorStop(1, p.color + '00');
       ctx.fillStyle = grad;
       ctx.globalAlpha = alpha;
       ctx.beginPath(); ctx.arc(px, py, glowR, 0, Math.PI * 2); ctx.fill();
       // Core brilhante no centro
       ctx.fillStyle = p.color;
-      ctx.beginPath(); ctx.arc(px, py, 2.2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(px, py, coreR, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1;
     }
 

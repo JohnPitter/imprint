@@ -1,6 +1,6 @@
 {
   "name": "imprint",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "Persistent memory for AI coding agents. Captures observations, compresses with LLM, builds a knowledge graph, and injects relevant context into new sessions.",
   "author": {
     "name": "JohnPitter",
