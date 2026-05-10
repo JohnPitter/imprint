@@ -159,6 +159,7 @@ func extractErrors(s string) []string {
 // Concepts are the squishiest category. We pull them from:
 //   - file basenames without extension (foo/bar/Baz.tsx -> "Baz")
 //   - PascalCase tokens (likely class/component names)
+//
 // We deliberately do NOT try to invent semantic concepts — that is what the
 // LLM is for. This pass exists so the LLM does not have to repeat the easy
 // mechanical work.

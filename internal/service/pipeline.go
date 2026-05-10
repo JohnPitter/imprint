@@ -29,18 +29,18 @@ var userPromptMarkers = []string{
 // aparecem como o título inteiro, sinalizam que a observação é só um
 // turno conversacional do usuário, não uma ação real.
 var userPromptShortReplies = map[string]bool{
-	"continua":            true,
-	"pode seguir":         true,
-	"pode continuar":      true,
-	"perfeito":            true,
-	"perfeito.":           true,
+	"continua":              true,
+	"pode seguir":           true,
+	"pode continuar":        true,
+	"perfeito":              true,
+	"perfeito.":             true,
 	"perfeito. pode seguir": true,
-	"obrigado":            true,
-	"obrigada":            true,
-	"ok":                  true,
-	"sim":                 true,
-	"não":                 true,
-	"nao":                 true,
+	"obrigado":              true,
+	"obrigada":              true,
+	"ok":                    true,
+	"sim":                   true,
+	"não":                   true,
+	"nao":                   true,
 }
 
 // looksLikeUserPrompt retorna true quando o título da observação parece

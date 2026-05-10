@@ -120,12 +120,12 @@ func (h *SessionHandler) HandleEnd(w http.ResponseWriter, r *http.Request) {
 // memories e actions numa lista ordenada por tempo. O campo `kind` permite
 // ao frontend renderizar com ícone/cor específicos.
 type timelineEvent struct {
-	Kind      string `json:"kind"`      // "observation" | "memory" | "action"
+	Kind      string `json:"kind"` // "observation" | "memory" | "action"
 	ID        string `json:"id"`
 	Timestamp string `json:"timestamp"` // RFC3339; usado pra ordenação cronológica
 	Title     string `json:"title"`
 	Subtitle  string `json:"subtitle,omitempty"`
-	Type      string `json:"type,omitempty"` // observation type / memory type / action status
+	Type      string `json:"type,omitempty"`  // observation type / memory type / action status
 	Score     int    `json:"score,omitempty"` // importance/strength/priority por kind
 }
 

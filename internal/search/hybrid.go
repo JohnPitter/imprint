@@ -27,12 +27,12 @@ type BacklinkProvider interface {
 }
 
 type HybridSearcher struct {
-	bm25         *BM25Index
-	vectors      *VectorIndex
-	bm25Weight   float64
-	vecWeight    float64
-	graphWeight  float64
-	backlinks    BacklinkProvider
+	bm25        *BM25Index
+	vectors     *VectorIndex
+	bm25Weight  float64
+	vecWeight   float64
+	graphWeight float64
+	backlinks   BacklinkProvider
 }
 
 func NewHybridSearcher(bm25 *BM25Index, vectors *VectorIndex, bm25W, vecW float64) *HybridSearcher {

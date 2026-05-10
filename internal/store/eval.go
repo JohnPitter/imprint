@@ -10,14 +10,14 @@ import (
 // All fields except CapturedAt are caller-provided; the timestamp comes from
 // the DB default so candidates from concurrent processes order consistently.
 type EvalCandidate struct {
-	ID          string `json:"id"`
-	CapturedAt  string `json:"capturedAt"`
-	Source      string `json:"source"`    // "mcp" | "http" | "cli"
-	Operation   string `json:"operation"` // "search" | "recall" | "graph_query"
-	QueryText   string `json:"queryText"`
+	ID          string   `json:"id"`
+	CapturedAt  string   `json:"capturedAt"`
+	Source      string   `json:"source"`    // "mcp" | "http" | "cli"
+	Operation   string   `json:"operation"` // "search" | "recall" | "graph_query"
+	QueryText   string   `json:"queryText"`
 	ReturnedIDs []string `json:"returnedIds"`
-	ResultCount int    `json:"resultCount"`
-	SessionID   *string `json:"sessionId,omitempty"`
+	ResultCount int      `json:"resultCount"`
+	SessionID   *string  `json:"sessionId,omitempty"`
 }
 
 // EvalStore appends and reads eval_candidates. Writes are best-effort: if the

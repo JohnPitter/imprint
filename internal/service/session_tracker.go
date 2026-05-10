@@ -14,7 +14,7 @@ import (
 // Em vez disso, o hook Stop (que dispara a cada turno) faz heartbeat aqui, e
 // o scheduler decide quando a sessão "morreu" pela ausência de heartbeats.
 type SessionTracker struct {
-	mu      sync.Mutex
+	mu       sync.Mutex
 	lastSeen map[string]time.Time
 }
 
