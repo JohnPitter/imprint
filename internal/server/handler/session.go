@@ -16,11 +16,12 @@ import (
 type SessionHandler struct {
 	svc       *service.SessionService
 	container *service.Container
+	tracker   *service.SessionTracker
 }
 
 // NewSessionHandler creates a new SessionHandler.
-func NewSessionHandler(svc *service.SessionService, container *service.Container) *SessionHandler {
-	return &SessionHandler{svc: svc, container: container}
+func NewSessionHandler(svc *service.SessionService, container *service.Container, tracker *service.SessionTracker) *SessionHandler {
+	return &SessionHandler{svc: svc, container: container, tracker: tracker}
 }
 
 // HandleStart handles POST /imprint/session/start.
@@ -41,11 +42,40 @@ func (h *SessionHandler) HandleStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.tracker != nil {
+		h.tracker.Touch(session.ID)
+	}
+
 	contextStr := buildContextXML(context, req.Project)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"session": session,
 		"context": contextStr,
 	})
+}
+
+// HandleHeartbeat handles POST /imprint/session/heartbeat.
+// Chamado pelo Stop hook a cada turno do assistente; serve como sinal de vida
+// pra que o scheduler saiba quando a sessão ficou idle e disparar finalize.
+// Why: o hook SessionEnd do Claude Code não dispara consistentemente no /exit,
+// então usamos ausência de heartbeat como proxy de "sessão terminou".
+func (h *SessionHandler) HandleHeartbeat(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		SessionID string `json:"sessionId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.SessionID == "" {
+		writeError(w, http.StatusBadRequest, "sessionId is required")
+		return
+	}
+
+	if h.tracker != nil {
+		h.tracker.Touch(req.SessionID)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // HandleEnd handles POST /imprint/session/end.
@@ -61,6 +91,10 @@ func (h *SessionHandler) HandleEnd(w http.ResponseWriter, r *http.Request) {
 	if err := h.svc.End(req.SessionID); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	if h.tracker != nil {
+		h.tracker.Forget(req.SessionID)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})

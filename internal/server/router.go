@@ -88,11 +88,13 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 		if deps.Sessions != nil {
 			r.Post("/session/start", deps.Sessions.HandleStart)
 			r.Post("/session/end", deps.Sessions.HandleEnd)
+			r.Post("/session/heartbeat", deps.Sessions.HandleHeartbeat)
 			r.Get("/sessions", deps.Sessions.HandleList)
 			r.Get("/sessions/timeline", deps.Sessions.HandleTimeline)
 		} else {
 			r.Post("/session/start", notImplemented)
 			r.Post("/session/end", notImplemented)
+			r.Post("/session/heartbeat", notImplemented)
 			r.Get("/sessions", notImplemented)
 			r.Get("/sessions/timeline", notImplemented)
 		}
