@@ -38,22 +38,34 @@ Inspired by [agentmemory](https://github.com/rohitg00/agentmemory) (Node.js + Do
 | **Backlink-Boosted Ranking** *(v1.3.0)* | Optional graph in-degree multiplier on hybrid search. A memory referenced by N other nodes ranks higher; activates once a graph provider is attached. |
 | **Eval Capture** *(v1.3.0, opt-in)* | With `IMPRINT_EVAL_CAPTURE=1`, every search/recall captures (query, returned ids) into an `eval_candidates` table after PII scrubbing. Export via `GET /imprint/eval/export` (NDJSON). Replay tooling lands in a follow-up. |
 | **Live Actions Kanban** *(v1.4.0)* | The Actions tab now streams updates via Server-Sent Events on `GET /imprint/actions/stream`. Cards animate between Pending/In Progress/Done columns the moment the agent moves them, no 5-second poll wait. Each card carries a session badge so you can tell which Claude Code session produced it. Polling stays as a fallback when SSE is unavailable. |
-| **Background Pipeline** | Scheduler runs summarize + consolidate + action extraction every N minutes during active sessions (configurable) |
-| **Hybrid Search** | BM25 (Bleve) + vector cosine similarity with Reciprocal Rank Fusion |
-| **Knowledge Graph** | Entity extraction builds a graph of files, functions, concepts, and their relationships |
-| **Context Injection** | Relevant memories injected at session start and before context compaction |
-| **Smart Hooks** | User prompts captured as intent anchors, task completions sync to kanban, failures tracked for error learning |
+| **Pinned Memories** *(v1.5.0)* | Toggle the ★ in any memory card or the modal header to immunize it against the decay sweep. Critical decisions and architecture notes survive forever even when rarely reinforced. |
+| **Time-Travel Slider** *(v1.5.0)* | Drag the slider on the Memories tab to ask "what did I know N days ago?" — backend filters by `created_at <= cutoff`. Refresh-resistant: state survives in `?days=N`. |
+| **Inline Concept Editor** *(v1.5.0)* | Click any concept pill in the Memory modal to remove, or use the "+" input to add. Persists immediately via `POST /memories/concepts`. |
+| **Why-This-Memory Score Breakdown** *(v1.5.0)* | Hit "Why was this retrieved?" inside any Memory modal — runs a hybrid search by the title and shows the BM25/Vec/Rank scores for the top 5 results. Debugging the retrieval is no longer a black box. |
+| **Cluster Summarizer** *(v1.5.0)* | Hover a node in the Graph for ~600ms; the LLM names the cluster topic in 4-7 words ("Spring Boot · transaction expiration"). In-memory cache means the same hover doesn't burn Haiku tokens twice. |
+| **Conversation Playback** *(v1.5.0)* | Click "Playback" in any session card to open a unified chronological timeline of observations + memories created + actions, with rail-style visualization. Useful for retro reviews. |
+| **Pipeline Health Dashboard** *(v1.5.0)* | Header badge shows HEALTHY / BACKLOG / IDLE / STALLED derived from real-time pipeline state. Sparkline of LLM calls/minute (last 30 datapoints) + auto-detect of circuit breakers + 8s polling so you can see throughput live. |
+| **Live Knowledge Graph** *(v1.5.0+)* | Force-directed memory graph with light/dark theme, percentile-based fit-to-bounds (no more outliers shrinking your cluster), zoom controls, label-propagation community detection (colored halos = topology clusters), idle breath animation, hover ripples, and synaptic pulses streaming along edges like a live neural net. |
+| **Memory Decay (Configurable)** *(v1.5.0)* | Settings UI exposes `min_strength_to_archive` and `min_age_days` sliders; the scheduler reads from the live config so changes apply without restart. Pinned memories always exempt. |
+| **Color-Coded Concepts** *(v1.5.0)* | Concept tags use a deterministic hash → fixed palette so the same concept ("auth", "decay") always paints the same color across Memories, Lessons, and Graph tooltips. Click any tag in Lessons to filter. |
+| **Knowledge Graph Pipeline** | LLM extracts entities (files, functions, concepts) and relations from compressed observations. *(v1.5.0)* now runs incrementally on the periodic scheduler — `graph_extracted_at` column dedups so existing rows aren't re-processed every tick. |
+| **Background Pipeline** | Scheduler runs summarize + consolidate + action extraction + graph extract every N minutes during active sessions (configurable) |
+| **Hybrid Search** | BM25 (Bleve) + vector cosine similarity with Reciprocal Rank Fusion. Search responses now include per-result `bm25Score` / `vecScore` / `rank` *(v1.5.0)*. |
+| **Context Injection** | Relevant memories injected at session start and before context compaction. *(v1.5.0)* injected items now carry inline metadata sufixes — `(★N · Xd)` on memories, `(iN · Xd)` on observations — so the assistant sees strength and age without a DB query. |
+| **Smart Hooks** | User prompts captured as intent anchors, task completions sync to kanban, failures tracked for error learning. *(v1.5.0)* heuristic filter prevents short user prompts ("continua", "ok", task-notification XML) from polluting the Actions kanban. |
 | **Multi-Provider LLM** | Anthropic (API key + Claude Code OAuth auto-detect), OpenRouter, llama.cpp with circuit breaker + fallback |
 | **MCP Server** | 8 tools for explicit memory recall, save, search, and graph queries |
-| **11-Tab Web UI** | Dashboard, Sessions, Timeline, Memories, Graph, Actions, Lessons, Activity, Audit, Profile, Settings |
-| **Global Topbar Search** | Modal search overlay on every page — query the Bleve index from anywhere with title, type, score, narrative, concepts and files |
-| **Settings UI** | Select LLM provider/model, configure API keys, tune search weights, pipeline interval — all from the browser |
+| **12-Tab Web UI** | Dashboard, Recall, Sessions, Timeline, Memories, Graph, Actions, Lessons, Activity, Audit, Profile, Settings |
+| **Global Topbar Search** | Modal search overlay on every page — query the Bleve index from anywhere with title, type, score, narrative, concepts and files. *(v1.5.0)* keyboard shortcut: press `/` from anywhere to focus. |
+| **URL-Synced UI State** *(v1.5.0)* | Memories slider and Lessons tag filters reflect in the query string (`?days=7&tags=auth,decay`). Refresh-resistant + shareable links. |
+| **Settings UI** | Select LLM provider/model, configure API keys, tune search weights, pipeline interval, decay thresholds — all from the browser |
 | **4-Layer Memory Stack** | L0 Identity, L1 Essential Story, L2 Session Context, L3 On-Demand Search — each with token budgets |
 | **Actions Kanban** | Pending = waiting on user (permission prompts), In Progress = current prompt being worked on, Done = completed tasks. Older in-progress entries auto-graduate to done when a new one starts. |
 | **Lessons & Insights** | Two-column split layout with independent scrolling — see lessons and insights side-by-side without scrolling the page |
 | **Query Sanitizer** | Detects and strips system prompt contamination from search queries |
 | **Write-Ahead Log** | Append-only JSONL audit of every write operation for crash recovery and poisoning detection |
 | **Index Self-Heal** | If the BM25 index is empty on startup but the DB has compressed observations, a background goroutine reindexes everything automatically |
+| **Build Provenance** *(v1.5.1)* | `/imprint/health` exposes `version` + git `commit` injected via build-time ldflags. Dashboard System Health shows which binary is actually running. |
 | **Transcript Mining** | `go run ./cmd/mine` imports historical Claude Code JSONL sessions retroactively |
 | **Auto-Start** | Server launches automatically on first Claude Code session with retry + error logging |
 | **Privacy** | All data stays local in `~/.imprint/`. Secrets are scrubbed with 16 regex patterns before storage |
@@ -108,9 +120,9 @@ graph TD
 3. **Pre-extract** *(v1.2.0)* — A deterministic regex pass pulls file paths, PascalCase concepts, URLs, error markers, and git refs out of the observation. The LLM never has to re-extract the easy mechanical entities, cutting Haiku spend.
 4. **Compress** — Background workers send the remaining work to an LLM (Anthropic / OpenRouter / llama.cpp with circuit breaker + fallback), producing structured summaries with type, title, narrative, importance (1-10), concepts (merged with the pre-pass), and files (already extracted)
 5. **Index** — Each compressed observation is immediately indexed into Bleve (BM25) inside the worker. On startup, an empty BM25 with rows in the DB triggers a self-heal reindex of every compressed observation
-6. **Schedule** — Background scheduler runs summarize + consolidate + action extraction periodically during active sessions
+6. **Schedule** — Background scheduler runs summarize + consolidate + action extraction + **graph extract** periodically during active sessions. Graph extract is incremental (`v1.5.0`): only obs without `graph_extracted_at` are processed, capped per tick to control Haiku cost.
 7. **Extract** — LLM extracts entities (files, functions, concepts) and relations into a knowledge graph
-8. **Inject** — On new sessions, token-budgeted context blocks are built from recent summaries, high-importance observations, and strong memories
+8. **Inject** — On new sessions, token-budgeted context blocks are built from recent summaries, high-importance observations, and strong memories. Each item carries an inline metadata sufix (`★N · Xd` or `iN · Xd`) so the assistant has strength + age signal without a roundtrip to the DB.
 
 ### Hook Architecture
 
@@ -125,7 +137,7 @@ graph TD
 | **notification** | Permission prompt | Surfaces the prompt as a `pending` action so the user sees Claude is waiting on them |
 | **subagent-start / subagent-stop** | Task agent spawned/finished | Records subagent lifecycle for the activity feed |
 | **stop** | Session ends | Processes transcript for missed observations |
-| **session-end** | Session finalizes | Runs finalize pipeline (graph, actions, reflect) |
+| **session-end** | Session finalizes | Runs finalize pipeline (final consolidate + actions + reflect). Note: graph extraction is now incremental on the periodic scheduler *(v1.5.0)*, not deferred to session-end. |
 
 ---
 
@@ -271,6 +283,10 @@ imprint/
 | `OPENROUTER_API_KEY` | — | OpenRouter API key |
 | `LLAMACPP_URL` | `http://localhost:8080` | llama.cpp server URL |
 | `PIPELINE_INTERVAL_MIN` | `5` | Background pipeline interval (0 = disabled) |
+| `DECAY_MIN_STRENGTH` | `3` | Memories with strength ≤ this become decay candidates *(v1.5.0)* |
+| `DECAY_MAX_AGE_DAYS` | `30` | Min age before a weak memory is archived *(v1.5.0)* |
+| `IMPRINT_EVAL_CAPTURE` | `0` | Set `1` to capture (query, returned ids) for retrieval regression testing |
+| `IMPRINT_EXTRACTION_MODE` | `hybrid` | `hybrid` (regex pre-pass + LLM) or `llm-only` (legacy) |
 
 ---
 
