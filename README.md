@@ -50,6 +50,7 @@ Inspired by [agentmemory](https://github.com/rohitg00/agentmemory) (Node.js + Do
 | **Color-Coded Concepts** *(v1.5.0)* | Concept tags use a deterministic hash → fixed palette so the same concept ("auth", "decay") always paints the same color across Memories, Lessons, and Graph tooltips. Click any tag in Lessons to filter. |
 | **Knowledge Graph Pipeline** | LLM extracts entities (files, functions, concepts) and relations from compressed observations. *(v1.5.0)* now runs incrementally on the periodic scheduler — `graph_extracted_at` column dedups so existing rows aren't re-processed every tick. |
 | **Background Pipeline** | Scheduler runs summarize + consolidate + action extraction + graph extract every N minutes during active sessions (configurable) |
+| **Heartbeat-Based Finalize** *(v1.5.4)* | The Claude Code `SessionEnd` event doesn't fire reliably on `/exit`, so finalize is triggered by **absence** of activity instead. The `Stop` hook posts `/imprint/session/heartbeat` every turn; after 15min without one, the scheduler runs `RunFinalize` (final summarize + consolidate + graph + actions + reflect) and marks the session completed. Sessions that get finalized but receive a heartbeat later (long pause + return) are auto-resurrected back to `active`, preserving the audit trail. |
 | **Hybrid Search** | BM25 (Bleve) + vector cosine similarity with Reciprocal Rank Fusion. Search responses now include per-result `bm25Score` / `vecScore` / `rank` *(v1.5.0)*. |
 | **Context Injection** | Relevant memories injected at session start and before context compaction. *(v1.5.0)* injected items now carry inline metadata sufixes — `(★N · Xd)` on memories, `(iN · Xd)` on observations — so the assistant sees strength and age without a DB query. |
 | **Smart Hooks** | User prompts captured as intent anchors, task completions sync to kanban, failures tracked for error learning. *(v1.5.0)* heuristic filter prevents short user prompts ("continua", "ok", task-notification XML) from polluting the Actions kanban. |
@@ -136,8 +137,8 @@ graph TD
 | **pre-compact** | Context compaction | Saves snapshot before context is lost, injects recovered context |
 | **notification** | Permission prompt | Surfaces the prompt as a `pending` action so the user sees Claude is waiting on them |
 | **subagent-start / subagent-stop** | Task agent spawned/finished | Records subagent lifecycle for the activity feed |
-| **stop** | Session ends | Processes transcript for missed observations |
-| **session-end** | Session finalizes | Runs finalize pipeline (final consolidate + actions + reflect). Note: graph extraction is now incremental on the periodic scheduler *(v1.5.0)*, not deferred to session-end. |
+| **stop** | End of every assistant turn | Closes the kanban turn, processes transcript for missed observations, **posts `/imprint/session/heartbeat`** to keep the session alive *(v1.5.4)*. |
+| **session-end** | Session finalizes | Best-effort fast-path: posts `/imprint/session/end` + `/imprint/finalize`. The Claude Code event doesn't fire reliably on `/exit`, so the canonical finalize path is the scheduler's heartbeat-idle sweep *(v1.5.4)* — see "Heartbeat-Based Finalize" above. |
 
 ---
 
