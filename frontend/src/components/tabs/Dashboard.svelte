@@ -233,6 +233,13 @@
         </div>
         <div class="health-divider"></div>
         <div class="health-pair">
+          <span class="health-key">Imprint</span>
+          <span class="health-val mono" title={health.commit ? `commit ${health.commit}` : ''}>
+            v{health.version || '?'}{health.commit && health.commit !== 'unknown' ? ` · ${health.commit}` : ''}
+          </span>
+        </div>
+        <div class="health-divider"></div>
+        <div class="health-pair">
           <span class="health-key">Uptime</span>
           <span class="health-val mono">{formatUptime(health.uptime || health.uptimeSeconds)}</span>
         </div>
