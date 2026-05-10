@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"imprint/internal/config"
 	"imprint/internal/llm"
 	"imprint/internal/pipeline"
 	"imprint/internal/store"
@@ -957,7 +958,7 @@ func TestPipelineService_ExtractGraph(t *testing.T) {
 	insertCompressed(t, c, "og1", "ses_g_1234567", "Graph obs", 6)
 
 	ps := buildPipeline(t, c, graphResp, nil)
-	n, err := ps.ExtractGraph(context.Background(), "ses_g_1234567")
+	n, err := ps.ExtractGraph(context.Background(), "ses_g_1234567", 10)
 	if err != nil {
 		t.Fatalf("ExtractGraph: %v", err)
 	}
@@ -970,7 +971,7 @@ func TestPipelineService_ExtractGraph_NoObs(t *testing.T) {
 	c := setupTestContainer(t)
 	createTestSession(t, c, "ses_gn_1234567", "p")
 	ps := buildPipeline(t, c, graphResp, nil)
-	n, err := ps.ExtractGraph(context.Background(), "ses_gn_1234567")
+	n, err := ps.ExtractGraph(context.Background(), "ses_gn_1234567", 10)
 	if err != nil {
 		t.Fatalf("ExtractGraph: %v", err)
 	}
@@ -1053,7 +1054,7 @@ func TestScheduler_DisabledWhenZero(t *testing.T) {
 	ps := buildPipeline(t, c, summarizeResp, nil)
 	ss := NewSessionService(c, nil)
 
-	s := NewScheduler(ps, ss, 0)
+	s := NewScheduler(ps, ss, &config.Config{}, 0)
 	s.Start() // no-op
 	s.Stop()  // no-op
 }
@@ -1065,7 +1066,7 @@ func TestScheduler_StartStop(t *testing.T) {
 
 	// Use a minimal 1-minute interval; we won't wait for a tick. The goal is
 	// to exercise Start → loop → Stop lifecycle.
-	s := NewScheduler(ps, ss, 1)
+	s := NewScheduler(ps, ss, &config.Config{}, 1)
 	s.Start()
 
 	// Second Start is a no-op.
@@ -1091,7 +1092,7 @@ func TestScheduler_Tick(t *testing.T) {
 	resp := summarizeResp + consolidateResp + reflectResp + graphResp
 	ps := buildPipeline(t, c, resp, nil)
 	ss := NewSessionService(c, nil)
-	s := NewScheduler(ps, ss, 5)
+	s := NewScheduler(ps, ss, &config.Config{}, 5)
 
 	// Directly call tick to avoid waiting.
 	s.tick()

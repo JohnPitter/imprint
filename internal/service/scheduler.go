@@ -5,19 +5,15 @@ import (
 	"log"
 	"sync"
 	"time"
+
+	"imprint/internal/config"
 )
 
-// Decay configuration. We don't expose these as config — the values are
-// conservative enough that surfacing them in env vars would just be a
-// footgun. Memories below `decayStrengthThreshold` strength that are older
-// than `decayMaxAgeDays` get soft-deleted so retrieval stays focused on
-// signal. Strong memories (4+) survive forever; recent memories survive
-// regardless of strength.
-const (
-	decayStrengthThreshold = 3
-	decayMaxAgeDays        = 30
-	decayRunInterval       = 6 * time.Hour
-)
+// decayRunInterval mantém-se hardcoded — ele controla apenas a frequência
+// do sweep, não a política. 6h é suficiente pra qualquer TTL de dias.
+// Os thresholds reais (strength + age) vêm de cfg.DecayMinStrength /
+// cfg.DecayMaxAgeDays e podem ser editados via Settings UI.
+const decayRunInterval = 6 * time.Hour
 
 // Scheduler runs the pipeline periodically for active sessions.
 // It ticks at the configured interval and processes summarize + consolidate
@@ -26,6 +22,7 @@ const (
 type Scheduler struct {
 	pipeline *PipelineService
 	sessions *SessionService
+	cfg      *config.Config
 	interval time.Duration
 
 	mu          sync.Mutex
@@ -36,11 +33,14 @@ type Scheduler struct {
 }
 
 // NewScheduler creates a new Scheduler. If intervalMin <= 0, the scheduler is disabled.
-func NewScheduler(pipeline *PipelineService, sessions *SessionService, intervalMin int) *Scheduler {
+// O cfg é a referência viva — re-lemos dele a cada tick pra que mudanças via
+// Settings UI tenham efeito sem reiniciar o servidor.
+func NewScheduler(pipeline *PipelineService, sessions *SessionService, cfg *config.Config, intervalMin int) *Scheduler {
 	interval := time.Duration(intervalMin) * time.Minute
 	return &Scheduler{
 		pipeline: pipeline,
 		sessions: sessions,
+		cfg:      cfg,
 		interval: interval,
 	}
 }
@@ -139,19 +139,35 @@ func (s *Scheduler) tick() {
 			log.Printf("[scheduler] ExtractActions failed for %s: %v", sidShort, err)
 		}
 
+		// 4. Extract knowledge graph entities (incremental, idempotente).
+		// Limite baixo pra não disparar em backlog histórico — em sessão
+		// ativa típica com produção de ~1 obs/min, drena de sobra.
+		if _, err := s.pipeline.ExtractGraph(ctx, sid, 5); err != nil {
+			log.Printf("[scheduler] ExtractGraph failed for %s: %v", sidShort, err)
+		}
+
 		cancel()
 	}
 
 	// Decay sweep: low-strength memories older than the cutoff get
-	// soft-deleted. Runs at most once every decayRunInterval so we don't
-	// thrash the DB with UPDATEs every 5 minutes — once every few hours
-	// is plenty for a TTL of 30 days.
+	// soft-deleted. Runs at most once every decayRunInterval; thresholds
+	// vêm do cfg vivo (editáveis via Settings UI sem restart).
 	if time.Since(s.lastDecayAt) >= decayRunInterval {
-		n, err := s.pipeline.c.Memories.DecayOld(decayStrengthThreshold, decayMaxAgeDays)
+		minStrength := s.cfg.DecayMinStrength
+		maxAgeDays := s.cfg.DecayMaxAgeDays
+		// Defesa em profundidade: se o user setou 0/negativo via UI, usar
+		// defaults conservadores em vez de "decay everything imediato".
+		if minStrength <= 0 {
+			minStrength = 3
+		}
+		if maxAgeDays <= 0 {
+			maxAgeDays = 30
+		}
+		n, err := s.pipeline.c.Memories.DecayOld(minStrength, maxAgeDays)
 		if err != nil {
 			log.Printf("[scheduler] Decay failed: %v", err)
 		} else if n > 0 {
-			log.Printf("[scheduler] Decay: archived %d low-strength memories older than %dd", n, decayMaxAgeDays)
+			log.Printf("[scheduler] Decay: archived %d memories (strength<=%d, age>=%dd)", n, minStrength, maxAgeDays)
 		}
 		s.lastDecayAt = time.Now()
 	}

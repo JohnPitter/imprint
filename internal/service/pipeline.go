@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"imprint/internal/llm"
@@ -13,6 +14,62 @@ import (
 
 	"github.com/google/uuid"
 )
+
+// userPromptMarkers identifica títulos que vieram de prompts curtos do
+// usuário e não merecem virar ação. Captura tanto pedaços de XML de
+// notification de tarefa (`<task-notification>`, `<task-id>`) quanto
+// micro-confirmações (em PT-BR, idioma do usuário típico).
+var userPromptMarkers = []string{
+	"<task-notification>",
+	"<task-id>",
+	"<tool-use-id>",
+}
+
+// userPromptShortReplies são frases-padrão de continuidade que, quando
+// aparecem como o título inteiro, sinalizam que a observação é só um
+// turno conversacional do usuário, não uma ação real.
+var userPromptShortReplies = map[string]bool{
+	"continua":            true,
+	"pode seguir":         true,
+	"pode continuar":      true,
+	"perfeito":            true,
+	"perfeito.":           true,
+	"perfeito. pode seguir": true,
+	"obrigado":            true,
+	"obrigada":            true,
+	"ok":                  true,
+	"sim":                 true,
+	"não":                 true,
+	"nao":                 true,
+}
+
+// looksLikeUserPrompt retorna true quando o título da observação parece
+// ser eco direto de um prompt do usuário em vez de uma ação executável.
+// Aplicado no extractor de actions pra evitar poluir o kanban com
+// "claudinho, boa tarde", "pode seguir", "<task-notification>...", etc.
+func looksLikeUserPrompt(title string) bool {
+	if title == "" {
+		return true
+	}
+	t := strings.ToLower(strings.TrimSpace(title))
+	if userPromptShortReplies[t] {
+		return true
+	}
+	for _, m := range userPromptMarkers {
+		if strings.Contains(t, m) {
+			return true
+		}
+	}
+	// Saudação informal seguida de pedido geralmente é prompt humano,
+	// não ação. Pega "claudinho", "claude," "bom dia/boa tarde/boa noite".
+	greetings := []string{"claudinho", "claude,", "claude ", "bom dia", "boa tarde", "boa noite"}
+	for _, g := range greetings {
+		if strings.HasPrefix(t, g) {
+			return true
+		}
+	}
+	return false
+}
 
 // PipelineService orchestrates summarization, consolidation, reflection, graph extraction, and lesson extraction.
 type PipelineService struct {
@@ -242,24 +299,33 @@ func (s *PipelineService) Reflect(ctx context.Context, sessionID string) (int, e
 	return created, nil
 }
 
-// ExtractGraph processes compressed observations to build the knowledge graph.
-func (s *PipelineService) ExtractGraph(ctx context.Context, sessionID string) (int, error) {
-	obs, err := s.c.Observations.ListCompressed(sessionID, 50, 0)
-	if err != nil {
-		return 0, fmt.Errorf("list observations: %w", err)
-	}
-
-	if len(obs) == 0 || s.graphSvc == nil {
+// ExtractGraph processa compressed observations ainda não-extraídas pra
+// popular o knowledge graph. Cada observação vira 1 chamada LLM, então o
+// limit controla o custo Haiku — vide caller.
+func (s *PipelineService) ExtractGraph(ctx context.Context, sessionID string, limit int) (int, error) {
+	if limit <= 0 || s.graphSvc == nil {
 		return 0, nil
 	}
 
-	// Process up to 10 observations (each makes an LLM call)
+	obs, err := s.c.Observations.ListNotGraphExtracted(sessionID, limit)
+	if err != nil {
+		return 0, fmt.Errorf("list not-extracted observations: %w", err)
+	}
+
+	if len(obs) == 0 {
+		return 0, nil
+	}
+
 	processed := 0
-	limit := min(len(obs), 10)
-	for i := range limit {
+	for i := range obs {
 		if err := s.graphSvc.ExtractAndStore(ctx, &obs[i]); err != nil {
 			log.Printf("[pipeline] Graph extraction failed for obs %s: %v", obs[i].ID, err)
 			continue
+		}
+		// Marca processado mesmo no caminho feliz pra não reprocessar.
+		// Em caso de falha do LLM mantemos NULL pra retry no próximo tick.
+		if err := s.c.Observations.MarkGraphExtracted(obs[i].ID); err != nil {
+			log.Printf("[pipeline] mark graph extracted obs %s: %v", obs[i].ID, err)
 		}
 		processed++
 	}
@@ -293,6 +359,13 @@ func (s *PipelineService) ExtractActions(ctx context.Context, sessionID string) 
 	created := 0
 	for _, o := range obs {
 		if o.Importance < 7 {
+			continue
+		}
+
+		// Skip observations cujo título é eco de prompt humano —
+		// poluiriam o kanban com "continua", "pode seguir", saudações
+		// e fragmentos de XML de task-notification.
+		if looksLikeUserPrompt(o.Title) {
 			continue
 		}
 
@@ -358,7 +431,7 @@ func (s *PipelineService) RunFullPipeline(ctx context.Context, sessionID string)
 	}
 
 	// 3. Extract knowledge graph entities
-	if _, err := s.ExtractGraph(ctx, sessionID); err != nil {
+	if _, err := s.ExtractGraph(ctx, sessionID, 10); err != nil {
 		log.Printf("[pipeline] Graph extraction failed for %s: %v", sid, err)
 	}
 
@@ -391,7 +464,7 @@ func (s *PipelineService) RunFinalize(ctx context.Context, sessionID string) err
 	}
 
 	// Graph extraction
-	if _, err := s.ExtractGraph(ctx, sessionID); err != nil {
+	if _, err := s.ExtractGraph(ctx, sessionID, 10); err != nil {
 		log.Printf("[pipeline] Graph extraction failed for %s: %v", sid, err)
 	}
 
@@ -467,6 +540,7 @@ func (s *PipelineService) Stats() (*PipelineStats, error) {
 		"memory.consolidate",
 		"session.summarize",
 		"action.extract",
+		"graph.extract",
 		"reflect",
 	}
 	if last, err := s.c.Audit.LastByAction(actions); err == nil {

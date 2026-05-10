@@ -5,9 +5,39 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"imprint/internal/store"
 	"imprint/internal/types"
 )
+
+// compactAge converte um timestamp ISO/RFC em uma string curta tipo
+// "3d", "5h", "2w" — usada nos sufixos de debug do context block.
+// Retorna "?" se o timestamp não puder ser parseado.
+func compactAge(ts string) string {
+	if ts == "" {
+		return "?"
+	}
+	t := store.ParseTime(ts)
+	if t.IsZero() {
+		return "?"
+	}
+	d := time.Since(t)
+	switch {
+	case d < time.Minute:
+		return "now"
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	case d < 7*24*time.Hour:
+		return fmt.Sprintf("%dd", int(d.Hours()/24))
+	case d < 30*24*time.Hour:
+		return fmt.Sprintf("%dw", int(d.Hours()/(24*7)))
+	default:
+		return fmt.Sprintf("%dmo", int(d.Hours()/(24*30)))
+	}
+}
 
 // LayerBudget defines token budgets for each memory layer.
 type LayerBudget struct {
@@ -105,11 +135,13 @@ func (s *ContextService) BuildContext(sessionID, project string, budget int) ([]
 	l1Budget := s.layerBudget.L1EssentialStory
 	var l1sb strings.Builder
 
-	// 1a. Highest-strength memories (strength >= 7)
+	// 1a. Highest-strength memories (strength >= 7).
+	// Sufixo (★N · Xd) torna a injeção debugável — assistente futuro
+	// pode ver a strength e idade da memória sem voltar ao DB.
 	memories, err := s.c.Memories.ListByStrength(7, 15)
 	if err == nil && len(memories) > 0 {
 		for _, m := range memories {
-			line := fmt.Sprintf("- [%s] %s: %s\n", m.Type, m.Title, m.Content)
+			line := fmt.Sprintf("- [%s] %s: %s (★%d · %s)\n", m.Type, m.Title, m.Content, m.Strength, compactAge(m.CreatedAt))
 			if estimateTokens(l1sb.String()+line) > l1Budget*2/3 {
 				break
 			}
@@ -121,7 +153,7 @@ func (s *ContextService) BuildContext(sessionID, project string, budget int) ([]
 	summaries, err := s.c.Summaries.ListByProject(project, 1)
 	if err == nil && len(summaries) > 0 {
 		sum := summaries[0]
-		line := fmt.Sprintf("- [Last Session] %s: %s\n", sum.Title, sum.Narrative)
+		line := fmt.Sprintf("- [Last Session] %s: %s (%s)\n", sum.Title, sum.Narrative, compactAge(sum.CreatedAt))
 		remaining := l1Budget - estimateTokens(l1sb.String())
 		if estimateTokens(line) <= remaining {
 			l1sb.WriteString(line)
@@ -141,7 +173,8 @@ func (s *ContextService) BuildContext(sessionID, project string, budget int) ([]
 	l2Budget := s.layerBudget.L2SessionContext
 	var l2sb strings.Builder
 
-	// High-importance compressed observations from recent sessions for this project
+	// High-importance compressed observations from recent sessions for this project.
+	// Sufixo (i7 · 3h) = importance + age, ajuda debugar relevância.
 	obs, err := s.c.Observations.ListCompressedByImportance(project, 6, 20)
 	if err == nil && len(obs) > 0 {
 		for _, o := range obs {
@@ -149,7 +182,7 @@ func (s *ContextService) BuildContext(sessionID, project string, budget int) ([]
 			if o.Narrative != nil {
 				narrative = *o.Narrative
 			}
-			line := fmt.Sprintf("- [%s] %s: %s\n", o.Type, o.Title, narrative)
+			line := fmt.Sprintf("- [%s] %s: %s (i%d · %s)\n", o.Type, o.Title, narrative, o.Importance, compactAge(o.Timestamp.Format(time.RFC3339)))
 			if estimateTokens(l2sb.String()+line) > l2Budget {
 				break
 			}
@@ -170,7 +203,7 @@ func (s *ContextService) BuildContext(sessionID, project string, budget int) ([]
 	}
 	if len(summaries) > 0 {
 		for _, sum := range summaries {
-			line := fmt.Sprintf("- [%s] %s: %s\n", sum.CreatedAt, sum.Title, sum.Narrative)
+			line := fmt.Sprintf("- [Summary] %s: %s (%s)\n", sum.Title, sum.Narrative, compactAge(sum.CreatedAt))
 			if estimateTokens(l2sb.String()+line) > l2Budget {
 				break
 			}
