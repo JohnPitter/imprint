@@ -90,6 +90,26 @@ func (s *SessionStore) List(project string, limit, offset int) ([]SessionRow, er
 	return scanSessions(rows)
 }
 
+// Reactivate marca a sessão como active novamente e limpa ended_at.
+// Why: cobre o cenário "usuário deixa janela aberta >5min (Valorant, almoço)
+// e volta depois". O scheduler já finalizou a sessão; quando o Stop hook
+// manda heartbeat de novo, ressuscitamos pra que `GetActive` volte a pegar
+// no scheduler periódico. O audit log retém o session.end original.
+func (s *SessionStore) Reactivate(id string) error {
+	res, err := s.db.Exec(
+		`UPDATE sessions SET status = ?, ended_at = NULL WHERE id = ?`,
+		string(types.SessionActive), id,
+	)
+	if err != nil {
+		return fmt.Errorf("session reactivate: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("session reactivate: session %s not found", id)
+	}
+	return nil
+}
+
 // End marks a session as completed and sets ended_at to the current time.
 func (s *SessionStore) End(id string) error {
 	now := TimeToString(time.Now())
