@@ -33,6 +33,24 @@ type RouterDeps struct {
 
 var startTime = time.Now()
 
+// Versão / commit injetados via main.SetVersion no boot. Defaults
+// "dev"/"unknown" cobrem o caso de teste e binários sem ldflags.
+var (
+	buildVersion = "dev"
+	buildCommit  = "unknown"
+)
+
+// SetVersion é chamado por main.go com os valores injetados via ldflags
+// no release oficial. Idempotente.
+func SetVersion(version, commit string) {
+	if version != "" {
+		buildVersion = version
+	}
+	if commit != "" {
+		buildCommit = commit
+	}
+}
+
 func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router {
 	if deps == nil {
 		deps = &RouterDeps{}
@@ -317,6 +335,8 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
 		"status":        "healthy",
+		"version":       buildVersion,
+		"commit":        buildCommit,
 		"uptime":        time.Since(startTime).String(),
 		"uptimeSeconds": int(time.Since(startTime).Seconds()),
 		"goVersion":     runtime.Version(),

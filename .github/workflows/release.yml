@@ -72,12 +72,23 @@ jobs:
           CGO_ENABLED: "0"
           TARGET: ${{ matrix.target }}
           EXT: ${{ matrix.ext }}
+          # Tag/ref vai por env (não interpolado direto no script) por
+          # boa prática de Actions security — refs do GitHub não aceitam
+          # shell metachars, mas defesa em profundidade não dói.
+          REF_NAME: ${{ github.ref_name }}
         run: |
           set -euxo pipefail
           OUT="dist/imprint-${TARGET}/bin"
           mkdir -p "$OUT/hooks"
 
-          go build -ldflags="-s -w" -o "$OUT/imprint$EXT" .
+          # Versão = tag sem o "v" prefixo (v1.5.0 → 1.5.0). commit é o
+          # short SHA do source que está sendo buildado. Os dois viram
+          # ldflags injetados em main.version / main.commit.
+          VERSION="${REF_NAME#v}"
+          COMMIT=$(git rev-parse --short HEAD)
+          LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT}"
+
+          go build -ldflags="${LDFLAGS}" -o "$OUT/imprint$EXT" .
           go build -ldflags="-s -w" -o "$OUT/mcp-server$EXT" ./cmd/mcp-server
           go build -ldflags="-s -w" -o "$OUT/ensure-server$EXT" ./cmd/ensure-server
 

@@ -23,7 +23,18 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// Versão e commit injetados via -ldflags no build oficial:
+//   go build -ldflags="-X main.version=1.5.0 -X main.commit=$(git rev-parse --short HEAD)"
+// Em builds locais sem ldflags, ficam como "dev" — sinaliza pro user que
+// o binário não veio de release oficial.
+var (
+	version = "dev"
+	commit  = "unknown"
+)
+
 func main() {
+	// Repassa a versão pro pacote server pra o handler /health expor.
+	server.SetVersion(version, commit)
 	log.SetFlags(log.LstdFlags | log.Lmsgprefix)
 	log.SetPrefix("")
 
