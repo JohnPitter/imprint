@@ -3,6 +3,7 @@
   import { api } from '../../lib/api';
   import { createPoller } from '../../lib/poller';
   import { timeAgo, formatNumber } from '../../lib/format';
+  import Sparkline from '../Sparkline.svelte';
 
   let health: any = $state(null);
   let sessions: any[] = $state([]);
@@ -15,6 +16,14 @@
   let loading = $state(true);
   let lastRefresh = $state('');
   let stopPoll: (() => void) | undefined;
+
+  // Buffer in-memory das taxas dos últimos polls. 30 datapoints = ~4min
+  // de histórico a 8s de polling. Computa "calls/min" entre polls
+  // consecutivos pra capturar a tendência real, não a média desde boot.
+  const SPARK_HISTORY = 30;
+  let callRateHistory: number[] = $state([]);
+  let lastCalls = 0;
+  let lastCallsTimestamp = 0;
 
   async function refresh() {
     try {
@@ -37,6 +46,24 @@
       memoriesCount = (m as any).total ?? ((m as any).memories?.length || 0);
       lessonsCount = (l as any).total ?? ((l as any).lessons?.length || 0);
       pipeline = p;
+
+      // Atualiza histórico de calls/min: derivada finita entre polls.
+      // Se o backend reiniciou, calls cai pra zero — reseta o baseline
+      // sem registrar valor negativo.
+      const calls = pipeline?.usage?.calls ?? 0;
+      const now = Date.now();
+      if (lastCallsTimestamp > 0) {
+        const dt = (now - lastCallsTimestamp) / 60000; // minutos
+        const delta = calls - lastCalls;
+        if (delta >= 0 && dt > 0) {
+          callRateHistory = [...callRateHistory, delta / dt].slice(-SPARK_HISTORY);
+        } else {
+          // server restart ou contagem reset — limpa histórico
+          callRateHistory = [];
+        }
+      }
+      lastCalls = calls;
+      lastCallsTimestamp = now;
     } catch (e) {
       console.error('Dashboard refresh error:', e);
     }
@@ -50,13 +77,51 @@
       'memory.consolidate': 'Last consolidate',
       'session.summarize': 'Last summarize',
       'action.extract': 'Last action extract',
+      'graph.extract': 'Last graph extract',
       'reflect': 'Last reflect',
     } as Record<string,string>)[k] || k;
   }
 
+  // Health derivado: combina backlog + failures + última observação pra
+  // dar um sinal único acionável. Usado no badge ao lado do título.
+  let pipelineHealth = $derived.by(() => {
+    if (!pipeline) return { level: 'unknown', label: '—', reason: '' };
+    const backlog = pipeline.backlog || 0;
+    const failures = pipeline.usage?.failures || 0;
+    const calls = pipeline.usage?.calls || 0;
+    // Failures sem nenhuma call de sucesso = circuit provavelmente aberto.
+    if (failures > 0 && calls === 0) {
+      return { level: 'error', label: 'STALLED', reason: 'todos providers falhando' };
+    }
+    // Backlog grande sugere worker atrás. Threshold 50 é arbitrário mas
+    // capta o caso real que vimos nesta sessão (259 obs travadas).
+    if (backlog > 50) {
+      return { level: 'warning', label: 'BACKLOG', reason: `${backlog} obs aguardando` };
+    }
+    // Última observação muito antiga sugere captura parada (hooks?).
+    const lastObs = pipeline.lastByAction?.['observation.create'];
+    if (lastObs) {
+      const ageMs = Date.now() - new Date(lastObs).getTime();
+      if (ageMs > 30 * 60 * 1000 && pipeline.activeSessions > 0) {
+        return { level: 'warning', label: 'IDLE', reason: 'sem observações em 30+ min' };
+      }
+    }
+    return { level: 'ok', label: 'HEALTHY', reason: '' };
+  });
+
+  // Taxa de calls aproximada desde boot — usa uptime do health.
+  let callRate = $derived.by(() => {
+    if (!pipeline?.usage?.calls || !health?.uptimeSeconds) return null;
+    const minutes = health.uptimeSeconds / 60;
+    if (minutes < 0.5) return null;
+    return (pipeline.usage.calls / minutes).toFixed(1);
+  });
+
   onMount(() => {
     refresh();
-    stopPoll = createPoller(refresh, 30000);
+    // Pipeline status é barato (~5ms) e a métrica mais informativa do app;
+    // 8s entrega responsividade sem custo perceptível.
+    stopPoll = createPoller(refresh, 8000);
   });
   onDestroy(() => stopPoll?.());
 
@@ -207,7 +272,26 @@
 
   <!-- Pipeline status -->
   <div class="section-block">
-    <h3 class="section-heading">Pipeline</h3>
+    <div class="pipeline-heading-row">
+      <h3 class="section-heading" style="margin-bottom:0">Pipeline</h3>
+      {#if pipeline}
+        <span class="pipeline-health-badge" data-level={pipelineHealth.level}>
+          <span class="pipeline-health-dot"></span>
+          {pipelineHealth.label}
+          {#if pipelineHealth.reason}
+            <span class="pipeline-health-reason">— {pipelineHealth.reason}</span>
+          {/if}
+        </span>
+        {#if callRate}
+          <span class="pipeline-rate mono">
+            {#if callRateHistory.length >= 2}
+              <span class="pipeline-spark"><Sparkline values={callRateHistory} width={80} height={18} color="var(--accent)" fill={true} /></span>
+            {/if}
+            {callRate} calls/min
+          </span>
+        {/if}
+      {/if}
+    </div>
     {#if pipeline}
       <div class="pipeline-grid">
         <div class="pipeline-stat">
@@ -637,4 +721,57 @@
   }
   .pipeline-usage-val { color: var(--text-secondary); }
   .pipeline-usage-fail { color: var(--danger, #ef4444); }
+
+  /* Pipeline health header: status + rate na mesma linha do título.
+     O badge muda de cor conforme o sinal derivado (ok/warning/error) e
+     virou a primeira coisa que o usuário olha pra saber se o pipeline
+     está vivo, em vez de ter que abrir o terminal e tail no log. */
+  .pipeline-heading-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .pipeline-health-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .pipeline-health-badge[data-level="ok"] { color: #22c55e; border-color: rgba(34,197,94,0.4); background: rgba(34,197,94,0.08); }
+  .pipeline-health-badge[data-level="warning"] { color: #eab308; border-color: rgba(234,179,8,0.4); background: rgba(234,179,8,0.08); }
+  .pipeline-health-badge[data-level="error"] { color: #ef4444; border-color: rgba(239,68,68,0.4); background: rgba(239,68,68,0.08); }
+  .pipeline-health-badge[data-level="unknown"] { color: var(--text-muted); }
+  .pipeline-health-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .pipeline-health-reason {
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0.02em;
+    opacity: 0.8;
+  }
+  .pipeline-rate {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pipeline-spark {
+    display: inline-flex;
+    align-items: center;
+    color: var(--accent);
+  }
 </style>

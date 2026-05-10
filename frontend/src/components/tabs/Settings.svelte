@@ -22,6 +22,8 @@
   let consolidationEnabled = $state(true);
   let contextTokenBudget = $state(2000);
   let pipelineIntervalMin = $state(5);
+  let decayMinStrength = $state(3);
+  let decayMaxAgeDays = $state(30);
 
   const anthropicModels = [
     'claude-haiku-4-5-20251001',
@@ -44,6 +46,7 @@
     const llm = s.llm || {};
     const search = s.search || {};
     const pipeline = s.pipeline || {};
+    const decay = s.decay || {};
 
     providerOrder = (llm.providerOrder || []).join(', ');
     anthropicModel = llm.anthropicModel || '';
@@ -57,6 +60,8 @@
     consolidationEnabled = pipeline.consolidationEnabled ?? true;
     contextTokenBudget = pipeline.contextTokenBudget ?? 2000;
     pipelineIntervalMin = pipeline.pipelineIntervalMin ?? 5;
+    decayMinStrength = decay.minStrength ?? 3;
+    decayMaxAgeDays = decay.maxAgeDays ?? 30;
   }
 
   async function save() {
@@ -76,6 +81,8 @@
         consolidationEnabled,
         contextTokenBudget,
         pipelineIntervalMin,
+        decayMinStrength,
+        decayMaxAgeDays,
       };
       if (anthropicApiKey && !anthropicApiKey.includes('...')) {
         body.anthropicApiKey = anthropicApiKey;
@@ -207,6 +214,31 @@
         <label class="field checkbox-field">
           <input type="checkbox" class="checkbox-input" bind:checked={consolidationEnabled} />
           <span class="checkbox-text">Enable memory consolidation</span>
+        </label>
+      </div>
+
+      <!-- Memory Decay -->
+      <div class="settings-section">
+        <div class="section-accent"></div>
+        <div class="section-label">Retention</div>
+        <h3 class="section-title">Memory Decay</h3>
+        <p class="section-hint">Controla quais memórias antigas viram archive. Subir thresholds preserva mais — desce os limites pra um pipeline mais agressivo.</p>
+
+        <label class="field">
+          <span class="field-label">Min Strength to Archive</span>
+          <div class="range-row">
+            <input type="range" class="range-input" min="0" max="10" step="1" bind:value={decayMinStrength} />
+            <span class="range-val mono">≤ {decayMinStrength}</span>
+          </div>
+          <span class="field-hint">Memórias com strength <em>até</em> esse valor podem ser arquivadas. 0 = nada nunca arquivado.</span>
+        </label>
+        <label class="field">
+          <span class="field-label">Min Age (days)</span>
+          <div class="range-row">
+            <input type="range" class="range-input" min="1" max="180" step="1" bind:value={decayMaxAgeDays} />
+            <span class="range-val mono">{decayMaxAgeDays}d</span>
+          </div>
+          <span class="field-hint">Idade mínima antes de uma memória fraca virar candidata. Sweep roda a cada 6h.</span>
         </label>
       </div>
     </div>

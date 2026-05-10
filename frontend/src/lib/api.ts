@@ -28,13 +28,23 @@ export const api = {
   countObservations: () => request<unknown>('GET', `/observations/count`),
 
   // Memories
-  listMemories: (type = '', limit = 50, offset = 0) => request<unknown>('GET', `/memories?type=${type}&limit=${limit}&offset=${offset}`),
+  listMemories: (type = '', limit = 50, offset = 0, before = '') => {
+    const qs = new URLSearchParams({ type, limit: String(limit), offset: String(offset) });
+    if (before) qs.set('before', before);
+    return request<unknown>('GET', `/memories?${qs.toString()}`);
+  },
   topConcepts: (limit = 20) => request<unknown>('GET', `/memories/concepts?limit=${limit}`),
   memoryHistory: (id: string) => request<unknown>('GET', `/memories/history?id=${encodeURIComponent(id)}`),
   memoryGraph: (topN = 200, minShared = 1) => request<unknown>('GET', `/memories/graph?topN=${topN}&minShared=${minShared}`),
   remember: (data: Record<string, unknown>) => request<unknown>('POST', '/remember', data),
   forget: (data: Record<string, unknown>) => request<unknown>('POST', '/forget', data),
   evolve: (data: Record<string, unknown>) => request<unknown>('POST', '/evolve', data),
+  pinMemory: (id: string, pinned: boolean) => request<unknown>('POST', '/memories/pin', { id, pinned }),
+  setMemoryConcepts: (id: string, concepts: string[]) => request<unknown>('POST', '/memories/concepts', { id, concepts }),
+  clusterSummary: (ids: string[]) => request<unknown>('POST', '/memories/cluster-summary', { ids }),
+
+  // Sessions
+  sessionTimeline: (id: string, limit = 500) => request<unknown>('GET', `/sessions/timeline?id=${encodeURIComponent(id)}&limit=${limit}`),
 
   // Search
   search: (query: string, limit = 20) => request<unknown>('POST', '/search', { query, limit }),

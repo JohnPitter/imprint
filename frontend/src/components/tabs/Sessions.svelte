@@ -16,6 +16,39 @@
   const limit = 30;
   let stopPoll: (() => void) | undefined;
 
+  // Timeline (C5): unifica observations + memories + actions da sessão
+  // selecionada num modal de "playback" cronológico.
+  let timelineOpen = $state(false);
+  let timelineEvents: any[] = $state([]);
+  let timelineLoading = $state(false);
+
+  async function openTimeline() {
+    if (!selected) return;
+    timelineOpen = true;
+    timelineLoading = true;
+    timelineEvents = [];
+    try {
+      const r: any = await api.sessionTimeline(getSessionId(selected), 500);
+      timelineEvents = r.events || [];
+    } catch (e: any) {
+      actionMessage = 'Erro ao carregar timeline: ' + (e?.message || e);
+    }
+    timelineLoading = false;
+  }
+  function closeTimeline() { timelineOpen = false; }
+
+  function timelineKindColor(kind: string): string {
+    switch (kind) {
+      case 'observation': return '#5ba3d9';
+      case 'memory':      return '#c8933a';
+      case 'action':      return '#34d399';
+      default:            return 'var(--text-muted)';
+    }
+  }
+  function timelineKindLabel(kind: string): string {
+    return ({ observation: 'OBS', memory: 'MEM', action: 'ACT' } as any)[kind] || kind.toUpperCase();
+  }
+
   function getSessionId(s: any): string {
     return s.ID || s.id || '';
   }
@@ -238,6 +271,7 @@
             <button class="ss-btn-outlined" onclick={summarizeSession} disabled={actionLoading === 'summarize'}>
               {actionLoading === 'summarize' ? 'Summarizing...' : 'Summarize'}
             </button>
+            <button class="ss-btn-outlined" onclick={openTimeline}>Playback</button>
           </div>
 
           {#if actionMessage}
@@ -317,6 +351,49 @@
           <p style="font-family:var(--font-ui);font-size:13px;color:var(--text-muted)">Select a session to view details</p>
         </div>
       {/if}
+    </div>
+  </div>
+{/if}
+
+<!-- Timeline Playback Modal (C5) -->
+{#if timelineOpen}
+  <div class="tl-backdrop" onclick={closeTimeline} role="presentation">
+    <div class="tl-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-label="Session playback" tabindex="-1">
+      <div class="tl-header">
+        <span class="tl-label">PLAYBACK</span>
+        <span class="tl-id mono">{selected ? getSessionId(selected) : ''}</span>
+        <span class="tl-count mono">{timelineEvents.length} events</span>
+        <button class="tl-close" onclick={closeTimeline} aria-label="Close">\u00D7</button>
+      </div>
+      <div class="tl-body">
+        {#if timelineLoading}
+          <div class="tl-loading">Loading timeline\u2026</div>
+        {:else if timelineEvents.length === 0}
+          <div class="tl-empty">No events recorded for this session.</div>
+        {:else}
+          <ol class="tl-list">
+            {#each timelineEvents as ev}
+              <li class="tl-event">
+                <div class="tl-rail">
+                  <span class="tl-dot" style="background:{timelineKindColor(ev.kind)}"></span>
+                </div>
+                <div class="tl-content">
+                  <div class="tl-content-head">
+                    <span class="tl-kind mono" style="color:{timelineKindColor(ev.kind)}">{timelineKindLabel(ev.kind)}</span>
+                    {#if ev.type}<span class="tl-type">{ev.type}</span>{/if}
+                    {#if ev.score}<span class="tl-score mono">{ev.kind === 'observation' ? 'i' : ev.kind === 'memory' ? '\u2605' : 'P'}{ev.score}</span>{/if}
+                    <span class="tl-time mono">{formatTimestamp(ev.timestamp)}</span>
+                  </div>
+                  <div class="tl-title">{ev.title}</div>
+                  {#if ev.subtitle}
+                    <div class="tl-subtitle">{truncate(ev.subtitle, 220)}</div>
+                  {/if}
+                </div>
+              </li>
+            {/each}
+          </ol>
+        {/if}
+      </div>
     </div>
   </div>
 {/if}
@@ -663,4 +740,111 @@
     flex-wrap: wrap;
     margin-top: 8px;
   }
+
+  /* Timeline modal — playback unificado de uma sessão (C5) */
+  .tl-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 24px;
+  }
+  .tl-modal {
+    background: var(--bg-card);
+    border: 1px solid var(--accent);
+    width: 100%;
+    max-width: 880px;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-lg);
+  }
+  .tl-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .tl-label {
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.12em;
+  }
+  .tl-id { font-size: 12px; color: var(--text-muted); }
+  .tl-count { font-size: 11px; color: var(--text-dim); margin-left: auto; }
+  .tl-close {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 24px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 4px;
+  }
+  .tl-close:hover { color: var(--text-primary); }
+  .tl-body { overflow-y: auto; padding: 12px 24px 24px; flex: 1; }
+  .tl-loading, .tl-empty {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 40px 0;
+    font-size: 13px;
+  }
+  .tl-list {
+    list-style: none;
+    margin: 0; padding: 0;
+    position: relative;
+  }
+  /* Linha vertical contínua à esquerda — visual de timeline. */
+  .tl-list::before {
+    content: '';
+    position: absolute;
+    left: 5px; top: 6px; bottom: 6px;
+    width: 1px;
+    background: var(--border);
+  }
+  .tl-event {
+    display: flex;
+    gap: 16px;
+    padding: 8px 0;
+    position: relative;
+  }
+  .tl-rail { flex-shrink: 0; width: 12px; padding-top: 6px; }
+  .tl-dot {
+    display: block;
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    border: 2px solid var(--bg-card);
+    box-shadow: 0 0 0 1px var(--border);
+  }
+  .tl-content { flex: 1; min-width: 0; padding: 4px 0; }
+  .tl-content-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 3px;
+    flex-wrap: wrap;
+  }
+  .tl-kind {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+  }
+  .tl-type {
+    font-family: var(--font-ui);
+    font-size: 9px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .tl-score { font-size: 10px; color: var(--accent); }
+  .tl-time { font-size: 10px; color: var(--text-muted); margin-left: auto; }
+  .tl-title { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
+  .tl-subtitle { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
 </style>

@@ -2,6 +2,8 @@
   import { onMount, onDestroy } from 'svelte';
   import { api } from '../../lib/api';
   import { createPoller } from '../../lib/poller';
+  import { getURLState, setURLState } from '../../lib/urlState';
+  import ConceptTag from '../ConceptTag.svelte';
 
   let lessons: any[] = $state([]);
   let insights: any[] = $state([]);
@@ -14,10 +16,29 @@
   let insightsOffset = $state(0);
   const limit = 30;
   let stopPoll: (() => void) | undefined;
+  // Filtros de tag ativos. Set pra toggle O(1) e suportar múltiplas
+  // tags simultâneas (lesson tem que ter TODAS as tags ativas pra passar).
+  let activeTagFilters: Set<string> = $state(new Set());
 
   onMount(() => {
+    // Hidrata do URL: ?q=foo&tags=auth,decay vira search + filter ativo.
+    const url = getURLState();
+    if (url.q) {
+      searchQuery = url.q;
+      // doSearch é async, mas loadAll abaixo cuida do fallback inicial.
+      // Nas próximas iterações o $effect reflete mudanças.
+      doSearch();
+    }
+    if (url.tags) {
+      activeTagFilters = new Set(url.tags.split(',').filter(Boolean));
+    }
     loadAll(true);
     stopPoll = createPoller(() => loadAll(false), 15000);
+  });
+
+  $effect(() => {
+    const tagsList = Array.from(activeTagFilters).join(',');
+    setURLState({ q: searching ? searchQuery : '', tags: tagsList });
   });
 
   onDestroy(() => {
@@ -119,6 +140,40 @@
     return Array.isArray(tags) ? tags : [];
   }
 
+  function toggleTagFilter(tag: string) {
+    if (activeTagFilters.has(tag)) activeTagFilters.delete(tag);
+    else activeTagFilters.add(tag);
+    activeTagFilters = new Set(activeTagFilters);
+    lessonsOffset = 0;
+  }
+  function clearTagFilters() {
+    activeTagFilters = new Set();
+    lessonsOffset = 0;
+  }
+
+  // Lista filtrada client-side. Backend já paginou por offset/limit;
+  // este filtro adicional reduz a página atual aos itens com TODAS as
+  // tags ativas. Comportamento "AND" é o esperado pra refinar busca.
+  let visibleLessons = $derived(
+    activeTagFilters.size === 0
+      ? lessons
+      : lessons.filter((l: any) => {
+          const tags = parseTags(l.tags);
+          for (const f of activeTagFilters) if (!tags.includes(f)) return false;
+          return true;
+        })
+  );
+
+  // Universo de tags na página atual, ordenado por frequência. Permite
+  // ao usuário ver "as tags em jogo" sem precisar abrir cada lesson.
+  let availableTags = $derived.by(() => {
+    const counts = new Map<string, number>();
+    for (const l of lessons) {
+      for (const t of parseTags(l.tags)) counts.set(t, (counts.get(t) || 0) + 1);
+    }
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).map(([t]) => t);
+  });
+
   // Lessons being dismissed: shown as "(dismissing…)" until the response
   // returns and the next poll removes them. Set, not array, for O(1) lookup.
   let dismissingIds: Set<string> = $state(new Set());
@@ -144,7 +199,7 @@
 </script>
 
 <div class="lessons-container">
-  <!-- Search -->
+  <!-- Search + tag filters -->
   <div class="search-row">
     <form onsubmit={(e) => { e.preventDefault(); doSearch(); }} class="search-form">
       <input
@@ -153,6 +208,17 @@
         placeholder="Search lessons..."
       />
     </form>
+    {#if availableTags.length > 0}
+      <div class="tag-filter-bar">
+        <span class="tag-filter-label">FILTER</span>
+        {#each availableTags.slice(0, 12) as t}
+          <ConceptTag label={t} active={activeTagFilters.has(t)} onClick={toggleTagFilter} />
+        {/each}
+        {#if activeTagFilters.size > 0}
+          <button class="tag-filter-clear" onclick={clearTagFilters}>clear</button>
+        {/if}
+      </div>
+    {/if}
   </div>
 
   {#if loading}
@@ -179,11 +245,13 @@
         </div>
 
         <div class="column-scroll">
-          {#if lessons.length === 0}
-            <div class="empty-state" style="padding:32px"><p>No lessons yet</p></div>
+          {#if visibleLessons.length === 0}
+            <div class="empty-state" style="padding:32px">
+              <p>{lessons.length === 0 ? 'No lessons yet' : 'No lessons match the active filters'}</p>
+            </div>
           {:else}
             <div class="lessons-list">
-              {#each lessons as l}
+              {#each visibleLessons as l}
                 <div class="lesson-card" class:lesson-card-dismissing={dismissingIds.has(l.id)}>
                   <p class="lesson-content">{l.content}</p>
                   <div class="lesson-meta">
@@ -201,7 +269,9 @@
                   </div>
                   {#if parseTags(l.tags).length > 0}
                     <div class="lesson-tags">
-                      {#each parseTags(l.tags) as t}<span class="tag-badge">{t}</span>{/each}
+                      {#each parseTags(l.tags) as t}
+                        <ConceptTag label={t} active={activeTagFilters.has(t)} onClick={toggleTagFilter} />
+                      {/each}
                     </div>
                   {/if}
                 </div>
@@ -272,13 +342,13 @@
                     {#if concepts.length > 0}
                       <div class="insight-tags">
                         <span class="insight-tags-label">CONCEPTS</span>
-                        {#each concepts as c}<span class="tag-badge">{c}</span>{/each}
+                        {#each concepts as c}<ConceptTag label={c} />{/each}
                       </div>
                     {/if}
                     {#if tags.length > 0}
                       <div class="insight-tags">
                         <span class="insight-tags-label">TAGS</span>
-                        {#each tags as t}<span class="tag-badge">{t}</span>{/each}
+                        {#each tags as t}<ConceptTag label={t} />{/each}
                       </div>
                     {/if}
                     {#if memIds.length > 0 || lessonIds.length > 0}
@@ -354,8 +424,39 @@
   }
 
   /* Search */
-  .search-row { margin-bottom: 28px; }
+  .search-row { margin-bottom: 20px; display: flex; flex-direction: column; gap: 12px; }
   .search-form { max-width: 400px; }
+
+  .tag-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+  .tag-filter-label {
+    font-family: var(--font-ui);
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-right: 4px;
+  }
+  .tag-filter-clear {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-muted);
+    font-family: var(--font-ui);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 8px;
+    cursor: pointer;
+    margin-left: 6px;
+  }
+  .tag-filter-clear:hover {
+    color: var(--accent);
+  }
   .search-input {
     font-family: var(--font-ui);
     font-size: 13px;
