@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { api } from '../../lib/api';
   import { createPoller } from '../../lib/poller';
+  import ConceptTag from '../ConceptTag.svelte';
 
   let canvasEl: HTMLCanvasElement = $state(undefined as any);
   let stats: any = $state(null);
@@ -11,20 +12,118 @@
   let hoveredNode: any = $state(null);
   let animFrame: number;
 
-  // Two views over the knowledge: "concepts" (the existing extracted graph
-  // with concept/file/decision/pattern nodes) vs "memories" (top-N latest
-  // memories with edges between those that share concepts).
-  let view: 'concepts' | 'memories' = $state('concepts');
+  // Cluster summary: cache local + debounce de 600ms no hover. Evita
+  // disparar Haiku na primeira fração de segundo que o cursor passa
+  // por cima — só pra hovers intencionais.
+  let clusterSummaries: Record<number, string> = $state({});
+  let clusterSummaryLoading = $state(false);
+  let clusterSummaryDebounce: ReturnType<typeof setTimeout> | null = null;
+  let hoveredCluster = $state(-1);
 
-  // Simulation space: fixed coords, camera maps to canvas
-  const SIM_W = 1200, SIM_H = 900;
+  // Calcula o cluster sob hover e dispara fetch debounced.
+  function trackClusterHover(node: any) {
+    const c = node ? node.community : -1;
+    if (c === hoveredCluster) return;
+    hoveredCluster = c;
+    if (clusterSummaryDebounce) { clearTimeout(clusterSummaryDebounce); clusterSummaryDebounce = null; }
+    if (c < 0 || clusterSummaries[c]) return;
+    clusterSummaryDebounce = setTimeout(() => fetchClusterSummary(c), 600);
+  }
+  async function fetchClusterSummary(c: number) {
+    if (clusterSummaries[c]) return;
+    const ids = nodes.filter(n => n.community === c).map(n => n.id);
+    if (ids.length < 2) return;
+    clusterSummaryLoading = true;
+    try {
+      const r = await api.clusterSummary(ids) as any;
+      if (r?.summary) clusterSummaries = { ...clusterSummaries, [c]: r.summary };
+    } catch (e) {
+      // 503 (sem LLM) é ok — fica sem summary, sem alarme.
+    }
+    clusterSummaryLoading = false;
+  }
+
+  // Memory graph view: top-N latest memories with edges between those
+  // that share concepts. The legacy "concepts" view depended on backend
+  // entity extraction that ran only on session-end and was removed for
+  // simplicity.
+
+  // Simulation space cresce proporcional a sqrt(N) pra manter densidade
+  // visual constante (ver buildSimulation).
+  let SIM_W = $state(1600);
+  let SIM_H = $state(1200);
 
   interface SimNode {
     id: string; type: string; name: string;
     x: number; y: number; vx: number; vy: number;
     edges: number; radius: number;
+    community: number;  // label propagation result; índice do cluster
+    concepts: string[];
   }
   interface SimEdge { source: number; target: number; type: string; }
+
+  // Paleta de cores por community. Saturação intermediária pra funcionar
+  // como halo translúcido no light e dark theme.
+  const communityPalette = [
+    '#e8a065', '#5ba3d9', '#4ecdc4', '#a78bfa',
+    '#f472b6', '#34d399', '#eab308', '#38bdf8',
+    '#8b5cf6', '#fb923c', '#22c55e', '#ef4444',
+  ];
+
+  // Label Propagation: cada node começa em sua própria comunidade,
+  // depois adota a comunidade mais frequente entre vizinhos. Em ~5 iters
+  // converge pra grafos pequenos. O(N×degree×iters), sem alocação no loop.
+  function detectCommunities(simNodes: SimNode[], simEdges: SimEdge[], iters = 5) {
+    const n = simNodes.length;
+    if (n === 0) return;
+    // Adjacency list compacta
+    const adj: number[][] = Array.from({ length: n }, () => []);
+    for (const e of simEdges) {
+      adj[e.source].push(e.target);
+      adj[e.target].push(e.source);
+    }
+    // Init: cada node = sua própria comunidade
+    for (let i = 0; i < n; i++) simNodes[i].community = i;
+    // Itera ordem aleatória pra evitar bias topológico
+    const order = Array.from({ length: n }, (_, i) => i);
+    for (let it = 0; it < iters; it++) {
+      // Fisher-Yates shuffle
+      for (let i = n - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [order[i], order[j]] = [order[j], order[i]];
+      }
+      let changed = false;
+      for (const i of order) {
+        const neighbors = adj[i];
+        if (neighbors.length === 0) continue;
+        // Vota: quem é a comunidade mais comum entre vizinhos?
+        const counts = new Map<number, number>();
+        for (const j of neighbors) {
+          const c = simNodes[j].community;
+          counts.set(c, (counts.get(c) || 0) + 1);
+        }
+        // Pega o max — empate quebra escolhendo o menor índice (estável)
+        let best = simNodes[i].community;
+        let bestCount = -1;
+        for (const [c, cnt] of counts) {
+          if (cnt > bestCount || (cnt === bestCount && c < best)) {
+            best = c; bestCount = cnt;
+          }
+        }
+        if (best !== simNodes[i].community) {
+          simNodes[i].community = best;
+          changed = true;
+        }
+      }
+      if (!changed) break; // convergiu
+    }
+    // Re-densifica IDs de community: 0..K-1 pra mapear na paleta
+    const remap = new Map<number, number>();
+    for (const node of simNodes) {
+      if (!remap.has(node.community)) remap.set(node.community, remap.size);
+      node.community = remap.get(node.community)!;
+    }
+  }
 
   let nodes: SimNode[] = $state([]);
   let edges: SimEdge[] = $state([]);
@@ -34,6 +133,9 @@
   let dragStartX = 0, dragStartY = 0;
   let panStartX = 0, panStartY = 0;
   let stopPoll: (() => void) | undefined;
+  // Estado da câmera, escrito por draw() e lido por getSimCoords()
+  // pra hit-test usar exatamente a mesma transform do desenho.
+  let cam: { fitScale: number; bboxCx: number; bboxCy: number } = { fitScale: 1, bboxCx: 0, bboxCy: 0 };
 
   const typeColors: Record<string, string> = {
     // Knowledge graph types
@@ -60,160 +162,178 @@
 
   async function refresh(initial: boolean) {
     try {
-      if (view === 'concepts') {
-        const [s, g] = await Promise.all([api.graphStats(), api.graphAll()]) as any[];
-        const newNodeCount = s?.totalNodes || 0;
-        const newEdgeCount = s?.totalEdges || 0;
-        const structureChanged = newNodeCount !== nodeCount || newEdgeCount !== edgeCount;
-        stats = s;
-        nodeCount = newNodeCount;
-        edgeCount = newEdgeCount;
-        if ((initial || structureChanged) && g?.nodes?.length > 0) {
-          buildSimulation(g.nodes, g.edges || [], 'concepts');
-          startSimulation();
-        }
-      } else {
-        const g = await api.memoryGraph(200, 1) as any;
-        const newNodeCount = g?.nodes?.length || 0;
-        const newEdgeCount = g?.edges?.length || 0;
-        const structureChanged = newNodeCount !== nodeCount || newEdgeCount !== edgeCount;
-        // Synthesize a "stats" payload so the breakdown panel has something.
-        const byType: Record<string, number> = {};
-        for (const n of (g?.nodes || [])) byType[n.type || 'other'] = (byType[n.type || 'other'] || 0) + 1;
-        stats = {
-          totalNodes: newNodeCount,
-          totalEdges: newEdgeCount,
-          nodesByType: byType,
-        };
-        nodeCount = newNodeCount;
-        edgeCount = newEdgeCount;
-        if ((initial || structureChanged) && newNodeCount > 0) {
-          buildSimulation(g.nodes, g.edges || [], 'memories');
-          startSimulation();
-        }
+      const g = await api.memoryGraph(200, 1) as any;
+      const newNodeCount = g?.nodes?.length || 0;
+      const newEdgeCount = g?.edges?.length || 0;
+      const structureChanged = newNodeCount !== nodeCount || newEdgeCount !== edgeCount;
+      const byType: Record<string, number> = {};
+      for (const n of (g?.nodes || [])) byType[n.type || 'other'] = (byType[n.type || 'other'] || 0) + 1;
+      stats = {
+        totalNodes: newNodeCount,
+        totalEdges: newEdgeCount,
+        nodesByType: byType,
+      };
+      nodeCount = newNodeCount;
+      edgeCount = newEdgeCount;
+      if ((initial || structureChanged) && newNodeCount > 0) {
+        buildSimulation(g.nodes, g.edges || []);
+        startSimulation();
       }
     } catch (e) { console.error(e); }
     if (initial) loading = false;
   }
 
-  async function setView(v: 'concepts' | 'memories') {
-    if (v === view) return;
-    view = v;
-    // Force a structural rebuild on switch.
-    nodeCount = -1;
-    edgeCount = -1;
-    loading = true;
-    if (animFrame) cancelAnimationFrame(animFrame);
-    await refresh(true);
-  }
-
-  function buildSimulation(rawNodes: any[], rawEdges: any[], mode: 'concepts' | 'memories') {
+  function buildSimulation(rawNodes: any[], rawEdges: any[]) {
     const nodeMap = new Map<string, number>();
 
-    // Each view names its source/target keys differently. Memory edges
-    // also carry a numeric weight that we factor into the bond strength.
-    const sourceKey = mode === 'memories' ? 'source' : 'sourceNodeId';
-    const targetKey = mode === 'memories' ? 'target' : 'targetNodeId';
-    const altSrc = mode === 'memories' ? 'Source' : 'SourceNodeID';
-    const altTgt = mode === 'memories' ? 'Target' : 'TargetNodeID';
-
+    // Memory edges trazem source/target + um peso numérico opcional.
     const edgeCounts = new Map<string, number>();
     for (const e of rawEdges) {
-      const s = e[sourceKey] || e[altSrc] || '';
-      const t = e[targetKey] || e[altTgt] || '';
+      const s = e.source || e.Source || '';
+      const t = e.target || e.Target || '';
       edgeCounts.set(s, (edgeCounts.get(s) || 0) + 1);
       edgeCounts.set(t, (edgeCounts.get(t) || 0) + 1);
     }
 
-    // Start nodes in a circle in the middle of sim space
+    // Sim space cresce com sqrt(N) pra manter a densidade visual constante
+    // entre 20 nodes e 200+. Sem isso o grafo apertava num bloco denso.
+    const N = Math.max(1, rawNodes.length);
+    const sqrtN = Math.sqrt(N);
+    SIM_W = Math.max(1200, Math.round(140 * sqrtN));
+    SIM_H = Math.max(900, Math.round(105 * sqrtN));
+
+    // Distribuição inicial: spread radial aleatório (não círculo perfeito),
+    // ocupando ~70% do raio do sim space pra a física ter espaço de trabalho.
     const cx = SIM_W / 2, cy = SIM_H / 2;
+    const spread = Math.min(SIM_W, SIM_H) * 0.35;
     nodes = rawNodes.map((n: any, i: number) => {
       const id = n.id || n.ID || '';
       nodeMap.set(id, i);
       const ec = edgeCounts.get(id) || 0;
-      const angle = (i / rawNodes.length) * Math.PI * 2;
-      const r = 80 + Math.random() * 120;
-      // In memories view we have a 'title' instead of 'name'; both are useful.
       const label = n.title || n.Title || n.name || n.Name || id;
-      // In memories view, scale node radius by strength too — strong memories
-      // are visually heavier.
       const strength = n.strength ?? n.Strength ?? 0;
-      const baseRadius = mode === 'memories'
-        ? Math.max(4, Math.min(20, 4 + ec * 0.6 + strength * 0.8))
-        : Math.max(4, Math.min(18, 4 + ec * 1.8));
+      const baseRadius = Math.max(4, Math.min(20, 4 + ec * 0.6 + strength * 0.8));
+      // Polar com r aleatório uniforme em área (sqrt) e ângulo livre.
+      const angle = Math.random() * Math.PI * 2;
+      const rr = spread * Math.sqrt(Math.random());
+      // Concepts vêm como string JSON ou array — normaliza pra string[].
+      const rawConcepts = n.concepts ?? n.Concepts ?? [];
+      let conceptList: string[] = [];
+      if (Array.isArray(rawConcepts)) {
+        conceptList = rawConcepts.filter((s: any) => typeof s === 'string');
+      } else if (typeof rawConcepts === 'string') {
+        try { const p = JSON.parse(rawConcepts); if (Array.isArray(p)) conceptList = p; } catch { /* ignore */ }
+      }
       return {
         id, type: n.type || n.Type || 'other', name: label,
-        x: cx + Math.cos(angle) * r,
-        y: cy + Math.sin(angle) * r,
+        x: cx + Math.cos(angle) * rr,
+        y: cy + Math.sin(angle) * rr,
         vx: (Math.random() - 0.5) * 0.5,
         vy: (Math.random() - 0.5) * 0.5,
         edges: ec,
         radius: baseRadius,
+        community: 0,
+        concepts: conceptList,
       };
     });
 
     edges = [];
     for (const e of rawEdges) {
-      const si = nodeMap.get(e[sourceKey] || e[altSrc] || '');
-      const ti = nodeMap.get(e[targetKey] || e[altTgt] || '');
+      const si = nodeMap.get(e.source || e.Source || '');
+      const ti = nodeMap.get(e.target || e.Target || '');
       if (si !== undefined && ti !== undefined) {
         edges.push({
           source: si,
           target: ti,
-          type: mode === 'memories' ? `weight:${e.weight ?? 1}` : (e.type || e.Type || ''),
+          type: `weight:${e.weight ?? 1}`,
         });
       }
     }
+
+    // Detecta comunidades (label propagation, ~5 iters) — barato pra
+    // 200 nodes/220 edges, roda 1× por buildSimulation. O resultado
+    // colore o glow do node no draw().
+    detectCommunities(nodes, edges);
   }
 
-  // Stop the simulation when total kinetic energy falls below this threshold
-  // (settled layout) — saves browser cycles instead of running 500 fixed iters.
-  const ENERGY_FLOOR = 0.05;
-  // Hard cap so a chaotic layout cannot loop forever.
-  const MAX_ITERS = 500;
+  // Múltiplos sim-steps por frame de RAF: comprime a convergência sem
+  // bloquear o thread principal. STEPS_PER_FRAME=4 entrega ~480 iters em
+  // ~2s a 60fps, com a UI 100% responsiva entre frames.
+  const STEPS_PER_FRAME = 4;
+  const MAX_ITERS = 480;
+  const WARMUP_ITERS = 160;
+
+  // Um único passo da simulação. Não desenha nem agenda RAF — o caller
+  // decide se roda em laço síncrono (pre-warm) ou em RAF (polish).
+  function simStep(iter: number, params: { repBase: number; att: number; grav: number; totalIters: number }): number {
+    const n = nodes.length;
+    // Simulated annealing: damp varia de 0.96 (warm) até 0.86 (cool).
+    // Warm permite que nodes voem pra longe e descubram o layout global;
+    // cool segura tudo no fim pra estabilizar sem oscilação.
+    const t = Math.min(1, iter / params.totalIters);
+    const damp = 0.96 - 0.10 * t;
+    const cx = SIM_W / 2, cy = SIM_H / 2;
+
+    for (let i = 0; i < n; i++) {
+      const a = nodes[i];
+      for (let j = i + 1; j < n; j++) {
+        const b = nodes[j];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const d2 = dx*dx + dy*dy;
+        if (d2 < 1) continue;
+        const d = Math.sqrt(d2);
+        const f = params.repBase / d2;
+        const fx = (dx/d)*f, fy = (dy/d)*f;
+        a.vx -= fx; a.vy -= fy;
+        b.vx += fx; b.vy += fy;
+      }
+    }
+    for (const e of edges) {
+      const s = nodes[e.source], t2 = nodes[e.target];
+      const dx = t2.x - s.x, dy = t2.y - s.y;
+      const d = Math.max(1, Math.sqrt(dx*dx + dy*dy));
+      const f = d * params.att;
+      const fx = (dx/d)*f, fy = (dy/d)*f;
+      s.vx += fx; s.vy += fy; t2.vx -= fx; t2.vy -= fy;
+    }
+    let energy = 0;
+    for (const node of nodes) {
+      node.vx += (cx - node.x) * params.grav;
+      node.vy += (cy - node.y) * params.grav;
+      node.vx *= damp; node.vy *= damp;
+      node.x += node.vx; node.y += node.vy;
+      energy += node.vx * node.vx + node.vy * node.vy;
+    }
+    return energy;
+  }
 
   function startSimulation() {
+    const n = nodes.length;
+    // Repulsão cresce com N pra manter espaçamento médio entre vizinhos
+    // proporcional ao tamanho do canvas. Atração e gravidade são
+    // calibradas pra deixar a estrutura orgânica sem colapsar no centro.
+    const params = {
+      repBase: 14000 + n * 30,
+      att: 0.0018,
+      grav: 0.0006,
+      totalIters: MAX_ITERS,
+    };
+    const energyFloor = Math.max(0.04, 0.4 / Math.sqrt(Math.max(1, n)));
+
     let iter = 0;
     function tick() {
-      iter++;
-      const rep = 2000, att = 0.003, damp = 0.87, grav = 0.003;
-      const cx = SIM_W / 2, cy = SIM_H / 2;
-      const n = nodes.length;
-      for (let i = 0; i < n; i++) {
-        const a = nodes[i];
-        for (let j = i + 1; j < n; j++) {
-          const b = nodes[j];
-          const dx = b.x - a.x, dy = b.y - a.y;
-          const d2 = dx*dx + dy*dy;
-          if (d2 < 1) continue;
-          const d = Math.sqrt(d2);
-          const f = rep / d2;
-          const fx = (dx/d)*f, fy = (dy/d)*f;
-          a.vx -= fx; a.vy -= fy;
-          b.vx += fx; b.vy += fy;
-        }
-      }
-      for (const e of edges) {
-        const s = nodes[e.source], t = nodes[e.target];
-        const dx = t.x - s.x, dy = t.y - s.y;
-        const d = Math.max(1, Math.sqrt(dx*dx + dy*dy));
-        const f = d * att;
-        const fx = (dx/d)*f, fy = (dy/d)*f;
-        s.vx += fx; s.vy += fy; t.vx -= fx; t.vy -= fy;
-      }
+      // Roda múltiplos passos de física por frame mas só desenha 1×.
+      // Cada frame ainda libera o thread entre RAF callbacks, então a UI
+      // continua responsiva (scroll, hover, cliques em outras abas).
       let energy = 0;
-      for (const node of nodes) {
-        node.vx += (cx - node.x) * grav; node.vy += (cy - node.y) * grav;
-        node.vx *= damp; node.vy *= damp;
-        node.x += node.vx; node.y += node.vy;
-        // Clamp to sim bounds
-        node.x = Math.max(node.radius, Math.min(SIM_W - node.radius, node.x));
-        node.y = Math.max(node.radius, Math.min(SIM_H - node.radius, node.y));
-        energy += node.vx * node.vx + node.vy * node.vy;
+      const remaining = MAX_ITERS - iter;
+      const steps = Math.min(STEPS_PER_FRAME, remaining);
+      for (let k = 0; k < steps; k++) {
+        iter++;
+        energy = simStep(iter, params);
       }
       draw();
-      // Early termination once the layout has settled, plus the hard cap.
-      const settled = iter > 60 && energy / Math.max(1, n) < ENERGY_FLOOR;
+      const settled = iter > WARMUP_ITERS && energy / Math.max(1, n) < energyFloor;
       if (!settled && iter < MAX_ITERS) {
         animFrame = requestAnimationFrame(tick);
       }
@@ -239,14 +359,41 @@
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, CW, CH);
 
-    // Camera: map sim space to canvas
-    ctx.save();
-    ctx.translate(panX + CW / 2 - (SIM_W / 2) * zoom, panY + CH / 2 - (SIM_H / 2) * zoom);
-    ctx.scale(zoom, zoom);
+    // Canvas API ignora CSS vars; lê o token de tema na hora do draw
+    // pra labels seguirem light/dark sem listener manual.
+    const labelColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--text-primary').trim() || '#f4f4f5';
 
-    // Edges — always visible
+    // Câmera: fit-to-bounds dinâmico. Sem o clamp na física, os nodes
+    // podem escapar do SIM_W/H original; precisamos calcular a bbox
+    // real a cada frame e mapeá-la pro canvas mantendo aspecto.
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const n of nodes) {
+      if (n.x < minX) minX = n.x;
+      if (n.y < minY) minY = n.y;
+      if (n.x > maxX) maxX = n.x;
+      if (n.y > maxY) maxY = n.y;
+    }
+    if (!isFinite(minX)) { minX = 0; minY = 0; maxX = SIM_W; maxY = SIM_H; }
+    const pad = 60;
+    const bboxW = Math.max(1, maxX - minX) + pad * 2;
+    const bboxH = Math.max(1, maxY - minY) + pad * 2;
+    const fitScale = Math.min(CW / bboxW, CH / bboxH);
+    const bboxCx = (minX + maxX) / 2;
+    const bboxCy = (minY + maxY) / 2;
+    // Persiste a câmera atual pra getSimCoords inverter exatamente esta
+    // mesma transform — single source of truth pra hover/click hit-test.
+    cam = { fitScale, bboxCx, bboxCy };
+
+    ctx.save();
+    ctx.translate(panX + CW / 2, panY + CH / 2);
+    ctx.scale(zoom * fitScale, zoom * fitScale);
+    ctx.translate(-bboxCx, -bboxCy);
+
+    // Edges — always visible. Opacidade calibrada pra contrastar
+    // tanto no fundo escuro quanto no light theme.
     ctx.lineWidth = 0.9;
-    ctx.strokeStyle = 'rgba(200,147,58,0.35)';
+    ctx.strokeStyle = 'rgba(200,147,58,0.55)';
     ctx.beginPath();
     for (const e of edges) {
       const s = nodes[e.source], t = nodes[e.target];
@@ -258,7 +405,7 @@
     if (hoveredNode) {
       const hi = nodes.indexOf(hoveredNode);
       ctx.lineWidth = 1.5;
-      ctx.strokeStyle = 'rgba(200,147,58,0.55)';
+      ctx.strokeStyle = 'rgba(200,147,58,0.85)';
       ctx.beginPath();
       for (const e of edges) {
         if (e.source === hi || e.target === hi) {
@@ -269,15 +416,18 @@
       ctx.stroke();
     }
 
-    // Nodes
+    // Nodes — core mantém cor do TIPO, glow ganha cor da COMUNIDADE.
+    // Resultado: o tipo continua identificável de relance, mas o halo
+    // revela "ilhas de conhecimento" relacionadas (cluster topológico).
     for (const n of nodes) {
       const color = getColor(n.type);
+      const communityColor = communityPalette[n.community % communityPalette.length];
       const hov = n === hoveredNode;
-      // Glow
+      // Glow tinto pela community
       if (n.radius > 5 || hov) {
         const g = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.radius * (hov ? 4 : 2.5));
-        g.addColorStop(0, color + (hov ? '50' : '20'));
-        g.addColorStop(1, color + '00');
+        g.addColorStop(0, communityColor + (hov ? '50' : '20'));
+        g.addColorStop(1, communityColor + '00');
         ctx.fillStyle = g;
         ctx.beginPath(); ctx.arc(n.x, n.y, n.radius * (hov ? 4 : 2.5), 0, Math.PI*2); ctx.fill();
       }
@@ -288,7 +438,7 @@
       ctx.globalAlpha = 1;
       // Label
       if (n.radius > 7 || hov) {
-        ctx.fillStyle = '#f4f4f5';
+        ctx.fillStyle = labelColor;
         ctx.font = `600 ${Math.max(9, n.radius * 0.85)}px Manrope, sans-serif`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
         ctx.fillText(n.name.slice(0, 22), n.x, n.y - n.radius - 4);
@@ -303,8 +453,13 @@
     if (!canvasEl) return [0, 0];
     const rect = canvasEl.getBoundingClientRect();
     const CW = canvasEl.clientWidth, CH = canvasEl.clientHeight;
-    const sx = (clientX - rect.left - panX - CW/2 + (SIM_W/2)*zoom) / zoom;
-    const sy = (clientY - rect.top - panY - CH/2 + (SIM_H/2)*zoom) / zoom;
+    // Inverte a transform aplicada em draw():
+    //   ctx.translate(panX + CW/2, panY + CH/2)
+    //   ctx.scale(zoom * fitScale)
+    //   ctx.translate(-bboxCx, -bboxCy)
+    const k = zoom * cam.fitScale;
+    const sx = (clientX - rect.left - panX - CW/2) / k + cam.bboxCx;
+    const sy = (clientY - rect.top  - panY - CH/2) / k + cam.bboxCy;
     return [sx, sy];
   }
 
@@ -336,7 +491,10 @@
     }
     if (canvasEl) canvasEl.style.cursor = hoveredNode ? 'pointer' : 'grab';
     // Only redraw if hover state actually changed.
-    if (prev !== hoveredNode) scheduleDraw();
+    if (prev !== hoveredNode) {
+      scheduleDraw();
+      trackClusterHover(hoveredNode);
+    }
   }
 
   function onMouseDown(e: MouseEvent) {
@@ -378,10 +536,6 @@
       <h3>Knowledge Graph</h3>
     </div>
     <div class="graph-controls">
-      <div class="view-toggle">
-        <button class="view-btn" class:active={view === 'concepts'} onclick={() => setView('concepts')}>Concepts</button>
-        <button class="view-btn" class:active={view === 'memories'} onclick={() => setView('memories')}>Memories</button>
-      </div>
       <span class="stat-mini mono">{nodeCount} nodes · {edgeCount} edges</span>
       <button class="btn" onclick={resetView}>Reset</button>
       <button class="btn btn-icon" onclick={toggleFullscreen} title={fullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}>
@@ -412,6 +566,22 @@
           <span style="color:{getColor(hoveredNode.type)};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em">{hoveredNode.type}</span>
           <span style="font-size:14px;font-weight:600;color:var(--text-primary)">{hoveredNode.name}</span>
           <span style="font-size:11px;color:var(--text-muted)">{hoveredNode.edges} connections</span>
+          {#if hoveredNode.concepts && hoveredNode.concepts.length > 0}
+            <div class="tooltip-tags">
+              {#each hoveredNode.concepts.slice(0, 8) as c}<ConceptTag label={c} />{/each}
+            </div>
+          {/if}
+          {#if hoveredCluster >= 0 && clusterSummaries[hoveredCluster]}
+            <div class="tooltip-cluster">
+              <span class="tooltip-cluster-label">CLUSTER</span>
+              <span class="tooltip-cluster-text">{clusterSummaries[hoveredCluster]}</span>
+            </div>
+          {:else if hoveredCluster >= 0 && clusterSummaryLoading}
+            <div class="tooltip-cluster">
+              <span class="tooltip-cluster-label">CLUSTER</span>
+              <span class="tooltip-cluster-text" style="opacity:0.6">resumindo…</span>
+            </div>
+          {/if}
         </div>
       {/if}
     </div>
@@ -461,33 +631,12 @@
   .graph-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; }
   .graph-header h3 { font-family:var(--font-display); font-size:16px; font-weight:600; }
   .graph-controls { display:flex; align-items:center; gap:12px; }
-  .view-toggle {
-    display: inline-flex;
-    border: 1px solid var(--border);
-  }
-  .view-btn {
-    background: transparent;
-    border: none;
-    border-right: 1px solid var(--border);
-    padding: 5px 12px;
-    font-family: var(--font-ui);
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: all 0.15s var(--ease);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
-  .view-btn:last-child { border-right: none; }
-  .view-btn:hover:not(.active) { color: var(--text-primary); background: var(--bg-hover); }
-  .view-btn.active { color: var(--accent); background: var(--accent-muted); }
   .stat-mini { font-size:11px; color:var(--text-muted); }
   .btn-icon { padding:6px 10px; font-size:16px; }
 
   .canvas-wrapper {
     position:relative;
-    background:#030303;
+    background:var(--bg-card);
     border:1px solid var(--border);
     margin-bottom:14px;
     height: 480px;
@@ -503,7 +652,7 @@
     position: fixed;
     inset: 0;
     z-index: 1000;
-    background: #030303;
+    background: var(--bg-primary);
     padding: 16px;
     overflow-y: auto;
     display: flex;
@@ -517,7 +666,40 @@
   .canvas-shell { width:100%; height:480px; min-height:320px; background:var(--bg-card); border:1px solid var(--border); animation:pulse 1.5s ease-in-out infinite; }
   @keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:.6} }
 
-  .tooltip { position:absolute; top:12px; left:12px; background:rgba(3,3,3,.9); border:1px solid var(--accent); padding:10px 16px; display:flex; flex-direction:column; gap:3px; pointer-events:none; }
+  .tooltip {
+    position: absolute;
+    top: 12px; left: 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--accent);
+    padding: 10px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    pointer-events: none;
+    box-shadow: var(--shadow);
+    max-width: 360px;
+  }
+  .tooltip-tags { display: flex; flex-wrap: wrap; gap: 4px; max-width: 320px; margin-top: 4px; }
+  .tooltip-cluster {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 4px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+  }
+  .tooltip-cluster-label {
+    font-family: var(--font-ui);
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.12em;
+  }
+  .tooltip-cluster-text {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-style: italic;
+  }
 
   .legend { display:flex; flex-wrap:wrap; gap:14px; margin-bottom:14px; padding:10px 14px; background:var(--bg-card); border:1px solid var(--border); }
   .legend-item { display:flex; align-items:center; gap:6px; font-size:10px; color:var(--text-muted); font-family:var(--font-ui); text-transform:uppercase; letter-spacing:.06em; }
