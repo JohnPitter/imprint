@@ -110,6 +110,7 @@ func main() {
 	contextSvc := service.NewContextService(container, cfg.ContextTokenBudget)
 	contextSvc.SetDataDir(cfg.DataDir)
 	sessionSvc := service.NewSessionService(container, contextSvc)
+	sessionTracker := service.NewSessionTracker()
 	observeSvc := service.NewObserveService(container, cfg.MaxObservationsPerSession, cfg.ToolOutputMaxLen)
 	observeSvc.SetCompressor(worker) // auto-compress observations in background
 	rememberSvc := service.NewRememberService(container)
@@ -140,7 +141,7 @@ func main() {
 
 	// Create handlers
 	deps := &server.RouterDeps{
-		Sessions:     handler.NewSessionHandler(sessionSvc, container),
+		Sessions:     handler.NewSessionHandler(sessionSvc, container, sessionTracker),
 		Observations: handler.NewObservationHandler(observeSvc),
 		Memories:     handler.NewMemoryHandler(rememberSvc, llmProvider),
 		Search:       handler.NewSearchHandler(searchSvc, contextSvc, container.Eval),
@@ -161,7 +162,7 @@ func main() {
 	log.Printf("[app] Imprint running on http://localhost:%d", cfg.Port)
 
 	// Start background pipeline scheduler
-	scheduler := service.NewScheduler(pipelineSvc, sessionSvc, cfg, cfg.PipelineIntervalMin)
+	scheduler := service.NewScheduler(pipelineSvc, sessionSvc, sessionTracker, cfg, cfg.PipelineIntervalMin)
 	scheduler.Start()
 
 	// Wait for interrupt signal
