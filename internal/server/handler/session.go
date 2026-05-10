@@ -8,6 +8,7 @@ import (
 
 	"imprint/internal/service"
 	"imprint/internal/store"
+	"imprint/internal/types"
 )
 
 // SessionHandler holds HTTP handlers for session endpoints.
@@ -58,6 +59,11 @@ func (h *SessionHandler) HandleStart(w http.ResponseWriter, r *http.Request) {
 // pra que o scheduler saiba quando a sessão ficou idle e disparar finalize.
 // Why: o hook SessionEnd do Claude Code não dispara consistentemente no /exit,
 // então usamos ausência de heartbeat como proxy de "sessão terminou".
+//
+// Resurrection: se a sessão já foi finalizada (status='completed') mas o
+// usuário voltou a interagir (ex: largou a janela aberta >5min jogando
+// Valorant, voltou e fez pergunta nova), re-marcamos como active. O audit
+// log retém o session.end original; session.reactivate é registrado.
 func (h *SessionHandler) HandleHeartbeat(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		SessionID string `json:"sessionId"`
@@ -69,6 +75,16 @@ func (h *SessionHandler) HandleHeartbeat(w http.ResponseWriter, r *http.Request)
 	if req.SessionID == "" {
 		writeError(w, http.StatusBadRequest, "sessionId is required")
 		return
+	}
+
+	// Ressuscita se a sessão foi finalizada mas continua viva no Claude Code.
+	// Falha de GetByID (sessão nunca criada) é benigna — o heartbeat ainda
+	// alimenta o tracker e o sweep de idle vai limpá-la depois.
+	if sess, err := h.svc.GetByID(req.SessionID); err == nil && sess.Status == types.SessionCompleted {
+		if err := h.svc.Reactivate(req.SessionID); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 	}
 
 	if h.tracker != nil {
