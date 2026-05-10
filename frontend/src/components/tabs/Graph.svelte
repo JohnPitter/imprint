@@ -12,6 +12,20 @@
   let hoveredNode: any = $state(null);
   let animFrame: number;
 
+  // Hover ripple: ao entrar num node, marca timestamp. O draw() usa pra
+  // animar um anel expansivo + fade durante RIPPLE_MS milissegundos.
+  let hoverRippleAt = 0;
+  const RIPPLE_MS = 700;
+
+  // Synaptic pulses: partículas viajando ao longo das edges (visual de
+  // "neurônio firing"). Cada pulse atravessa a edge em PULSE_DURATION_MS,
+  // depois é removido. Pool de array é mutado in-place pra evitar GC.
+  interface Pulse { eIdx: number; t0: number; reverse: boolean; color: string; }
+  let pulses: Pulse[] = [];
+  const PULSE_DURATION_MS = 800;
+  const AMBIENT_PULSE_INTERVAL_MS = 250; // ~4 pulsos/s em idle
+  let lastAmbientPulseAt = 0;
+
   // Cluster summary: cache local + debounce de 600ms no hover. Evita
   // disparar Haiku na primeira fração de segundo que o cursor passa
   // por cima — só pra hovers intencionais.
@@ -336,9 +350,112 @@
       const settled = iter > WARMUP_ITERS && energy / Math.max(1, n) < energyFloor;
       if (!settled && iter < MAX_ITERS) {
         animFrame = requestAnimationFrame(tick);
+      } else {
+        // Convergiu: transitiona pra idle animation perpétua.
+        // O grafo nunca "morre" — fica respirando enquanto visível.
+        startIdleAnimation();
       }
     }
     animFrame = requestAnimationFrame(tick);
+  }
+
+  // Idle animation: rodando indefinidamente após convergência da física.
+  // Adiciona ruído mínimo nas velocidades + damp alto pra criar a sensação
+  // de "respiração" — nodes flutuam suavemente sem nunca perderem a
+  // posição relativa. O draw() ainda anima pulse + ripple via timestamp.
+  // Suspende automaticamente quando a aba do browser fica invisível pra
+  // não queimar CPU à toa.
+  function startIdleAnimation() {
+    if (animFrame) cancelAnimationFrame(animFrame);
+    let lastFrameTs = 0;
+    function idleTick(ts: number) {
+      if (document.visibilityState !== 'visible') {
+        // Aba escondida: pausa, RAF continua acordando mas não trabalha.
+        animFrame = requestAnimationFrame(idleTick);
+        return;
+      }
+      // Throttle a 30fps — animações sutis não precisam de 60. Reduz CPU
+      // pela metade e visualmente é indistinguível pra esse tipo de efeito.
+      if (ts - lastFrameTs < 33) {
+        animFrame = requestAnimationFrame(idleTick);
+        return;
+      }
+      lastFrameTs = ts;
+      idleStep();
+      // Spawn ambient pulses em ritmo controlado. Throttled por
+      // AMBIENT_PULSE_INTERVAL_MS pra não acumular se framerate variar.
+      if (ts - lastAmbientPulseAt >= AMBIENT_PULSE_INTERVAL_MS) {
+        spawnAmbientPulse(ts);
+        lastAmbientPulseAt = ts;
+      }
+      reapPulses(ts);
+      draw();
+      animFrame = requestAnimationFrame(idleTick);
+    }
+    animFrame = requestAnimationFrame(idleTick);
+  }
+
+  // idleStep: O(N), barato. Cada node ganha um empurrão aleatório
+  // pequeno; damp 0.96 faz a energia decair sem nunca chegar a zero.
+  // Resultado visual: flutuação orgânica perpétua.
+  function idleStep() {
+    const noise = 0.04;
+    const damp = 0.96;
+    for (const node of nodes) {
+      node.vx += (Math.random() - 0.5) * noise;
+      node.vy += (Math.random() - 0.5) * noise;
+      node.vx *= damp;
+      node.vy *= damp;
+      node.x += node.vx;
+      node.y += node.vy;
+    }
+  }
+
+  // spawnAmbientPulse: escolhe uma edge aleatória e dispara um pulso.
+  // Direção também aleatória (50/50 source→target ou reverse) pra simular
+  // tráfego bidirecional típico de rede neural.
+  function spawnAmbientPulse(now: number) {
+    if (edges.length === 0) return;
+    const eIdx = Math.floor(Math.random() * edges.length);
+    const e = edges[eIdx];
+    const source = nodes[e.source];
+    if (!source) return;
+    const color = communityPalette[source.community % communityPalette.length];
+    pulses.push({
+      eIdx,
+      t0: now,
+      reverse: Math.random() < 0.5,
+      color,
+    });
+  }
+
+  // spawnHoverBurst: dispara 1 pulso em cada edge adjacente ao node hovered.
+  // Cap em 8 pra nodes super conectados não saturarem visualmente. Pulsos
+  // sempre saem DO hovered (não entram nele) — feedback visual de "este
+  // node está ativando seus vizinhos".
+  function spawnHoverBurst(node: any, now: number) {
+    const nodeIdx = nodes.indexOf(node);
+    if (nodeIdx < 0) return;
+    const color = communityPalette[node.community % communityPalette.length];
+    let spawned = 0;
+    for (let i = 0; i < edges.length && spawned < 8; i++) {
+      const e = edges[i];
+      if (e.source === nodeIdx) {
+        pulses.push({ eIdx: i, t0: now, reverse: false, color });
+        spawned++;
+      } else if (e.target === nodeIdx) {
+        // edge entra no hovered: reverse pra sair dele
+        pulses.push({ eIdx: i, t0: now, reverse: true, color });
+        spawned++;
+      }
+    }
+  }
+
+  // Remove pulsos vencidos. Filter cria array novo (pequeno overhead) mas
+  // simplifica o código vs splice in-place. Pulsos vivos são poucos
+  // (tipicamente <10), custo desprezível.
+  function reapPulses(now: number) {
+    pulses = pulses.filter(p => now - p.t0 < PULSE_DURATION_MS);
   }
 
   function draw() {
@@ -359,23 +476,36 @@
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, CW, CH);
 
+    // Timestamp único pro frame — usado em pulse + ripple. Performance.now
+    // é monotonic e barato, sem risco de pulos como Date.now em sleep.
+    const tNow = performance.now();
+
     // Canvas API ignora CSS vars; lê o token de tema na hora do draw
     // pra labels seguirem light/dark sem listener manual.
     const labelColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--text-primary').trim() || '#f4f4f5';
 
-    // Câmera: fit-to-bounds dinâmico. Sem o clamp na física, os nodes
-    // podem escapar do SIM_W/H original; precisamos calcular a bbox
-    // real a cada frame e mapeá-la pro canvas mantendo aspecto.
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const n of nodes) {
-      if (n.x < minX) minX = n.x;
-      if (n.y < minY) minY = n.y;
-      if (n.x > maxX) maxX = n.x;
-      if (n.y > maxY) maxY = n.y;
+    // Câmera: fit-to-bounds usando percentil 5–95, não min/max absoluto.
+    // Outliers (1-2 nodes desconectados que voaram pra longe) puxavam o
+    // fitScale pra um valor minúsculo e o cluster principal aparecia
+    // como uma bolinha no centro. Percentil ignora os extremos —
+    // outliers continuam visíveis, mas não dominam o framing.
+    const xs: number[] = []; const ys: number[] = [];
+    for (const n of nodes) { xs.push(n.x); ys.push(n.y); }
+    xs.sort((a, b) => a - b); ys.sort((a, b) => a - b);
+    const pct = (arr: number[], p: number) => {
+      if (arr.length === 0) return 0;
+      const i = Math.floor(arr.length * p);
+      return arr[Math.min(arr.length - 1, Math.max(0, i))];
+    };
+    let minX: number, minY: number, maxX: number, maxY: number;
+    if (xs.length === 0) {
+      minX = 0; minY = 0; maxX = SIM_W; maxY = SIM_H;
+    } else {
+      minX = pct(xs, 0.05); maxX = pct(xs, 0.95);
+      minY = pct(ys, 0.05); maxY = pct(ys, 0.95);
     }
-    if (!isFinite(minX)) { minX = 0; minY = 0; maxX = SIM_W; maxY = SIM_H; }
-    const pad = 60;
+    const pad = 80;
     const bboxW = Math.max(1, maxX - minX) + pad * 2;
     const bboxH = Math.max(1, maxY - minY) + pad * 2;
     const fitScale = Math.min(CW / bboxW, CH / bboxH);
@@ -416,26 +546,83 @@
       ctx.stroke();
     }
 
+    // Synaptic pulses — partículas viajando ao longo das edges como
+    // sinapses firing. Desenhados aqui (depois das edges, antes dos
+    // nodes) pra ficarem sobre as linhas mas atrás dos núcleos.
+    // Cada pulse: lerp posição source→target conforme tempo decorrido.
+    // Visual: disc com glow radial; opacidade decai no fim pra fade-out.
+    for (const p of pulses) {
+      const e = edges[p.eIdx];
+      if (!e) continue;
+      const s = nodes[p.reverse ? e.target : e.source];
+      const t = nodes[p.reverse ? e.source : e.target];
+      if (!s || !t) continue;
+      const progress = (tNow - p.t0) / PULSE_DURATION_MS;
+      if (progress < 0 || progress > 1) continue;
+      const px = s.x + (t.x - s.x) * progress;
+      const py = s.y + (t.y - s.y) * progress;
+      // Opacidade: brilha forte no meio do trajeto, fade nas pontas.
+      // Curva sin(πt) dá esse "swell" característico de pulso elétrico.
+      const alpha = Math.sin(progress * Math.PI);
+      // Glow externo (suave)
+      const glowR = 8;
+      const grad = ctx.createRadialGradient(px, py, 0, px, py, glowR);
+      grad.addColorStop(0, p.color + 'cc');
+      grad.addColorStop(0.4, p.color + '55');
+      grad.addColorStop(1, p.color + '00');
+      ctx.fillStyle = grad;
+      ctx.globalAlpha = alpha;
+      ctx.beginPath(); ctx.arc(px, py, glowR, 0, Math.PI * 2); ctx.fill();
+      // Core brilhante no centro
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(px, py, 2.2, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
     // Nodes — core mantém cor do TIPO, glow ganha cor da COMUNIDADE.
     // Resultado: o tipo continua identificável de relance, mas o halo
     // revela "ilhas de conhecimento" relacionadas (cluster topológico).
+    // Pulse: glow de nodes "importantes" (radius>=10) modula em sin com
+    // período de ~3s. Ondas começam dessincronizadas (offset por hash do
+    // id) pra parecer respiração natural, não strobing sincronizado.
     for (const n of nodes) {
       const color = getColor(n.type);
       const communityColor = communityPalette[n.community % communityPalette.length];
       const hov = n === hoveredNode;
+      // Pulse fator: 1.0 base, oscila ±0.25 nos importantes. Hash simples
+      // pelo charCode do primeiro id char dessincroniza nodes vizinhos.
+      const pulsePhase = (n.id.charCodeAt(0) || 0) * 0.3;
+      const pulse = n.radius >= 10
+        ? 1 + 0.25 * Math.sin(tNow / 1500 + pulsePhase)
+        : 1;
       // Glow tinto pela community
       if (n.radius > 5 || hov) {
-        const g = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.radius * (hov ? 4 : 2.5));
+        const glowR = n.radius * (hov ? 4 : 2.5) * pulse;
+        const g = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, glowR);
         g.addColorStop(0, communityColor + (hov ? '50' : '20'));
         g.addColorStop(1, communityColor + '00');
         ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(n.x, n.y, n.radius * (hov ? 4 : 2.5), 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(n.x, n.y, glowR, 0, Math.PI*2); ctx.fill();
       }
       // Core
       ctx.fillStyle = color;
       ctx.globalAlpha = hov ? 1 : 0.88;
       ctx.beginPath(); ctx.arc(n.x, n.y, n.radius, 0, Math.PI*2); ctx.fill();
       ctx.globalAlpha = 1;
+      // Ripple expansivo no node em hover. Cresce de radius pra radius*5
+      // ao longo de RIPPLE_MS, opacidade decai linearmente.
+      if (hov && hoverRippleAt > 0) {
+        const elapsed = tNow - hoverRippleAt;
+        if (elapsed >= 0 && elapsed < RIPPLE_MS) {
+          const t = elapsed / RIPPLE_MS;
+          const ringR = n.radius * (1 + t * 4);
+          ctx.strokeStyle = communityColor;
+          ctx.globalAlpha = (1 - t) * 0.7;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(n.x, n.y, ringR, 0, Math.PI*2); ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
+      }
       // Label
       if (n.radius > 7 || hov) {
         ctx.fillStyle = labelColor;
@@ -494,6 +681,15 @@
     if (prev !== hoveredNode) {
       scheduleDraw();
       trackClusterHover(hoveredNode);
+      // Dispara ripple só ao ENTRAR num node (transitar de null/outro
+      // pra um novo). Sair pra null não dispara — evita ripple ao
+      // afastar o cursor.
+      if (hoveredNode && hoveredNode !== prev) {
+        const now = performance.now();
+        hoverRippleAt = now;
+        // Burst sináptico nas edges adjacentes — rede "reage" ao toque.
+        spawnHoverBurst(hoveredNode, now);
+      }
     }
   }
 
@@ -511,6 +707,10 @@
     scheduleDraw();
   }
 
+  // Botões discretos de zoom: usam o mesmo step do scroll wheel pra
+  // sensação consistente. Limites idênticos ao onWheel.
+  function zoomIn()  { zoom = Math.min(8, zoom * 1.2);  scheduleDraw(); }
+  function zoomOut() { zoom = Math.max(0.15, zoom * 0.8); scheduleDraw(); }
   function resetView() { zoom = 1; panX = 0; panY = 0; scheduleDraw(); }
 
   let fullscreen = $state(false);
@@ -561,6 +761,15 @@
         onmouseleave={onMouseUp}
         onwheel={(e) => { e.preventDefault(); onWheel(e); }}
       ></canvas>
+
+      <!-- Zoom controls flutuantes (canto inferior direito do canvas).
+           Mais ergonômico que botões na header — fica perto do conteúdo
+           que o user está olhando, sem competir com a tooltip. -->
+      <div class="zoom-controls">
+        <button class="zoom-btn" onclick={zoomIn} title="Zoom in (+)" aria-label="Zoom in">+</button>
+        <button class="zoom-btn" onclick={zoomOut} title="Zoom out (−)" aria-label="Zoom out">−</button>
+        <button class="zoom-btn" onclick={resetView} title="Reset view" aria-label="Reset view">⊙</button>
+      </div>
       {#if hoveredNode}
         <div class="tooltip">
           <span style="color:{getColor(hoveredNode.type)};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em">{hoveredNode.type}</span>
@@ -665,6 +874,38 @@
 
   .canvas-shell { width:100%; height:480px; min-height:320px; background:var(--bg-card); border:1px solid var(--border); animation:pulse 1.5s ease-in-out infinite; }
   @keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:.6} }
+
+  /* Zoom controls flutuantes — canto inferior direito do canvas. */
+  .zoom-controls {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 2;
+  }
+  .zoom-btn {
+    width: 32px;
+    height: 32px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 16px;
+    font-family: var(--font-ui);
+    line-height: 1;
+    cursor: pointer;
+    transition: all 0.15s var(--ease);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .zoom-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--bg-hover);
+  }
+  .zoom-btn:active { transform: translateY(1px); }
 
   .tooltip {
     position: absolute;
