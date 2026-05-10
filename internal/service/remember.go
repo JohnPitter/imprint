@@ -157,15 +157,56 @@ func marshalToRaw(v any) json.RawMessage {
 	return json.RawMessage(b)
 }
 
+// GetByID retorna uma memória pelo seu ID. Wrapper fino do store —
+// existe pra os handlers não precisarem chamar Container direto.
+func (s *RememberService) GetByID(id string) (*store.MemoryRow, error) {
+	if id == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+	return s.c.Memories.GetByID(id)
+}
+
+// SetPinned alterna o flag pinned de uma memória. Pinned protege do
+// decay sweep; usado pra preservar conhecimento crítico.
+func (s *RememberService) SetPinned(id string, pinned bool) error {
+	if id == "" {
+		return fmt.Errorf("id is required")
+	}
+	return s.c.Memories.SetPinned(id, pinned)
+}
+
+// SetConcepts substitui inteiramente a lista de concepts de uma memória.
+// Usado pelo editor inline de tags. Não cria nova versão (Supersede).
+func (s *RememberService) SetConcepts(id string, concepts []string) (*store.MemoryRow, error) {
+	if id == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+	mem, err := s.c.Memories.GetByID(id)
+	if err != nil {
+		return nil, fmt.Errorf("get memory: %w", err)
+	}
+	if concepts == nil {
+		concepts = []string{}
+	}
+	b, _ := json.Marshal(concepts)
+	mem.Concepts = b
+	if err := s.c.Memories.Update(mem); err != nil {
+		return nil, fmt.Errorf("update memory concepts: %w", err)
+	}
+	return mem, nil
+}
+
 // List returns memories with optional type filter and pagination.
-func (s *RememberService) List(memType string, limit, offset int) ([]store.MemoryRow, error) {
+// before é opcional (zero = sem filtro). Quando preenchido, retorna só
+// memórias criadas até essa data — usado pela feature time-travel.
+func (s *RememberService) List(memType string, limit, offset int, before time.Time) ([]store.MemoryRow, error) {
 	if limit <= 0 {
 		limit = 50
 	}
 	if offset < 0 {
 		offset = 0
 	}
-	return s.c.Memories.List(memType, limit, offset)
+	return s.c.Memories.List(memType, limit, offset, before)
 }
 
 // Count returns the total number of memories.

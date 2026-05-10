@@ -129,9 +129,9 @@ func main() {
 
 	// Create handlers
 	deps := &server.RouterDeps{
-		Sessions:     handler.NewSessionHandler(sessionSvc),
+		Sessions:     handler.NewSessionHandler(sessionSvc, container),
 		Observations: handler.NewObservationHandler(observeSvc),
-		Memories:     handler.NewMemoryHandler(rememberSvc),
+		Memories:     handler.NewMemoryHandler(rememberSvc, llmProvider),
 		Search:       handler.NewSearchHandler(searchSvc, contextSvc, container.Eval),
 		Graph:        handler.NewGraphHandler(graphSvc),
 		Actions:      handler.NewActionHandler(actionSvc, actionsBus),
@@ -150,7 +150,7 @@ func main() {
 	log.Printf("[app] Imprint running on http://localhost:%d", cfg.Port)
 
 	// Start background pipeline scheduler
-	scheduler := service.NewScheduler(pipelineSvc, sessionSvc, cfg.PipelineIntervalMin)
+	scheduler := service.NewScheduler(pipelineSvc, sessionSvc, cfg, cfg.PipelineIntervalMin)
 	scheduler.Start()
 
 	// Wait for interrupt signal

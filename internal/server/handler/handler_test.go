@@ -24,7 +24,7 @@ func setupTestHandlers(t *testing.T) (*SessionHandler, *ObservationHandler, *Mem
 	sessionSvc := service.NewSessionService(c, nil)
 	observeSvc := service.NewObserveService(c, 500, 8000)
 	rememberSvc := service.NewRememberService(c)
-	return NewSessionHandler(sessionSvc), NewObservationHandler(observeSvc), NewMemoryHandler(rememberSvc)
+	return NewSessionHandler(sessionSvc, c), NewObservationHandler(observeSvc), NewMemoryHandler(rememberSvc, nil)
 }
 
 func postJSON(handler http.HandlerFunc, path string, body any) *httptest.ResponseRecorder {

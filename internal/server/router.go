@@ -71,10 +71,12 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 			r.Post("/session/start", deps.Sessions.HandleStart)
 			r.Post("/session/end", deps.Sessions.HandleEnd)
 			r.Get("/sessions", deps.Sessions.HandleList)
+			r.Get("/sessions/timeline", deps.Sessions.HandleTimeline)
 		} else {
 			r.Post("/session/start", notImplemented)
 			r.Post("/session/end", notImplemented)
 			r.Get("/sessions", notImplemented)
+			r.Get("/sessions/timeline", notImplemented)
 		}
 
 		// Observations
@@ -117,6 +119,9 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 			r.Get("/memories/concepts", deps.Memories.HandleConcepts)
 			r.Get("/memories/history", deps.Memories.HandleHistory)
 			r.Get("/memories/graph", deps.Memories.HandleGraph)
+			r.Post("/memories/pin", deps.Memories.HandlePin)
+			r.Post("/memories/concepts", deps.Memories.HandleSetConcepts)
+			r.Post("/memories/cluster-summary", deps.Memories.HandleClusterSummary)
 			r.Post("/evolve", deps.Memories.HandleEvolve)
 		} else {
 			r.Post("/remember", notImplemented)
@@ -125,6 +130,9 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 			r.Get("/memories/concepts", notImplemented)
 			r.Get("/memories/history", notImplemented)
 			r.Get("/memories/graph", notImplemented)
+			r.Post("/memories/pin", notImplemented)
+			r.Post("/memories/concepts", notImplemented)
+			r.Post("/memories/cluster-summary", notImplemented)
 			r.Post("/evolve", notImplemented)
 		}
 
