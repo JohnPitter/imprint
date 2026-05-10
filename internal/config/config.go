@@ -49,6 +49,10 @@ type Config struct {
 	ContextTokenBudget        int // CONTEXT_TOKEN_BUDGET, default 2000
 	ToolOutputMaxLen          int // TOOL_OUTPUT_MAX_LEN, default 8000
 
+	// Memory decay
+	DecayMinStrength int // DECAY_MIN_STRENGTH, default 3 — memórias com strength <= este valor viram candidatas a archive
+	DecayMaxAgeDays  int // DECAY_MAX_AGE_DAYS, default 30 — idade mínima pra arquivar uma memória fraca
+
 	// MCP
 	MCPToolsMode string // IMPRINT_TOOLS, default "core" (or "all")
 
@@ -97,6 +101,9 @@ func Load() (*Config, error) {
 		MaxObservationsPerSession: envInt("MAX_OBS_PER_SESSION", 500),
 		ContextTokenBudget:        envInt("CONTEXT_TOKEN_BUDGET", 2000),
 		ToolOutputMaxLen:          envInt("TOOL_OUTPUT_MAX_LEN", 8000),
+
+		DecayMinStrength: envInt("DECAY_MIN_STRENGTH", 3),
+		DecayMaxAgeDays:  envInt("DECAY_MAX_AGE_DAYS", 30),
 
 		MCPToolsMode: envStr("IMPRINT_TOOLS", "core"),
 

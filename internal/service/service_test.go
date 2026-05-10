@@ -307,7 +307,7 @@ func TestRememberService_RememberAndList(t *testing.T) {
 	}
 
 	// List should return it.
-	memories, err := svc.List("", 10, 0)
+	memories, err := svc.List("", 10, 0, time.Time{})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -333,7 +333,7 @@ func TestRememberService_Forget(t *testing.T) {
 	}
 
 	// List should return empty (is_latest=0 after forget).
-	memories, err := svc.List("", 10, 0)
+	memories, err := svc.List("", 10, 0, time.Time{})
 	if err != nil {
 		t.Fatalf("List after forget: %v", err)
 	}
@@ -372,7 +372,7 @@ func TestRememberService_Evolve(t *testing.T) {
 	}
 
 	// Only the new version should appear in list (is_latest).
-	memories, err := svc.List("", 50, 0)
+	memories, err := svc.List("", 50, 0, time.Time{})
 	if err != nil {
 		t.Fatalf("List after evolve: %v", err)
 	}

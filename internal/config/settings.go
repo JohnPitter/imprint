@@ -31,6 +31,12 @@ type UserSettings struct {
 	ConsolidationEnabled *bool `json:"consolidationEnabled,omitempty"`
 	ContextTokenBudget   *int  `json:"contextTokenBudget,omitempty"`
 	PipelineIntervalMin  *int  `json:"pipelineIntervalMin,omitempty"` // periodic pipeline interval in minutes (0 = disabled)
+
+	// Memory decay — candidatas pra archive são (strength <= MinStrength AND age >= MaxAgeDays).
+	// Defaults: 3 e 30. Subir o threshold preserva mais memória (custa search recall);
+	// abaixar é mais agressivo.
+	DecayMinStrength *int `json:"decayMinStrength,omitempty"`
+	DecayMaxAgeDays  *int `json:"decayMaxAgeDays,omitempty"`
 }
 
 var (
@@ -134,6 +140,12 @@ func ApplyUserSettings(cfg *Config, s *UserSettings) {
 	if s.PipelineIntervalMin != nil {
 		cfg.PipelineIntervalMin = *s.PipelineIntervalMin
 	}
+	if s.DecayMinStrength != nil {
+		cfg.DecayMinStrength = *s.DecayMinStrength
+	}
+	if s.DecayMaxAgeDays != nil {
+		cfg.DecayMaxAgeDays = *s.DecayMaxAgeDays
+	}
 }
 
 // ConfigToPublicView returns a sanitized view of the config for the UI.
@@ -170,6 +182,10 @@ func ConfigToPublicView(cfg *Config) map[string]any {
 			"consolidationEnabled": cfg.ConsolidationEnabled,
 			"contextTokenBudget":   cfg.ContextTokenBudget,
 			"pipelineIntervalMin":  cfg.PipelineIntervalMin,
+		},
+		"decay": map[string]any{
+			"minStrength": cfg.DecayMinStrength,
+			"maxAgeDays":  cfg.DecayMaxAgeDays,
 		},
 		"server": map[string]any{
 			"port":    cfg.Port,

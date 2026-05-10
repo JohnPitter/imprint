@@ -126,6 +126,38 @@ func (s *ObservationStore) ListCompressed(sessionID string, limit, offset int) (
 	return scanCompressedObservations(rows)
 }
 
+// ListNotGraphExtracted retorna compressed observations da sessão que ainda
+// não passaram pelo extractor de knowledge graph. Usado pelo scheduler
+// periódico pra evitar reprocessar e queimar Haiku tokens em loop.
+func (s *ObservationStore) ListNotGraphExtracted(sessionID string, limit int) ([]CompressedObservationRow, error) {
+	rows, err := s.db.Query(
+		`SELECT id, session_id, timestamp, type, title, subtitle, facts, narrative, concepts, files, importance, confidence, source_observation_id
+		 FROM compressed_observations
+		 WHERE session_id = ? AND graph_extracted_at IS NULL
+		 ORDER BY timestamp ASC LIMIT ?`,
+		sessionID, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("compressed observation list not extracted: %w", err)
+	}
+	defer rows.Close()
+	return scanCompressedObservations(rows)
+}
+
+// MarkGraphExtracted carimba uma compressed observation como já processada
+// pelo extractor de grafo. Idempotente: não-op se já estava marcada.
+func (s *ObservationStore) MarkGraphExtracted(id string) error {
+	_, err := s.db.Exec(
+		`UPDATE compressed_observations SET graph_extracted_at = ?
+		 WHERE id = ? AND graph_extracted_at IS NULL`,
+		TimeToString(time.Now()), id,
+	)
+	if err != nil {
+		return fmt.Errorf("mark graph extracted: %w", err)
+	}
+	return nil
+}
+
 // CountAllCompressed returns the total number of compressed observations.
 func (s *ObservationStore) CountAllCompressed() (int, error) {
 	var count int

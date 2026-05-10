@@ -100,7 +100,7 @@ func TestMemoryStore_List(t *testing.T) {
 	}
 
 	// List all.
-	results, err := store.List("", 10, 0)
+	results, err := store.List("", 10, 0, time.Time{})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestMemoryStore_List(t *testing.T) {
 	}
 
 	// Test pagination: limit 2, offset 0.
-	page1, err := store.List("", 2, 0)
+	page1, err := store.List("", 2, 0, time.Time{})
 	if err != nil {
 		t.Fatalf("List page1: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestMemoryStore_List(t *testing.T) {
 	}
 
 	// Page 2: limit 2, offset 2.
-	page2, err := store.List("", 2, 2)
+	page2, err := store.List("", 2, 2, time.Time{})
 	if err != nil {
 		t.Fatalf("List page2: %v", err)
 	}
@@ -146,7 +146,7 @@ func TestMemoryStore_ListByType(t *testing.T) {
 		}
 	}
 
-	patterns, err := store.List("pattern", 10, 0)
+	patterns, err := store.List("pattern", 10, 0, time.Time{})
 	if err != nil {
 		t.Fatalf("List pattern: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestMemoryStore_ListByType(t *testing.T) {
 		}
 	}
 
-	bugs, err := store.List("bug", 10, 0)
+	bugs, err := store.List("bug", 10, 0, time.Time{})
 	if err != nil {
 		t.Fatalf("List bug: %v", err)
 	}
@@ -236,7 +236,7 @@ func TestMemoryStore_Delete(t *testing.T) {
 	}
 
 	// Soft-deleted memories should not appear in List (which filters is_latest=1).
-	results, err := store.List("", 10, 0)
+	results, err := store.List("", 10, 0, time.Time{})
 	if err != nil {
 		t.Fatalf("List after delete: %v", err)
 	}
@@ -327,7 +327,7 @@ func TestMemoryStore_Supersede(t *testing.T) {
 	}
 
 	// List should only return the new memory.
-	results, err := store.List("", 10, 0)
+	results, err := store.List("", 10, 0, time.Time{})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}

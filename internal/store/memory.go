@@ -26,6 +26,7 @@ type MemoryRow struct {
 	IsLatest             int             `json:"isLatest"`
 	ForgetAfter          *string         `json:"forgetAfter"`
 	TTLDays              *int            `json:"ttlDays"`
+	Pinned               int             `json:"pinned"`
 }
 
 func defaultJSON(b json.RawMessage) json.RawMessage {
@@ -68,12 +69,12 @@ func (s *MemoryStore) Create(row *MemoryRow) error {
 			id, created_at, updated_at, type, title, content,
 			concepts, files, session_ids, strength, version,
 			parent_id, supersedes, source_observation_ids,
-			is_latest, forget_after, ttl_days
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			is_latest, forget_after, ttl_days, pinned
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		row.ID, row.CreatedAt, row.UpdatedAt, row.Type, row.Title, row.Content,
 		string(row.Concepts), string(row.Files), string(row.SessionIDs), row.Strength, row.Version,
 		NullString(row.ParentID), string(row.Supersedes), string(row.SourceObservationIDs),
-		row.IsLatest, NullString(row.ForgetAfter), row.TTLDays,
+		row.IsLatest, NullString(row.ForgetAfter), row.TTLDays, row.Pinned,
 	)
 	if err != nil {
 		return fmt.Errorf("insert memory: %w", err)
@@ -89,7 +90,7 @@ func (s *MemoryStore) GetByID(id string) (*MemoryRow, error) {
 			COALESCE(session_ids, '[]'), strength, version,
 			parent_id, COALESCE(supersedes, '[]'),
 			COALESCE(source_observation_ids, '[]'),
-			is_latest, forget_after, ttl_days
+			is_latest, forget_after, ttl_days, pinned
 		FROM memories WHERE id = ?`, id)
 
 	return s.scanRow(row)
@@ -131,30 +132,60 @@ func (s *MemoryStore) History(id string) ([]MemoryRow, error) {
 
 // List returns latest memories, optionally filtered by type.
 // Pass empty string for memType to list all types.
-func (s *MemoryStore) List(memType string, limit, offset int) ([]MemoryRow, error) {
+// before é opcional: quando não-zero, filtra memórias com created_at <= before
+// (usado pela feature "time-travel" da UI).
+func (s *MemoryStore) List(memType string, limit, offset int, before time.Time) ([]MemoryRow, error) {
 	var rows *sql.Rows
 	var err error
 
-	if memType != "" {
+	hasBefore := !before.IsZero()
+	beforeStr := TimeToString(before)
+
+	switch {
+	case memType != "" && hasBefore:
 		rows, err = s.db.Query(`
 			SELECT id, created_at, updated_at, type, title, content,
 				COALESCE(concepts, '[]'), COALESCE(files, '[]'),
 				COALESCE(session_ids, '[]'), strength, version,
 				parent_id, COALESCE(supersedes, '[]'),
 				COALESCE(source_observation_ids, '[]'),
-				is_latest, forget_after, ttl_days
+				is_latest, forget_after, ttl_days, pinned
+			FROM memories
+			WHERE is_latest = 1 AND type = ? AND created_at <= ?
+			ORDER BY updated_at DESC
+			LIMIT ? OFFSET ?`, memType, beforeStr, limit, offset)
+	case memType != "":
+		rows, err = s.db.Query(`
+			SELECT id, created_at, updated_at, type, title, content,
+				COALESCE(concepts, '[]'), COALESCE(files, '[]'),
+				COALESCE(session_ids, '[]'), strength, version,
+				parent_id, COALESCE(supersedes, '[]'),
+				COALESCE(source_observation_ids, '[]'),
+				is_latest, forget_after, ttl_days, pinned
 			FROM memories
 			WHERE is_latest = 1 AND type = ?
 			ORDER BY updated_at DESC
 			LIMIT ? OFFSET ?`, memType, limit, offset)
-	} else {
+	case hasBefore:
 		rows, err = s.db.Query(`
 			SELECT id, created_at, updated_at, type, title, content,
 				COALESCE(concepts, '[]'), COALESCE(files, '[]'),
 				COALESCE(session_ids, '[]'), strength, version,
 				parent_id, COALESCE(supersedes, '[]'),
 				COALESCE(source_observation_ids, '[]'),
-				is_latest, forget_after, ttl_days
+				is_latest, forget_after, ttl_days, pinned
+			FROM memories
+			WHERE is_latest = 1 AND created_at <= ?
+			ORDER BY updated_at DESC
+			LIMIT ? OFFSET ?`, beforeStr, limit, offset)
+	default:
+		rows, err = s.db.Query(`
+			SELECT id, created_at, updated_at, type, title, content,
+				COALESCE(concepts, '[]'), COALESCE(files, '[]'),
+				COALESCE(session_ids, '[]'), strength, version,
+				parent_id, COALESCE(supersedes, '[]'),
+				COALESCE(source_observation_ids, '[]'),
+				is_latest, forget_after, ttl_days, pinned
 			FROM memories
 			WHERE is_latest = 1
 			ORDER BY updated_at DESC
@@ -178,13 +209,13 @@ func (s *MemoryStore) Update(row *MemoryRow) error {
 			concepts = ?, files = ?, session_ids = ?,
 			strength = ?, version = ?, supersedes = ?,
 			source_observation_ids = ?, is_latest = ?,
-			forget_after = ?, ttl_days = ?
+			forget_after = ?, ttl_days = ?, pinned = ?
 		WHERE id = ?`,
 		row.UpdatedAt, row.Type, row.Title, row.Content,
 		string(row.Concepts), string(row.Files), string(row.SessionIDs),
 		row.Strength, row.Version, string(row.Supersedes),
 		string(row.SourceObservationIDs), row.IsLatest,
-		NullString(row.ForgetAfter), row.TTLDays,
+		NullString(row.ForgetAfter), row.TTLDays, row.Pinned,
 		row.ID,
 	)
 	if err != nil {
@@ -220,6 +251,7 @@ func (s *MemoryStore) DecayOld(strengthThreshold int, maxAgeDays int) (int64, er
 		   SET is_latest = 0,
 		       updated_at = ?
 		 WHERE is_latest  = 1
+		   AND pinned     = 0
 		   AND strength  <= ?
 		   AND created_at < ?`,
 		TimeToString(time.Now()), strengthThreshold, cutoff)
@@ -228,6 +260,22 @@ func (s *MemoryStore) DecayOld(strengthThreshold int, maxAgeDays int) (int64, er
 	}
 	n, _ := res.RowsAffected()
 	return n, nil
+}
+
+// SetPinned alterna a flag pinned de uma memória. Memórias pinned são
+// imunes ao decay sweep — preserva conhecimento crítico mesmo quando
+// raramente reforçado.
+func (s *MemoryStore) SetPinned(id string, pinned bool) error {
+	v := 0
+	if pinned {
+		v = 1
+	}
+	_, err := s.db.Exec(`UPDATE memories SET pinned = ?, updated_at = ? WHERE id = ?`,
+		v, TimeToString(time.Now()), id)
+	if err != nil {
+		return fmt.Errorf("set memory pinned: %w", err)
+	}
+	return nil
 }
 
 // HardDelete permanently removes a memory from the database.
@@ -281,12 +329,12 @@ func (s *MemoryStore) Supersede(oldID string, newMem *MemoryRow) error {
 			id, created_at, updated_at, type, title, content,
 			concepts, files, session_ids, strength, version,
 			parent_id, supersedes, source_observation_ids,
-			is_latest, forget_after, ttl_days
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			is_latest, forget_after, ttl_days, pinned
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		newMem.ID, newMem.CreatedAt, newMem.UpdatedAt, newMem.Type, newMem.Title, newMem.Content,
 		string(newMem.Concepts), string(newMem.Files), string(newMem.SessionIDs), newMem.Strength, newMem.Version,
 		NullString(newMem.ParentID), string(newMem.Supersedes), string(newMem.SourceObservationIDs),
-		newMem.IsLatest, NullString(newMem.ForgetAfter), newMem.TTLDays,
+		newMem.IsLatest, NullString(newMem.ForgetAfter), newMem.TTLDays, newMem.Pinned,
 	)
 	if err != nil {
 		tx.Rollback()
@@ -307,7 +355,7 @@ func (s *MemoryStore) ListByStrength(minStrength int, limit int) ([]MemoryRow, e
 			COALESCE(session_ids, '[]'), strength, version,
 			parent_id, COALESCE(supersedes, '[]'),
 			COALESCE(source_observation_ids, '[]'),
-			is_latest, forget_after, ttl_days
+			is_latest, forget_after, ttl_days, pinned
 		FROM memories
 		WHERE is_latest = 1 AND strength >= ?
 		ORDER BY strength DESC
@@ -328,7 +376,7 @@ func (s *MemoryStore) ListByConcept(concept string, limit int) ([]MemoryRow, err
 			COALESCE(session_ids, '[]'), strength, version,
 			parent_id, COALESCE(supersedes, '[]'),
 			COALESCE(source_observation_ids, '[]'),
-			is_latest, forget_after, ttl_days
+			is_latest, forget_after, ttl_days, pinned
 		FROM memories
 		WHERE is_latest = 1 AND concepts LIKE '%"' || ? || '"%'
 		ORDER BY strength DESC
@@ -338,6 +386,28 @@ func (s *MemoryStore) ListByConcept(concept string, limit int) ([]MemoryRow, err
 	}
 	defer rows.Close()
 
+	return s.scanRows(rows)
+}
+
+// ListBySessionID retorna memórias cujo session_ids JSON-array contém o sid.
+// Usado pela timeline da sessão (C5). LIKE no JSON é barato pra arrays
+// pequenos típicos do produto.
+func (s *MemoryStore) ListBySessionID(sid string, limit int) ([]MemoryRow, error) {
+	rows, err := s.db.Query(`
+		SELECT id, created_at, updated_at, type, title, content,
+			COALESCE(concepts, '[]'), COALESCE(files, '[]'),
+			COALESCE(session_ids, '[]'), strength, version,
+			parent_id, COALESCE(supersedes, '[]'),
+			COALESCE(source_observation_ids, '[]'),
+			is_latest, forget_after, ttl_days, pinned
+		FROM memories
+		WHERE is_latest = 1 AND session_ids LIKE '%"' || ? || '"%'
+		ORDER BY created_at ASC
+		LIMIT ?`, sid, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list memories by session: %w", err)
+	}
+	defer rows.Close()
 	return s.scanRows(rows)
 }
 
@@ -502,7 +572,7 @@ func (s *MemoryStore) ListExpired() ([]MemoryRow, error) {
 			COALESCE(session_ids, '[]'), strength, version,
 			parent_id, COALESCE(supersedes, '[]'),
 			COALESCE(source_observation_ids, '[]'),
-			is_latest, forget_after, ttl_days
+			is_latest, forget_after, ttl_days, pinned
 		FROM memories
 		WHERE is_latest = 1 AND forget_after IS NOT NULL AND forget_after <= ?
 		ORDER BY forget_after ASC`, now)
@@ -544,7 +614,7 @@ func (s *MemoryStore) scanRow(row *sql.Row) (*MemoryRow, error) {
 		&m.ID, &m.CreatedAt, &m.UpdatedAt, &m.Type, &m.Title, &m.Content,
 		&concepts, &files, &sessionIDs, &m.Strength, &m.Version,
 		&parentID, &supersedes, &sourceObsIDs,
-		&m.IsLatest, &forgetAfter, &ttlDays,
+		&m.IsLatest, &forgetAfter, &ttlDays, &m.Pinned,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -571,7 +641,7 @@ func (s *MemoryStore) scanRows(rows *sql.Rows) ([]MemoryRow, error) {
 			&m.ID, &m.CreatedAt, &m.UpdatedAt, &m.Type, &m.Title, &m.Content,
 			&concepts, &files, &sessionIDs, &m.Strength, &m.Version,
 			&parentID, &supersedes, &sourceObsIDs,
-			&m.IsLatest, &forgetAfter, &ttlDays,
+			&m.IsLatest, &forgetAfter, &ttlDays, &m.Pinned,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan memory row: %w", err)
