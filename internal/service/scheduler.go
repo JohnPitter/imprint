@@ -16,10 +16,11 @@ import (
 const decayRunInterval = 6 * time.Hour
 
 // sessionIdleThreshold é o tempo sem heartbeat até considerar a sessão
-// terminada e disparar RunFinalize. Hardcoded (5min) é o sweet spot entre
-// "responde rápido ao /exit" e "não dispara durante pausa real". Se virar
-// ajustável, expor em config sem mudar a estrutura.
-const sessionIdleThreshold = 5 * time.Minute
+// terminada e disparar RunFinalize. 15min cobre pausas longas reais (refeição,
+// partida de jogo) sem disparar finalize prematuro — o Reactivate cobre o
+// caso de retorno mas custa ~3 calls extras de pipeline por ciclo, então
+// preferimos não acioná-lo à toa. Se virar ajustável, expor em config.
+const sessionIdleThreshold = 15 * time.Minute
 
 // Scheduler runs the pipeline periodically for active sessions.
 // It ticks at the configured interval and processes summarize + consolidate
