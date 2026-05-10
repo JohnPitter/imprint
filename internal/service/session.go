@@ -65,6 +65,24 @@ func (s *SessionService) End(sessionID string) error {
 	return err
 }
 
+// Reactivate marca uma sessão completed como active novamente. Idempotente:
+// se já está active, no-op silencioso (Reactivate no store retorna sucesso).
+func (s *SessionService) Reactivate(sessionID string) error {
+	if sessionID == "" {
+		return fmt.Errorf("sessionId is required")
+	}
+	err := s.c.Sessions.Reactivate(sessionID)
+	if err == nil {
+		s.c.LogAudit("session.reactivate", sessionID, "session", nil)
+	}
+	return err
+}
+
+// GetByID expõe a busca pra handlers que precisam checar status.
+func (s *SessionService) GetByID(sessionID string) (*store.SessionRow, error) {
+	return s.c.Sessions.GetByID(sessionID)
+}
+
 // List returns sessions with pagination.
 func (s *SessionService) List(project string, limit, offset int) ([]store.SessionRow, error) {
 	if limit <= 0 {
