@@ -15,6 +15,12 @@ import (
 // cfg.DecayMaxAgeDays e podem ser editados via Settings UI.
 const decayRunInterval = 6 * time.Hour
 
+// sessionIdleThreshold é o tempo sem heartbeat até considerar a sessão
+// terminada e disparar RunFinalize. Hardcoded (5min) é o sweet spot entre
+// "responde rápido ao /exit" e "não dispara durante pausa real". Se virar
+// ajustável, expor em config sem mudar a estrutura.
+const sessionIdleThreshold = 5 * time.Minute
+
 // Scheduler runs the pipeline periodically for active sessions.
 // It ticks at the configured interval and processes summarize + consolidate
 // for each active session, keeping memories up-to-date during the session
@@ -22,6 +28,7 @@ const decayRunInterval = 6 * time.Hour
 type Scheduler struct {
 	pipeline *PipelineService
 	sessions *SessionService
+	tracker  *SessionTracker
 	cfg      *config.Config
 	interval time.Duration
 
@@ -35,11 +42,12 @@ type Scheduler struct {
 // NewScheduler creates a new Scheduler. If intervalMin <= 0, the scheduler is disabled.
 // O cfg é a referência viva — re-lemos dele a cada tick pra que mudanças via
 // Settings UI tenham efeito sem reiniciar o servidor.
-func NewScheduler(pipeline *PipelineService, sessions *SessionService, cfg *config.Config, intervalMin int) *Scheduler {
+func NewScheduler(pipeline *PipelineService, sessions *SessionService, tracker *SessionTracker, cfg *config.Config, intervalMin int) *Scheduler {
 	interval := time.Duration(intervalMin) * time.Minute
 	return &Scheduler{
 		pipeline: pipeline,
 		sessions: sessions,
+		tracker:  tracker,
 		cfg:      cfg,
 		interval: interval,
 	}
@@ -149,6 +157,34 @@ func (s *Scheduler) tick() {
 		cancel()
 	}
 
+	// Idle finalize sweep: sessões sem heartbeat há mais de sessionIdleThreshold
+	// são consideradas terminadas (Claude Code fechou ou /exit). Roda finalize
+	// e marca a sessão como completed no DB pra GetActive() não pegar de novo.
+	// Substitui a dependência no hook SessionEnd, que não dispara consistente.
+	if s.tracker != nil {
+		for _, sid := range s.tracker.IdleSessions(sessionIdleThreshold) {
+			s.finalizeIdleSession(sid, "no heartbeat")
+		}
+	}
+
+	// DB-orphan sweep: sessões DB-active que NÃO estão no tracker (servidor
+	// reiniciou no meio, ou sessão antiga ficou pendurada) e cujo StartedAt
+	// já é mais antigo que o threshold também viram finalize.
+	// Why: o tracker é em-memória; sem isso, sessões pré-restart nunca
+	// finalizam. RunFinalize é idempotente, então o pior caso (finalize
+	// prematuro de sessão "viva sem heartbeat" — não deveria existir, mas
+	// hipotético) é uma chamada extra de LLM, não corrupção de dado.
+	now := time.Now()
+	for _, sess := range active {
+		if s.tracker != nil && s.tracker.HasHeartbeat(sess.ID) {
+			continue
+		}
+		if now.Sub(sess.StartedAt) < sessionIdleThreshold {
+			continue
+		}
+		s.finalizeIdleSession(sess.ID, "DB-active without heartbeat")
+	}
+
 	// Decay sweep: low-strength memories older than the cutoff get
 	// soft-deleted. Runs at most once every decayRunInterval; thresholds
 	// vêm do cfg vivo (editáveis via Settings UI sem restart).
@@ -171,4 +207,26 @@ func (s *Scheduler) tick() {
 		}
 		s.lastDecayAt = time.Now()
 	}
+}
+
+// finalizeIdleSession roda RunFinalize, marca a sessão como completed no DB e
+// limpa o tracker. Idempotente — pode ser chamado várias vezes pra mesmo sid
+// sem problema; reason vai pro log pra distinguir os caminhos (heartbeat
+// stale vs DB-orphan).
+func (s *Scheduler) finalizeIdleSession(sessionID, reason string) {
+	sidShort := sessionID[:min(12, len(sessionID))]
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	if err := s.pipeline.RunFinalize(ctx, sessionID); err != nil {
+		log.Printf("[scheduler] Idle finalize failed for %s (%s): %v", sidShort, reason, err)
+		return
+	}
+	if err := s.sessions.End(sessionID); err != nil {
+		log.Printf("[scheduler] Mark session ended failed for %s: %v", sidShort, err)
+	}
+	if s.tracker != nil {
+		s.tracker.Forget(sessionID)
+	}
+	log.Printf("[scheduler] Idle session %s finalized (%s)", sidShort, reason)
 }
