@@ -1,0 +1,20 @@
+{
+  "name": "imprint-local",
+  "interface": {
+    "displayName": "Imprint Local"
+  },
+  "plugins": [
+    {
+      "name": "imprint",
+      "source": {
+        "source": "local",
+        "path": "./plugin"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

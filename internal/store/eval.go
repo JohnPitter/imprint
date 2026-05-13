@@ -3,6 +3,7 @@ package store
 import (
 	"encoding/json"
 	"fmt"
+	"sync/atomic"
 	"time"
 )
 
@@ -28,6 +29,8 @@ type EvalStore struct {
 	db *DB
 }
 
+var evalIDSeq atomic.Uint64
+
 func NewEvalStore(db *DB) *EvalStore {
 	return &EvalStore{db: db}
 }
@@ -45,13 +48,17 @@ func (s *EvalStore) Append(c EvalCandidate) error {
 		return nil
 	}
 	if c.ID == "" {
-		c.ID = fmt.Sprintf("eval_%d", time.Now().UnixNano())
+		c.ID = fmt.Sprintf("eval_%d_%d", time.Now().UnixNano(), evalIDSeq.Add(1))
+	}
+	var sessionID any
+	if c.SessionID != nil {
+		sessionID = *c.SessionID
 	}
 	_, _ = s.db.Exec(`
 		INSERT INTO eval_candidates
 			(id, source, operation, query_text, returned_ids, result_count, session_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		c.ID, c.Source, c.Operation, c.QueryText, string(idsJSON), c.ResultCount, c.SessionID,
+		c.ID, c.Source, c.Operation, c.QueryText, string(idsJSON), c.ResultCount, sessionID,
 	)
 	return nil
 }

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Imprint">
+  <rect width="128" height="128" rx="28" fill="#1A1612"/>
+  <path d="M37 36h54v12H37z" fill="#F97316"/>
+  <path d="M37 58h54v12H37z" fill="#2D8E5E"/>
+  <path d="M37 80h34v12H37z" fill="#2B7BB5"/>
+  <circle cx="91" cy="86" r="10" fill="#7E44A8"/>
+</svg>
