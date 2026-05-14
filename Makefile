@@ -1,11 +1,11 @@
-.PHONY: dev build hooks mcp cli codex-watch frontend test clean all
+.PHONY: dev build hooks mcp cli codex-watch codex-hook frontend test clean all
 
 # Development mode
 dev: frontend
 	go run .
 
 # Build everything
-all: frontend build hooks mcp cli codex-watch
+all: frontend build hooks mcp cli codex-watch codex-hook
 
 # Build Go binary with embedded frontend
 build: frontend
@@ -42,6 +42,11 @@ codex-watch:
 	go build -ldflags="-s -w" -o build/codex-watch.exe ./cmd/codex-watch/
 	@echo "Built build/codex-watch.exe"
 
+# Build Codex hook adapter
+codex-hook:
+	go build -ldflags="-s -w" -o build/codex-hook.exe ./cmd/codex-hook/
+	@echo "Built build/codex-hook.exe"
+
 # Run tests
 test:
 	go test ./... -count=1
@@ -52,7 +57,7 @@ test-v:
 
 # Clean build artifacts
 clean:
-	rm -rf imprint.exe build/hooks build/mcp-server.exe build/codex-watch.exe
+	rm -rf imprint.exe build/hooks build/mcp-server.exe build/codex-watch.exe build/codex-hook.exe
 	rm -rf frontend/dist
 	rm -rf internal/search/bleve_index
 

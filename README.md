@@ -191,7 +191,7 @@ plugin/scripts/imprint-mcp.cmd
 ```
 
 That wrapper builds `plugin/bin` from source if needed, starts the local Imprint
-server, starts the `codex-watch` transcript watcher for automatic capture, then
+server, starts the `codex-watch` transcript watcher for backfill capture, then
 launches the MCP stdio bridge. On macOS/Linux, use
 `plugin/.mcp.codex.unix.json` or point Codex directly at:
 
@@ -199,11 +199,12 @@ launches the MCP stdio bridge. On macOS/Linux, use
 bash plugin/scripts/imprint-mcp.sh
 ```
 
-Codex support captures local sessions by tailing `~/.codex/sessions/**/*.jsonl`.
-Prompts, tool calls, tool outputs, and assistant messages are stored as Imprint
-observations with `codex_` session ids. The watcher keeps offsets in
-`~/.imprint/codex-watch-state.json` so restarts do not replay old transcript
-lines.
+Codex support captures local sessions through official hooks declared in
+`plugin/hooks/codex-hooks.json`: session start, prompt submit, pre/post tool
+use, and stop events are stored as Imprint observations with `codex_` session
+ids. The transcript watcher still tails `~/.codex/sessions/**/*.jsonl` as a
+backfill path and keeps offsets in `~/.imprint/codex-watch-state.json` so
+restarts do not replay old transcript lines.
 
 #### Legacy direct install
 

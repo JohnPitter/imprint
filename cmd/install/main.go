@@ -83,7 +83,11 @@ func main() {
 	fmt.Println("[build] Building Codex transcript watcher...")
 	buildGo(projectRoot, filepath.Join(binDir, "codex-watch"+ext), "./cmd/codex-watch")
 
-	// 7. Make scripts executable
+	// 7. Build Codex hook adapter → plugin/bin/codex-hook[.exe]
+	fmt.Println("[build] Building Codex hook adapter...")
+	buildGo(projectRoot, filepath.Join(binDir, "codex-hook"+ext), "./cmd/codex-hook")
+
+	// 8. Make scripts executable
 	scriptsDir := filepath.Join(pluginDir, "scripts")
 	if entries, err := os.ReadDir(scriptsDir); err == nil {
 		for _, e := range entries {
@@ -91,7 +95,7 @@ func main() {
 		}
 	}
 
-	// 8. Create data directory
+	// 9. Create data directory
 	home, _ := os.UserHomeDir()
 	dataDir := filepath.Join(home, ".imprint")
 	os.MkdirAll(dataDir, 0o755)

@@ -7,6 +7,8 @@ Claude Code plugin files.
 
 - Codex can discover the plugin through `plugin/.codex-plugin/plugin.json`.
 - The Codex MCP config uses `plugin/.mcp.codex.json`.
+- Codex hooks are loaded from `plugin/hooks/codex-hooks.json`, separate from
+  the Claude hook file at `plugin/hooks/hooks.json`.
 - On Windows, the MCP command runs `plugin/scripts/imprint-mcp.cmd`, which:
   - builds `plugin/bin` from source if the binaries are missing;
   - starts the local Imprint HTTP server through `ensure-server.exe`;
@@ -35,7 +37,11 @@ moving files into a separate `plugins/imprint` directory.
 
 ## Capture Notes
 
-Codex does not expose the same hook payload contract as Claude Code in this
-repository, so automatic capture is transcript-based instead of event-hook
-based. The watcher stores offsets in `~/.imprint/codex-watch-state.json` and
-uses `~/.imprint/codex-watch.lock` to avoid duplicate watcher processes.
+The Codex plugin uses official Codex hooks for primary capture:
+`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, and `Stop`.
+The hook adapter writes prompt, tool, and final assistant-message observations
+to Imprint and can return session context to Codex during startup.
+
+`codex-watch` remains enabled as a transcript backfill path. It stores offsets
+in `~/.imprint/codex-watch-state.json` and uses
+`~/.imprint/codex-watch.lock` to avoid duplicate watcher processes.

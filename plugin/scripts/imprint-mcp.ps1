@@ -26,9 +26,10 @@ $serverBin = Join-Path $binDir "imprint.exe"
 $ensureBin = Join-Path $binDir "ensure-server.exe"
 $mcpBin = Join-Path $binDir "mcp-server.exe"
 $watchBin = Join-Path $binDir "codex-watch.exe"
+$hookBin = Join-Path $binDir "codex-hook.exe"
 
 function Test-ImprintBinaries {
-    return (Test-Path $serverBin) -and (Test-Path $ensureBin) -and (Test-Path $mcpBin) -and (Test-Path $watchBin)
+    return (Test-Path $serverBin) -and (Test-Path $ensureBin) -and (Test-Path $mcpBin) -and (Test-Path $watchBin) -and (Test-Path $hookBin)
 }
 
 function Build-ImprintBinaries {

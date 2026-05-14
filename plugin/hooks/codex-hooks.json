@@ -1,0 +1,65 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".\\scripts\\imprint-codex-hook.cmd",
+            "timeout": 30,
+            "statusMessage": "Loading Imprint memories"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".\\scripts\\imprint-codex-hook.cmd",
+            "timeout": 30,
+            "statusMessage": "Saving prompt to Imprint"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".\\scripts\\imprint-codex-hook.cmd",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".\\scripts\\imprint-codex-hook.cmd",
+            "timeout": 30,
+            "statusMessage": "Saving tool result to Imprint"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".\\scripts\\imprint-codex-hook.cmd",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

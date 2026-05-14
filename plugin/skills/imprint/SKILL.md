@@ -6,8 +6,8 @@ description: Persistent local memory for Codex sessions. Use when prior project 
 # Imprint
 
 Imprint is a local memory system for Codex. It runs a local HTTP server backed
-by SQLite, exposes MCP tools, and automatically captures Codex transcript events
-through `codex-watch`.
+by SQLite, exposes MCP tools, captures official Codex hook events, and keeps
+`codex-watch` as a transcript backfill path.
 
 ## When to use
 
@@ -38,7 +38,9 @@ Prefer these MCP tools:
 
 ## Automatic Capture
 
-The Codex plugin starts `codex-watch` with the MCP wrapper. The watcher tails
-`~/.codex/sessions/**/*.jsonl`, creates `codex_...` sessions, and records
-prompts, tool calls, tool outputs, and assistant messages as Imprint
-observations. This complements explicit MCP recall/save operations.
+The Codex plugin loads `plugin/hooks/codex-hooks.json` and records
+`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, and `Stop`
+events as Imprint observations. It also starts `codex-watch` with the MCP
+wrapper; the watcher tails `~/.codex/sessions/**/*.jsonl`, creates `codex_...`
+sessions, and backfills prompts, tool calls, tool outputs, and assistant
+messages. This complements explicit MCP recall/save operations.

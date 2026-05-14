@@ -92,6 +92,7 @@ jobs:
           go build -ldflags="-s -w" -o "$OUT/mcp-server$EXT" ./cmd/mcp-server
           go build -ldflags="-s -w" -o "$OUT/ensure-server$EXT" ./cmd/ensure-server
           go build -ldflags="-s -w" -o "$OUT/codex-watch$EXT" ./cmd/codex-watch
+          go build -ldflags="-s -w" -o "$OUT/codex-hook$EXT" ./cmd/codex-hook
 
           for hook in session-start session-end prompt-submit \
                       post-tool-use post-tool-failure pre-tool-use \

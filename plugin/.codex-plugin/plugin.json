@@ -19,10 +19,11 @@
   ],
   "skills": "./skills/",
   "mcpServers": "./.mcp.codex.json",
+  "hooks": "./hooks/codex-hooks.json",
   "interface": {
     "displayName": "Imprint",
     "shortDescription": "Persistent local memory for Codex sessions.",
-    "longDescription": "Imprint runs a local Go server backed by SQLite, exposes MCP tools for memory search, recall, save, and graph queries, and starts a Codex transcript watcher that automatically captures prompts, tool calls, tool outputs, and assistant messages from local Codex sessions.",
+    "longDescription": "Imprint runs a local Go server backed by SQLite, exposes MCP tools for memory search, recall, save, and graph queries, captures Codex hook events, and keeps a transcript watcher as a backfill path for local Codex sessions.",
     "developerName": "JohnPitter",
     "category": "Productivity",
     "capabilities": [

@@ -81,6 +81,10 @@ func Post(cfg Config, path string, body any) (map[string]any, error) {
 		return nil, fmt.Errorf("read response: %w", err)
 	}
 
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("server returned %s: %s", resp.Status, string(respBody))
+	}
+
 	var result map[string]any
 	if err := json.Unmarshal(respBody, &result); err != nil {
 		return nil, fmt.Errorf("parse response: %w", err)
