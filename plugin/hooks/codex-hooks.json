@@ -6,7 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".\\scripts\\imprint-codex-hook.cmd",
+            "command": "./scripts/imprint-codex-hook.sh",
+            "commandWindows": ".\\scripts\\imprint-codex-hook.cmd",
             "timeout": 30,
             "statusMessage": "Loading Imprint memories"
           }
@@ -18,7 +19,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".\\scripts\\imprint-codex-hook.cmd",
+            "command": "./scripts/imprint-codex-hook.sh",
+            "commandWindows": ".\\scripts\\imprint-codex-hook.cmd",
             "timeout": 30,
             "statusMessage": "Saving prompt to Imprint"
           }
@@ -31,7 +33,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".\\scripts\\imprint-codex-hook.cmd",
+            "command": "./scripts/imprint-codex-hook.sh",
+            "commandWindows": ".\\scripts\\imprint-codex-hook.cmd",
             "timeout": 30
           }
         ]
@@ -43,7 +46,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".\\scripts\\imprint-codex-hook.cmd",
+            "command": "./scripts/imprint-codex-hook.sh",
+            "commandWindows": ".\\scripts\\imprint-codex-hook.cmd",
             "timeout": 30,
             "statusMessage": "Saving tool result to Imprint"
           }
@@ -55,7 +59,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".\\scripts\\imprint-codex-hook.cmd",
+            "command": "./scripts/imprint-codex-hook.sh",
+            "commandWindows": ".\\scripts\\imprint-codex-hook.cmd",
             "timeout": 30
           }
         ]
