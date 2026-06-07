@@ -2,6 +2,7 @@ package config
 
 import (
 	"bufio"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,15 +17,20 @@ type Config struct {
 	DataDir string // IMPRINT_DATA_DIR, default ~/.imprint
 
 	// LLM
-	AnthropicAPIKey   string   // ANTHROPIC_API_KEY (or auto-detected from Claude Code OAuth)
-	AnthropicBaseURL  string   // ANTHROPIC_BASE_URL
-	AnthropicModel    string   // ANTHROPIC_MODEL, default "claude-haiku-4-5-20251001"
-	AnthropicAuthMode string   // "api_key" or "oauth" (auto-detected)
-	OpenRouterAPIKey  string   // OPENROUTER_API_KEY
-	OpenRouterModel   string   // OPENROUTER_MODEL, default "anthropic/claude-haiku-4-5-20251001"
-	LlamaCppURL       string   // LLAMACPP_URL, default "http://localhost:8080"
-	LlamaCppModel     string   // LLAMACPP_MODEL, default "" (server decides)
-	LLMProviderOrder  []string // LLM_PROVIDER_ORDER, default ["anthropic","openrouter","llamacpp"]
+	AnthropicAPIKey       string   // ANTHROPIC_API_KEY (or auto-detected from Claude Code OAuth)
+	AnthropicBaseURL      string   // ANTHROPIC_BASE_URL
+	AnthropicModel        string   // ANTHROPIC_MODEL, default "claude-haiku-4-5-20251001"
+	AnthropicAuthMode     string   // "api_key" or "oauth" (auto-detected)
+	OpenAIAPIKey          string   // OPENAI_API_KEY (or auto-detected from ~/.codex/auth.json)
+	OpenAIBaseURL         string   // OPENAI_BASE_URL, default "https://api.openai.com"
+	OpenAIModel           string   // OPENAI_MODEL, default "gpt-5-mini" (cheap GPT-5 tier, Codex's Haiku equivalent)
+	OpenAIReasoningEffort string   // OPENAI_REASONING_EFFORT, default "minimal" (cheapest); "" lets the model decide
+	OpenAIAuthMode        string   // "api_key" or "codex" (auto-detected)
+	OpenRouterAPIKey      string   // OPENROUTER_API_KEY
+	OpenRouterModel       string   // OPENROUTER_MODEL, default "anthropic/claude-haiku-4-5-20251001"
+	LlamaCppURL           string   // LLAMACPP_URL, default "http://localhost:8080"
+	LlamaCppModel         string   // LLAMACPP_MODEL, default "" (server decides)
+	LLMProviderOrder      []string // LLM_PROVIDER_ORDER, default ["anthropic","openrouter","llamacpp"]
 
 	// Embedding
 	EmbeddingProvider string // EMBEDDING_PROVIDER, default "llamacpp"
@@ -66,6 +72,8 @@ type Config struct {
 	MaxInjectionTokens       int     // IMPRINT_MAX_INJECTION_TOKENS, default 0 (use layer budgets)
 	HaikuPriceInPerMTok      float64 // IMPRINT_HAIKU_PRICE_IN, USD per 1M input tokens (Haiku 4.5 ≈ 1.0)
 	HaikuPriceOutPerMTok     float64 // IMPRINT_HAIKU_PRICE_OUT, USD per 1M output tokens (Haiku 4.5 ≈ 5.0)
+	OpenAIPriceInPerMTok     float64 // OPENAI_PRICE_IN, USD per 1M input tokens (gpt-5-mini ≈ 0.25)
+	OpenAIPriceOutPerMTok    float64 // OPENAI_PRICE_OUT, USD per 1M output tokens (gpt-5-mini ≈ 2.0)
 
 	// Memory decay
 	DecayMinStrength int // DECAY_MIN_STRENGTH, default 3 — memórias com strength <= este valor viram candidatas a archive
@@ -112,14 +120,18 @@ func Load() (*Config, error) {
 		Secret:  envStr("IMPRINT_SECRET", ""),
 		DataDir: dataDir,
 
-		AnthropicAPIKey:  envStr("ANTHROPIC_API_KEY", ""),
-		AnthropicBaseURL: envStr("ANTHROPIC_BASE_URL", "https://api.anthropic.com"),
-		AnthropicModel:   envStr("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
-		OpenRouterAPIKey: envStr("OPENROUTER_API_KEY", ""),
-		OpenRouterModel:  envStr("OPENROUTER_MODEL", "anthropic/claude-haiku-4-5-20251001"),
-		LlamaCppURL:      envStr("LLAMACPP_URL", "http://localhost:8080"),
-		LlamaCppModel:    envStr("LLAMACPP_MODEL", ""),
-		LLMProviderOrder: envList("LLM_PROVIDER_ORDER", []string{"anthropic", "openrouter", "llamacpp"}),
+		AnthropicAPIKey:       envStr("ANTHROPIC_API_KEY", ""),
+		AnthropicBaseURL:      envStr("ANTHROPIC_BASE_URL", "https://api.anthropic.com"),
+		AnthropicModel:        envStr("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
+		OpenAIAPIKey:          envStr("OPENAI_API_KEY", ""),
+		OpenAIBaseURL:         envStr("OPENAI_BASE_URL", "https://api.openai.com"),
+		OpenAIModel:           envStr("OPENAI_MODEL", "gpt-5-mini"),
+		OpenAIReasoningEffort: envStr("OPENAI_REASONING_EFFORT", "minimal"),
+		OpenRouterAPIKey:      envStr("OPENROUTER_API_KEY", ""),
+		OpenRouterModel:       envStr("OPENROUTER_MODEL", "anthropic/claude-haiku-4-5-20251001"),
+		LlamaCppURL:           envStr("LLAMACPP_URL", "http://localhost:8080"),
+		LlamaCppModel:         envStr("LLAMACPP_MODEL", ""),
+		LLMProviderOrder:      envList("LLM_PROVIDER_ORDER", []string{"anthropic", "openai", "openrouter", "llamacpp"}),
 
 		EmbeddingProvider: envStr("EMBEDDING_PROVIDER", "llamacpp"),
 		EmbeddingModel:    envStr("EMBEDDING_MODEL", ""),
@@ -147,6 +159,8 @@ func Load() (*Config, error) {
 		MaxInjectionTokens:       envInt("IMPRINT_MAX_INJECTION_TOKENS", 0),
 		HaikuPriceInPerMTok:      envFloat("IMPRINT_HAIKU_PRICE_IN", 1.0),
 		HaikuPriceOutPerMTok:     envFloat("IMPRINT_HAIKU_PRICE_OUT", 5.0),
+		OpenAIPriceInPerMTok:     envFloat("OPENAI_PRICE_IN", 0.25),
+		OpenAIPriceOutPerMTok:    envFloat("OPENAI_PRICE_OUT", 2.0),
 
 		DecayMinStrength: envInt("DECAY_MIN_STRENGTH", 3),
 		DecayMaxAgeDays:  envInt("DECAY_MAX_AGE_DAYS", 30),
@@ -177,7 +191,39 @@ func Load() (*Config, error) {
 		}
 	}
 
+	// Auto-detect OpenAI auth so Codex users get cheap GPT-5 background work with
+	// zero config: an explicit OPENAI_API_KEY wins; otherwise reuse the API key
+	// Codex stored in ~/.codex/auth.json (api-key login mode only).
+	if cfg.OpenAIAPIKey != "" {
+		cfg.OpenAIAuthMode = "api_key"
+	} else if key := detectCodexAPIKey(); key != "" {
+		cfg.OpenAIAPIKey = key
+		cfg.OpenAIAuthMode = "codex"
+	}
+
 	return cfg, nil
+}
+
+// detectCodexAPIKey reads an OpenAI API key from Codex's credential file at
+// ~/.codex/auth.json (written by `codex login` in api-key mode). Returns "" if
+// the file is absent or uses ChatGPT-OAuth mode (those tokens aren't usable on
+// the standard Chat Completions API). Best-effort and never fatal.
+func detectCodexAPIKey() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	data, err := os.ReadFile(filepath.Join(home, ".codex", "auth.json"))
+	if err != nil {
+		return ""
+	}
+	var auth struct {
+		OpenAIAPIKey string `json:"OPENAI_API_KEY"`
+	}
+	if err := json.Unmarshal(data, &auth); err != nil {
+		return ""
+	}
+	return auth.OpenAIAPIKey
 }
 
 // detectClaudeCodeOAuth reads the Claude Code OAuth token from the

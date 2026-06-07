@@ -11,13 +11,16 @@ import (
 // These override the defaults from env vars. Only non-zero values override.
 type UserSettings struct {
 	// LLM Provider
-	LLMProvider      string `json:"llmProvider"`     // "anthropic", "openrouter", "llamacpp"
-	AnthropicModel   string `json:"anthropicModel"`  // e.g. "claude-haiku-4-5-20251001"
-	AnthropicAPIKey  string `json:"anthropicApiKey"` // manual API key (not shown in UI)
-	OpenRouterModel  string `json:"openrouterModel"`
-	OpenRouterAPIKey string `json:"openrouterApiKey"`
-	LlamaCppURL      string `json:"llamacppUrl"`
-	LlamaCppModel    string `json:"llamacppModel"`
+	LLMProvider           string `json:"llmProvider"`     // "anthropic", "openai", "openrouter", "llamacpp"
+	AnthropicModel        string `json:"anthropicModel"`  // e.g. "claude-haiku-4-5-20251001"
+	AnthropicAPIKey       string `json:"anthropicApiKey"` // manual API key (not shown in UI)
+	OpenAIModel           string `json:"openaiModel"`     // e.g. "gpt-5-mini" (Codex cheap tier)
+	OpenAIAPIKey          string `json:"openaiApiKey"`    // manual API key (not shown in UI)
+	OpenAIReasoningEffort string `json:"openaiReasoningEffort"`
+	OpenRouterModel       string `json:"openrouterModel"`
+	OpenRouterAPIKey      string `json:"openrouterApiKey"`
+	LlamaCppURL           string `json:"llamacppUrl"`
+	LlamaCppModel         string `json:"llamacppModel"`
 
 	// Provider priority order
 	ProviderOrder []string `json:"providerOrder"` // e.g. ["anthropic", "llamacpp"]
@@ -113,6 +116,16 @@ func ApplyUserSettings(cfg *Config, s *UserSettings) {
 		cfg.AnthropicAPIKey = s.AnthropicAPIKey
 		cfg.AnthropicAuthMode = "api_key"
 	}
+	if s.OpenAIModel != "" {
+		cfg.OpenAIModel = s.OpenAIModel
+	}
+	if s.OpenAIAPIKey != "" {
+		cfg.OpenAIAPIKey = s.OpenAIAPIKey
+		cfg.OpenAIAuthMode = "api_key"
+	}
+	if s.OpenAIReasoningEffort != "" {
+		cfg.OpenAIReasoningEffort = s.OpenAIReasoningEffort
+	}
 	if s.OpenRouterModel != "" {
 		cfg.OpenRouterModel = s.OpenRouterModel
 	}
@@ -181,14 +194,18 @@ func ConfigToPublicView(cfg *Config) map[string]any {
 
 	return map[string]any{
 		"llm": map[string]any{
-			"providerOrder":    cfg.LLMProviderOrder,
-			"anthropicModel":   cfg.AnthropicModel,
-			"anthropicApiKey":  maskKey(cfg.AnthropicAPIKey),
-			"anthropicAuth":    cfg.AnthropicAuthMode,
-			"openrouterModel":  cfg.OpenRouterModel,
-			"openrouterApiKey": maskKey(cfg.OpenRouterAPIKey),
-			"llamacppUrl":      cfg.LlamaCppURL,
-			"llamacppModel":    cfg.LlamaCppModel,
+			"providerOrder":         cfg.LLMProviderOrder,
+			"anthropicModel":        cfg.AnthropicModel,
+			"anthropicApiKey":       maskKey(cfg.AnthropicAPIKey),
+			"anthropicAuth":         cfg.AnthropicAuthMode,
+			"openaiModel":           cfg.OpenAIModel,
+			"openaiApiKey":          maskKey(cfg.OpenAIAPIKey),
+			"openaiAuth":            cfg.OpenAIAuthMode,
+			"openaiReasoningEffort": cfg.OpenAIReasoningEffort,
+			"openrouterModel":       cfg.OpenRouterModel,
+			"openrouterApiKey":      maskKey(cfg.OpenRouterAPIKey),
+			"llamacppUrl":           cfg.LlamaCppURL,
+			"llamacppModel":         cfg.LlamaCppModel,
 		},
 		"search": map[string]any{
 			"bm25Weight":   cfg.BM25Weight,

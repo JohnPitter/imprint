@@ -60,6 +60,11 @@ func main() {
 	} else if cfg.AnthropicAPIKey != "" {
 		log.Println("[app] Anthropic auth: API key")
 	}
+	if cfg.OpenAIAuthMode == "codex" {
+		log.Printf("[app] OpenAI auth: Codex credential (auto-detected) · model %s", cfg.OpenAIModel)
+	} else if cfg.OpenAIAPIKey != "" {
+		log.Printf("[app] OpenAI auth: API key · model %s", cfg.OpenAIModel)
+	}
 
 	// Open database
 	db, err := store.Open(cfg.DataDir)
@@ -203,13 +208,9 @@ func main() {
 		Settings:     handler.NewSettingsHandler(cfg),
 		Pipeline:     handler.NewPipelineHandler(pipelineSvc),
 		Recall:       handler.NewRecallHandler(recallSvc),
-		Economy: handler.NewEconomyHandler(container.Ledger, handler.EconomyConfig{
-			Plan:            resolvePlan(cfg),
-			PriceInPerMTok:  cfg.HaikuPriceInPerMTok,
-			PriceOutPerMTok: cfg.HaikuPriceOutPerMTok,
-		}),
-		Intuitions:  handler.NewIntuitionHandler(intuitionSvc),
-		MemoryAdmin: handler.NewMemoryAdminHandler(contextSvc, memoryAdminSvc, cfg.LazyInjectMax),
+		Economy:      handler.NewEconomyHandler(container.Ledger, newEconomyConfig(cfg)),
+		Intuitions:   handler.NewIntuitionHandler(intuitionSvc),
+		MemoryAdmin:  handler.NewMemoryAdminHandler(contextSvc, memoryAdminSvc, cfg.LazyInjectMax),
 	}
 
 	// Create router and HTTP server
@@ -272,6 +273,22 @@ func resolvePlan(cfg *config.Config) string {
 		return "pro"
 	}
 	return "api"
+}
+
+// newEconomyConfig wires the economy meter to the pricing of whatever model does
+// the background work: GPT-5 prices when OpenAI is the active backend (Codex),
+// Haiku prices otherwise. The active backend is OpenAI when it is configured and
+// Anthropic is not.
+func newEconomyConfig(cfg *config.Config) handler.EconomyConfig {
+	inPrice, outPrice := cfg.HaikuPriceInPerMTok, cfg.HaikuPriceOutPerMTok
+	if cfg.OpenAIAPIKey != "" && cfg.AnthropicAPIKey == "" {
+		inPrice, outPrice = cfg.OpenAIPriceInPerMTok, cfg.OpenAIPriceOutPerMTok
+	}
+	return handler.EconomyConfig{
+		Plan:            resolvePlan(cfg),
+		PriceInPerMTok:  inPrice,
+		PriceOutPerMTok: outPrice,
+	}
 }
 
 // backfillBM25 reindexes every compressed observation in the DB into the BM25
