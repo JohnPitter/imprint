@@ -1,0 +1,47 @@
+{
+  "name": "imprint",
+  "version": "1.5.2",
+  "description": "Persistent memory for Codex and Claude Code. Captures observations, compresses with LLM, builds a knowledge graph, and exposes recall/search through MCP.",
+  "author": {
+    "name": "JohnPitter",
+    "email": "joaopedro.ts16@gmail.com",
+    "url": "https://github.com/JohnPitter"
+  },
+  "homepage": "https://github.com/JohnPitter/imprint",
+  "repository": "https://github.com/JohnPitter/imprint",
+  "license": "MIT",
+  "keywords": [
+    "memory",
+    "persistent",
+    "knowledge-graph",
+    "mcp-server",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.codex.json",
+  "hooks": "./hooks/codex-hooks.json",
+  "interface": {
+    "displayName": "Imprint",
+    "shortDescription": "Persistent local memory for Codex sessions.",
+    "longDescription": "Imprint runs a local Go server backed by SQLite, exposes MCP tools for memory search, recall, save, and graph queries, captures Codex hook events, and keeps a transcript watcher as a backfill path for local Codex sessions.",
+    "developerName": "JohnPitter",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/JohnPitter/imprint",
+    "privacyPolicyURL": "https://github.com/JohnPitter/imprint",
+    "termsOfServiceURL": "https://github.com/JohnPitter/imprint/blob/master/LICENSE",
+    "defaultPrompt": [
+      "Search my Imprint memories for this project.",
+      "Save this decision to Imprint memory.",
+      "Recall prior architecture notes from Imprint."
+    ],
+    "brandColor": "#2D8E5E",
+    "composerIcon": "./assets/imprint.svg",
+    "logo": "./assets/imprint.svg",
+    "screenshots": []
+  }
+}

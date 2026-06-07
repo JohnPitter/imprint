@@ -10,7 +10,7 @@ import (
 // evalIDSeq disambiguates IDs generated within the same nanosecond so two quick
 // Append calls don't collide on the PRIMARY KEY (which would silently drop the
 // second row, since Append swallows DB errors).
-var evalIDSeq atomic.Int64
+var evalIDSeq atomic.Uint64
 
 // EvalCandidate is one captured retrieval call recorded for later replay.
 // All fields except CapturedAt are caller-provided; the timestamp comes from
@@ -53,11 +53,15 @@ func (s *EvalStore) Append(c EvalCandidate) error {
 	if c.ID == "" {
 		c.ID = fmt.Sprintf("eval_%d_%d", time.Now().UnixNano(), evalIDSeq.Add(1))
 	}
+	var sessionID any
+	if c.SessionID != nil {
+		sessionID = *c.SessionID
+	}
 	_, _ = s.db.Exec(`
 		INSERT INTO eval_candidates
 			(id, source, operation, query_text, returned_ids, result_count, session_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		c.ID, c.Source, c.Operation, c.QueryText, string(idsJSON), c.ResultCount, c.SessionID,
+		c.ID, c.Source, c.Operation, c.QueryText, string(idsJSON), c.ResultCount, sessionID,
 	)
 	return nil
 }

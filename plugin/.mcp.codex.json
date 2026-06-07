@@ -1,0 +1,11 @@
+{
+  "mcp_servers": {
+    "imprint": {
+      "command": ".\\scripts\\imprint-mcp.cmd",
+      "args": [],
+      "env": {
+        "IMPRINT_URL": "http://localhost:3111"
+      }
+    }
+  }
+}

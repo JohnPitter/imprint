@@ -42,7 +42,10 @@ fi
 TAG="v$VERSION"
 
 # Fast path: binaries match the expected version, nothing to do.
-if [ -f "$SENTINEL" ] && [ "$(cat "$SENTINEL" 2>/dev/null)" = "$TAG" ] && [ -x "$BIN_DIR/imprint" -o -x "$BIN_DIR/imprint.exe" ]; then
+if [ -f "$SENTINEL" ] && [ "$(cat "$SENTINEL" 2>/dev/null)" = "$TAG" ] &&
+   { [ -x "$BIN_DIR/imprint" ] || [ -x "$BIN_DIR/imprint.exe" ]; } &&
+   { [ -x "$BIN_DIR/codex-watch" ] || [ -x "$BIN_DIR/codex-watch.exe" ]; } &&
+   { [ -x "$BIN_DIR/codex-hook" ] || [ -x "$BIN_DIR/codex-hook.exe" ]; }; then
   exit 0
 fi
 

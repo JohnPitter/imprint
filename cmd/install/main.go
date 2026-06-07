@@ -79,7 +79,15 @@ func main() {
 	fmt.Println("[build] Building ensure-server...")
 	buildGo(projectRoot, filepath.Join(binDir, "ensure-server"+ext), "./cmd/ensure-server")
 
-	// 6. Make scripts executable
+	// 6. Build Codex transcript watcher → plugin/bin/codex-watch[.exe]
+	fmt.Println("[build] Building Codex transcript watcher...")
+	buildGo(projectRoot, filepath.Join(binDir, "codex-watch"+ext), "./cmd/codex-watch")
+
+	// 7. Build Codex hook adapter → plugin/bin/codex-hook[.exe]
+	fmt.Println("[build] Building Codex hook adapter...")
+	buildGo(projectRoot, filepath.Join(binDir, "codex-hook"+ext), "./cmd/codex-hook")
+
+	// 8. Make scripts executable
 	scriptsDir := filepath.Join(pluginDir, "scripts")
 	if entries, err := os.ReadDir(scriptsDir); err == nil {
 		for _, e := range entries {
@@ -87,7 +95,7 @@ func main() {
 		}
 	}
 
-	// 7. Create data directory
+	// 9. Create data directory
 	home, _ := os.UserHomeDir()
 	dataDir := filepath.Join(home, ".imprint")
 	os.MkdirAll(dataDir, 0o755)
@@ -99,6 +107,8 @@ func main() {
 		fmt.Println()
 		fmt.Println("  Marketplace install (recommended): /plugin install imprint@imprint-tools")
 		fmt.Println("  Direct test:                       claude --plugin-dir", filepath.ToSlash(pluginDir))
+		fmt.Println("  Codex local marketplace:           .agents/plugins/marketplace.json")
+		fmt.Println("  Codex MCP wrapper:                 plugin/scripts/imprint-mcp.cmd")
 		return
 	}
 

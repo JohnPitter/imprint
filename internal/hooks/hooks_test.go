@@ -116,6 +116,20 @@ func TestPost_MockServer(t *testing.T) {
 	}
 }
 
+func TestPost_NonSuccessStatus(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]any{"error": "boom"})
+	}))
+	defer ts.Close()
+
+	cfg := Config{BaseURL: ts.URL, Timeout: DefaultTimeout}
+	if _, err := Post(cfg, "/imprint/observe", map[string]any{"session_id": "missing"}); err == nil {
+		t.Fatal("expected error for non-success status")
+	}
+}
+
 func TestGet_MockServer(t *testing.T) {
 	var receivedPath string
 
