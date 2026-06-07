@@ -43,6 +43,9 @@ func (s *Summarizer) Summarize(ctx context.Context, sessionID, project string, o
 		UserPrompt:   userPrompt,
 		MaxTokens:    1500,
 		Temperature:  0.3,
+		SpendPoint:   "summarize",
+		SessionID:    sessionID,
+		Project:      project,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("LLM summarize: %w", err)

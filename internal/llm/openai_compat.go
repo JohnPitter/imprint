@@ -35,8 +35,9 @@ type chatCompletionResponse struct {
 }
 
 // parseChatCompletion parses an OpenAI-compatible chat completion response
-// and records token usage into the global meter.
-func parseChatCompletion(body []byte, provider string) (string, error) {
+// and records token usage into the global meter. req carries the optional
+// economy metadata so the spend can be attributed to a session/repo.
+func parseChatCompletion(body []byte, provider string, req CompletionRequest) (string, error) {
 	var result chatCompletionResponse
 	if err := json.Unmarshal(body, &result); err != nil {
 		GlobalUsage.Record(provider, 0, 0, true)
@@ -59,6 +60,7 @@ func parseChatCompletion(body []byte, provider string) (string, error) {
 		ot = result.Usage.CompletionTokens
 	}
 	GlobalUsage.Record(provider, pt, ot, false)
+	emitSpend(req, provider, pt, ot)
 
 	return result.Choices[0].Message.Content, nil
 }

@@ -24,6 +24,12 @@ func (p *ResilientProvider) Name() string    { return p.inner.Name() }
 func (p *ResilientProvider) Available() bool { return p.inner.Available() }
 
 func (p *ResilientProvider) Complete(ctx context.Context, req CompletionRequest) (string, error) {
+	// Budget ceiling: only instrumented (background) calls are gated. Checked
+	// before the breaker so a budget stop is not counted as a provider failure.
+	if req.SpendPoint != "" && !GlobalBudget.Allow(req.SessionID) {
+		return "", ErrBudgetExceeded
+	}
+
 	if !p.breaker.Allow() {
 		return "", fmt.Errorf("circuit breaker open for provider %s", p.Name())
 	}

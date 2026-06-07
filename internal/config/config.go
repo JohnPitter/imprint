@@ -44,14 +44,50 @@ type Config struct {
 	//                          // hybrid:   regex pre-pass for files/concepts/etc, LLM only for narrative
 	//                          // llm-only: legacy behavior, send everything to the LLM
 
+	// Phase 3 importance gate: skip the LLM for trivial observations (capture
+	// them deterministically into the base layer), spending Haiku only on what
+	// can become a refined memory. Calibrate the threshold against the saldo.
+	CompressFilterEnabled bool // COMPRESS_FILTER, default true
+	CompressMinImportance int  // COMPRESS_MIN_IMPORTANCE, score below which the LLM is skipped, default 4
+
 	// Limits
 	MaxObservationsPerSession int // MAX_OBS_PER_SESSION, default 500
 	ContextTokenBudget        int // CONTEXT_TOKEN_BUDGET, default 2000
 	ToolOutputMaxLen          int // TOOL_OUTPUT_MAX_LEN, default 8000
 
+	// Token economy (Phase 1) — budget ceiling + plan-aware display.
+	// The ceiling protects *before* spend; defaults are high enough not to touch
+	// a normal session but catch a runaway loop. 0 = unlimited. When a cap is hit
+	// the background pauses non-essential Haiku and injection falls to the
+	// minimum, without breaking the main path (invariant 6).
+	Plan                     string  // IMPRINT_PLAN: "api"|"pro"|"max", "" = auto-detect
+	MaxHaikuTokensPerSession int     // IMPRINT_MAX_HAIKU_TOKENS_SESSION, default 500000 (0 = unlimited)
+	MaxHaikuTokensPerDay     int     // IMPRINT_MAX_HAIKU_TOKENS_DAY, default 3000000 (0 = unlimited)
+	MaxInjectionTokens       int     // IMPRINT_MAX_INJECTION_TOKENS, default 0 (use layer budgets)
+	HaikuPriceInPerMTok      float64 // IMPRINT_HAIKU_PRICE_IN, USD per 1M input tokens (Haiku 4.5 ≈ 1.0)
+	HaikuPriceOutPerMTok     float64 // IMPRINT_HAIKU_PRICE_OUT, USD per 1M output tokens (Haiku 4.5 ≈ 5.0)
+
 	// Memory decay
 	DecayMinStrength int // DECAY_MIN_STRENGTH, default 3 — memórias com strength <= este valor viram candidatas a archive
 	DecayMaxAgeDays  int // DECAY_MAX_AGE_DAYS, default 30 — idade mínima pra arquivar uma memória fraca
+
+	// Intuition / rooted layer (Phase 2). Birth bar is deliberately high (3.5):
+	// an intuition only forms when many refined insights converge across distinct
+	// sessions. Residency is capped so the always-on context cost stays bounded.
+	IntuitionMinStrength      int     // INTUITION_MIN_STRENGTH, refined memories considered, default 6
+	IntuitionMinConvergence   int     // INTUITION_MIN_CONVERGENCE, min converging insights, default 4
+	IntuitionMinSessions      int     // INTUITION_MIN_SESSIONS, distinct sessions spanned, default 2
+	IntuitionMaxActive        int     // INTUITION_MAX_ACTIVE, hard residency cap per repo, default 5
+	IntuitionContradictionHit float64 // INTUITION_CONTRADICTION_HIT, strength drop per contradiction, default 2.0
+	IntuitionDemoteFloor      float64 // INTUITION_DEMOTE_FLOOR, strength at/below which it demotes, default 3.0
+
+	// Lazy injection (Phase 2) — pull refined memory on demand when a turn touches
+	// a theme, instead of dumping it all at session start (the biggest economy lever).
+	LazyInjectMax int // LAZY_INJECT_MAX, max refined memories pulled per lazy call, default 5
+
+	// Phase 4 — code graph as a relevance signal. Blast radius depth: when a turn
+	// touches a file, memories about files within this many graph hops are pulled.
+	BlastRadiusDepth int // BLAST_RADIUS_DEPTH, default 2 (0 disables the boost)
 
 	// MCP
 	MCPToolsMode string // IMPRINT_TOOLS, default "core" (or "all")
@@ -98,12 +134,32 @@ func Load() (*Config, error) {
 		PipelineIntervalMin:  envInt("PIPELINE_INTERVAL_MIN", 5),
 		ExtractionMode:       envStr("IMPRINT_EXTRACTION_MODE", "hybrid"),
 
+		CompressFilterEnabled: envBool("COMPRESS_FILTER", true),
+		CompressMinImportance: envInt("COMPRESS_MIN_IMPORTANCE", 4),
+
 		MaxObservationsPerSession: envInt("MAX_OBS_PER_SESSION", 500),
 		ContextTokenBudget:        envInt("CONTEXT_TOKEN_BUDGET", 2000),
 		ToolOutputMaxLen:          envInt("TOOL_OUTPUT_MAX_LEN", 8000),
 
+		Plan:                     envStr("IMPRINT_PLAN", ""),
+		MaxHaikuTokensPerSession: envInt("IMPRINT_MAX_HAIKU_TOKENS_SESSION", 500000),
+		MaxHaikuTokensPerDay:     envInt("IMPRINT_MAX_HAIKU_TOKENS_DAY", 3000000),
+		MaxInjectionTokens:       envInt("IMPRINT_MAX_INJECTION_TOKENS", 0),
+		HaikuPriceInPerMTok:      envFloat("IMPRINT_HAIKU_PRICE_IN", 1.0),
+		HaikuPriceOutPerMTok:     envFloat("IMPRINT_HAIKU_PRICE_OUT", 5.0),
+
 		DecayMinStrength: envInt("DECAY_MIN_STRENGTH", 3),
 		DecayMaxAgeDays:  envInt("DECAY_MAX_AGE_DAYS", 30),
+
+		IntuitionMinStrength:      envInt("INTUITION_MIN_STRENGTH", 6),
+		IntuitionMinConvergence:   envInt("INTUITION_MIN_CONVERGENCE", 4),
+		IntuitionMinSessions:      envInt("INTUITION_MIN_SESSIONS", 2),
+		IntuitionMaxActive:        envInt("INTUITION_MAX_ACTIVE", 5),
+		IntuitionContradictionHit: envFloat("INTUITION_CONTRADICTION_HIT", 2.0),
+		IntuitionDemoteFloor:      envFloat("INTUITION_DEMOTE_FLOOR", 3.0),
+
+		LazyInjectMax:    envInt("LAZY_INJECT_MAX", 5),
+		BlastRadiusDepth: envInt("BLAST_RADIUS_DEPTH", 2),
 
 		MCPToolsMode: envStr("IMPRINT_TOOLS", "core"),
 

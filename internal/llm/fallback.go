@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 )
@@ -37,6 +38,11 @@ func (f *FallbackChainProvider) Complete(ctx context.Context, req CompletionRequ
 		result, err := p.Complete(ctx, req)
 		if err == nil {
 			return result, nil
+		}
+		// Budget is global across providers — falling back would deny too. Stop
+		// and surface it directly so the caller can pause gracefully.
+		if errors.Is(err, ErrBudgetExceeded) {
+			return "", err
 		}
 		lastErr = err
 		log.Printf("[llm] Provider %s failed: %v, trying next...", p.Name(), err)

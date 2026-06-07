@@ -75,5 +75,5 @@ func (p *LlamaCppProvider) Complete(ctx context.Context, req CompletionRequest) 
 		return "", fmt.Errorf("llamacpp: HTTP %d: %s", resp.StatusCode, string(respBody))
 	}
 
-	return parseChatCompletion(respBody, "llamacpp")
+	return parseChatCompletion(respBody, "llamacpp", req)
 }

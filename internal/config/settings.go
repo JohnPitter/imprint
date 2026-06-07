@@ -37,6 +37,12 @@ type UserSettings struct {
 	// abaixar é mais agressivo.
 	DecayMinStrength *int `json:"decayMinStrength,omitempty"`
 	DecayMaxAgeDays  *int `json:"decayMaxAgeDays,omitempty"`
+
+	// Token economy (Phase 1) — budget ceiling + plan. 0 = unlimited.
+	Plan                     string `json:"plan,omitempty"` // "api" | "pro" | "max"
+	MaxHaikuTokensPerSession *int   `json:"maxHaikuTokensPerSession,omitempty"`
+	MaxHaikuTokensPerDay     *int   `json:"maxHaikuTokensPerDay,omitempty"`
+	MaxInjectionTokens       *int   `json:"maxInjectionTokens,omitempty"`
 }
 
 var (
@@ -146,6 +152,18 @@ func ApplyUserSettings(cfg *Config, s *UserSettings) {
 	if s.DecayMaxAgeDays != nil {
 		cfg.DecayMaxAgeDays = *s.DecayMaxAgeDays
 	}
+	if s.Plan != "" {
+		cfg.Plan = s.Plan
+	}
+	if s.MaxHaikuTokensPerSession != nil {
+		cfg.MaxHaikuTokensPerSession = *s.MaxHaikuTokensPerSession
+	}
+	if s.MaxHaikuTokensPerDay != nil {
+		cfg.MaxHaikuTokensPerDay = *s.MaxHaikuTokensPerDay
+	}
+	if s.MaxInjectionTokens != nil {
+		cfg.MaxInjectionTokens = *s.MaxInjectionTokens
+	}
 }
 
 // ConfigToPublicView returns a sanitized view of the config for the UI.
@@ -186,6 +204,12 @@ func ConfigToPublicView(cfg *Config) map[string]any {
 		"decay": map[string]any{
 			"minStrength": cfg.DecayMinStrength,
 			"maxAgeDays":  cfg.DecayMaxAgeDays,
+		},
+		"economy": map[string]any{
+			"plan":                     cfg.Plan,
+			"maxHaikuTokensPerSession": cfg.MaxHaikuTokensPerSession,
+			"maxHaikuTokensPerDay":     cfg.MaxHaikuTokensPerDay,
+			"maxInjectionTokens":       cfg.MaxInjectionTokens,
 		},
 		"server": map[string]any{
 			"port":    cfg.Port,

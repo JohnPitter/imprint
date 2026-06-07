@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"imprint/internal/config"
+	"imprint/internal/llm"
 )
 
 // SettingsHandler handles the settings API endpoints.
@@ -39,6 +40,9 @@ func (h *SettingsHandler) HandleUpdateSettings(w http.ResponseWriter, r *http.Re
 
 	// Apply to running config
 	config.ApplyUserSettings(h.cfg, &settings)
+
+	// Budget ceiling takes effect live (the rest needs a restart, per the note).
+	llm.GlobalBudget.SetLimits(h.cfg.MaxHaikuTokensPerSession, h.cfg.MaxHaikuTokensPerDay)
 
 	// Return updated view
 	view := config.ConfigToPublicView(h.cfg)

@@ -7,11 +7,57 @@ import (
 )
 
 // CompletionRequest holds the parameters for an LLM completion call.
+//
+// SpendPoint/SessionID/Project are optional economy metadata: when SpendPoint is
+// set, the provider reports the call's token usage to SpendSink so the token
+// ledger can attribute the Haiku spend to a session/repo (Phase 1). They are
+// passed through every wrapper (resilient, fallback) unchanged.
 type CompletionRequest struct {
 	SystemPrompt string
 	UserPrompt   string
 	MaxTokens    int
 	Temperature  float64
+
+	SpendPoint string
+	SessionID  string
+	Project    string
+}
+
+// SpendEvent is one attributed LLM spend, emitted to SpendSink when a request
+// carries a SpendPoint. Tokens are the real counts reported by the provider.
+type SpendEvent struct {
+	Provider     string
+	SpendPoint   string
+	SessionID    string
+	Project      string
+	InputTokens  int
+	OutputTokens int
+}
+
+// SpendSink, when non-nil, receives one event per instrumented LLM call. main.go
+// wires it to the token ledger. Nil by default so the llm package has no store
+// dependency and tests stay isolated. Must be cheap and non-blocking.
+var SpendSink func(SpendEvent)
+
+// emitSpend reports a successful instrumented call's usage to the budget gate
+// (always, so the ceiling stays accurate) and to the ledger sink (if wired).
+// Untagged calls — those without a SpendPoint — are ignored here; they are still
+// counted in GlobalUsage for the dashboard.
+func emitSpend(req CompletionRequest, provider string, promptTokens, outputTokens int) {
+	if req.SpendPoint == "" {
+		return
+	}
+	GlobalBudget.Record(req.SessionID, promptTokens+outputTokens)
+	if sink := SpendSink; sink != nil {
+		sink(SpendEvent{
+			Provider:     provider,
+			SpendPoint:   req.SpendPoint,
+			SessionID:    req.SessionID,
+			Project:      req.Project,
+			InputTokens:  promptTokens,
+			OutputTokens: outputTokens,
+		})
+	}
 }
 
 // LLMProvider is the interface that all LLM backends must implement.

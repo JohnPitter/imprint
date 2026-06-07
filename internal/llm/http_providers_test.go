@@ -304,7 +304,7 @@ func TestOpenRouterProvider_CompleteNoSystemPrompt(t *testing.T) {
 
 func TestParseChatCompletion_Success(t *testing.T) {
 	body := []byte(`{"choices":[{"message":{"content":"hello"}}]}`)
-	out, err := parseChatCompletion(body, "test")
+	out, err := parseChatCompletion(body, "test", CompletionRequest{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -315,7 +315,7 @@ func TestParseChatCompletion_Success(t *testing.T) {
 
 func TestParseChatCompletion_APIError(t *testing.T) {
 	body := []byte(`{"error":{"message":"rate limit"}}`)
-	_, err := parseChatCompletion(body, "test")
+	_, err := parseChatCompletion(body, "test", CompletionRequest{})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -326,7 +326,7 @@ func TestParseChatCompletion_APIError(t *testing.T) {
 
 func TestParseChatCompletion_NoChoices(t *testing.T) {
 	body := []byte(`{"choices":[]}`)
-	_, err := parseChatCompletion(body, "test")
+	_, err := parseChatCompletion(body, "test", CompletionRequest{})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -337,7 +337,7 @@ func TestParseChatCompletion_NoChoices(t *testing.T) {
 
 func TestParseChatCompletion_MalformedJSON(t *testing.T) {
 	body := []byte(`{bad`)
-	_, err := parseChatCompletion(body, "test")
+	_, err := parseChatCompletion(body, "test", CompletionRequest{})
 	if err == nil {
 		t.Fatal("expected unmarshal error")
 	}

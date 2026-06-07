@@ -124,6 +124,7 @@ func (p *AnthropicProvider) Complete(ctx context.Context, req CompletionRequest)
 		ot = result.Usage.OutputTokens
 	}
 	GlobalUsage.Record("anthropic", pt, ot, false)
+	emitSpend(req, "anthropic", pt, ot)
 
 	for _, block := range result.Content {
 		if block.Type == "text" {

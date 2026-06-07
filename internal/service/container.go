@@ -22,7 +22,10 @@ type Container struct {
 	Facets       *store.FacetStore
 	Audit        *store.AuditStore
 	Eval         *store.EvalStore
-	WAL          *store.WAL // file-based write-ahead log (optional, nil-safe)
+	Ledger       *store.LedgerStore    // token economy ledger (Phase 1, nil-safe)
+	Intuitions   *store.IntuitionStore // rooted memory layer (Phase 2)
+	Admin        *store.AdminStore     // forget/export/reset (A5)
+	WAL          *store.WAL            // file-based write-ahead log (optional, nil-safe)
 }
 
 // NewContainer creates a Container with all stores initialized from the given DB.
@@ -46,5 +49,8 @@ func NewContainer(db *store.DB) *Container {
 		Facets:       store.NewFacetStore(db),
 		Audit:        store.NewAuditStore(db),
 		Eval:         store.NewEvalStore(db),
+		Ledger:       store.NewLedgerStore(db),
+		Intuitions:   store.NewIntuitionStore(db),
+		Admin:        store.NewAdminStore(db),
 	}
 }

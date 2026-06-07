@@ -2,10 +2,12 @@
   import Header from './components/layout/Header.svelte';
   import TabBar from './components/layout/TabBar.svelte';
   import Dashboard from './components/tabs/Dashboard.svelte';
+  import Economy from './components/tabs/Economy.svelte';
   import Recall from './components/tabs/Recall.svelte';
   import Sessions from './components/tabs/Sessions.svelte';
   import Timeline from './components/tabs/Timeline.svelte';
   import Memories from './components/tabs/Memories.svelte';
+  import Intuitions from './components/tabs/Intuitions.svelte';
   import Graph from './components/tabs/Graph.svelte';
   import Actions from './components/tabs/Actions.svelte';
   import Lessons from './components/tabs/Lessons.svelte';
@@ -92,10 +94,12 @@
   <TabBar bind:activeTab />
   <main class="content" class:content-graph={activeTab === 'graph'}>
     {#if activeTab === 'dashboard'}<Dashboard />
+    {:else if activeTab === 'economy'}<Economy />
     {:else if activeTab === 'recall'}<Recall />
     {:else if activeTab === 'sessions'}<Sessions />
     {:else if activeTab === 'timeline'}<Timeline />
     {:else if activeTab === 'memories'}<Memories />
+    {:else if activeTab === 'intuitions'}<Intuitions />
     {:else if activeTab === 'graph'}<Graph />
     {:else if activeTab === 'actions'}<Actions />
     {:else if activeTab === 'lessons'}<Lessons />

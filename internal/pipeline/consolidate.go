@@ -94,11 +94,19 @@ func (c *Consolidator) consolidateGroup(ctx context.Context, group []store.Compr
 
 	userPrompt := fmt.Sprintf(consolidateUserPrompt, len(group), sb.String())
 
+	// Attribute the spend to the group's session (best-effort: a group may span
+	// sessions, so we use the first; the ledger resolves the repo via the join).
+	sessionID := ""
+	if len(group) > 0 {
+		sessionID = group[0].SessionID
+	}
 	resp, err := c.provider.Complete(ctx, llm.CompletionRequest{
 		SystemPrompt: consolidateSystemPrompt,
 		UserPrompt:   userPrompt,
 		MaxTokens:    2000,
 		Temperature:  0.3,
+		SpendPoint:   "consolidate",
+		SessionID:    sessionID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("LLM consolidate: %w", err)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"imprint/internal/pipeline"
 	"imprint/internal/store"
@@ -131,6 +132,34 @@ func (s *GraphService) Query(startNodeID string, maxDepth int) (*GraphQueryResul
 	}
 
 	return &GraphQueryResult{Nodes: allNodes, Edges: allEdges}, nil
+}
+
+// BlastRadius returns the file names structurally related to the given file
+// within maxDepth hops in the knowledge graph — the set of files that matter
+// *now* when this one is being edited (Phase 4). It is a relevance SIGNAL for
+// injection selection, not a navigation feature: memories about these files get
+// boosted. Pure-Go: it reuses the existing LLM-extracted graph rather than a
+// tree-sitter parser (no CGO-free binding exists — see lesson). Returns nil when
+// the file isn't in the graph yet (cold/graph-less repos degrade to no boost).
+func (s *GraphService) BlastRadius(fileName string, maxDepth int) ([]string, error) {
+	if fileName == "" {
+		return nil, nil
+	}
+	node, err := s.c.Graph.FindNodeByName("file", fileName)
+	if err != nil || node == nil {
+		return nil, nil // not in graph — no blast radius, no boost
+	}
+	res, err := s.Query(node.ID, maxDepth)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(res.Nodes))
+	for _, n := range res.Nodes {
+		if n.Type == "file" && !strings.EqualFold(n.Name, fileName) {
+			out = append(out, n.Name)
+		}
+	}
+	return out, nil
 }
 
 // AllNodes returns all graph nodes (up to limit).

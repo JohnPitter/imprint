@@ -21,15 +21,27 @@ type Indexer interface {
 	Index(doc search.IndexDocument) error
 }
 
+// UsageCrediter is the "memory used" signal hook (Phase 1). After an observation
+// is compressed, its files/concepts are handed to the crediter so any injected
+// memory they touch in the same session can be credited as a token saving. An
+// interface so the worker stays decoupled from the store and testable.
+type UsageCrediter interface {
+	CreditUsage(sessionID string, files, concepts []string)
+}
+
 // Worker is a background worker pool for processing LLM pipeline jobs.
 type Worker struct {
 	compressor *Compressor
 	obsStore   *store.ObservationStore
-	indexer    Indexer // optional; if nil, compressed observations are not indexed
+	indexer    Indexer       // optional; if nil, compressed observations are not indexed
+	crediter   UsageCrediter // optional; if nil, the "memory used" signal is skipped
 	jobs       chan Job
 	wg         sync.WaitGroup
 	cancel     context.CancelFunc
 }
+
+// SetCrediter attaches the "memory used" crediter. Optional; nil-safe.
+func (w *Worker) SetCrediter(c UsageCrediter) { w.crediter = c }
 
 // NewWorker creates a new worker pool with numWorkers goroutines.
 func NewWorker(compressor *Compressor, obsStore *store.ObservationStore, numWorkers int) *Worker {
@@ -89,6 +101,11 @@ func (w *Worker) run(ctx context.Context, id int) {
 			if err := w.obsStore.CreateCompressed(compressed); err != nil {
 				log.Printf("[pipeline] Worker %d store error: %v", id, err)
 				continue
+			}
+			// "Memory used" signal: a fresh observation touching the files/concepts
+			// of an injected memory credits that injection as a token saving.
+			if w.crediter != nil {
+				w.crediter.CreditUsage(compressed.SessionID, compressed.Files, compressed.Concepts)
 			}
 			if w.indexer != nil {
 				narrative := ""

@@ -368,6 +368,37 @@ func (s *MemoryStore) ListByStrength(minStrength int, limit int) ([]MemoryRow, e
 	return s.scanRows(rows)
 }
 
+// ListRefinedByProject returns latest memories with strength >= minStrength that
+// belong to the given project, scoped via their sessions (memories themselves
+// carry no project column — A1 scoping is derived from session_ids→sessions).
+// Used by the intuition convergence detector.
+func (s *MemoryStore) ListRefinedByProject(project string, minStrength, limit int) ([]MemoryRow, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+	rows, err := s.db.Query(`
+		SELECT id, created_at, updated_at, type, title, content,
+			COALESCE(concepts, '[]'), COALESCE(files, '[]'),
+			COALESCE(session_ids, '[]'), strength, version,
+			parent_id, COALESCE(supersedes, '[]'),
+			COALESCE(source_observation_ids, '[]'),
+			is_latest, forget_after, ttl_days, pinned
+		FROM memories m
+		WHERE m.is_latest = 1 AND m.strength >= ?
+		  AND EXISTS (
+			SELECT 1 FROM json_each(m.session_ids) je
+			  JOIN sessions s ON s.id = je.value
+			 WHERE s.project = ?
+		  )
+		ORDER BY strength DESC
+		LIMIT ?`, minStrength, project, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list refined by project: %w", err)
+	}
+	defer rows.Close()
+	return s.scanRows(rows)
+}
+
 // ListByConcept returns latest memories that contain a concept (JSON LIKE search).
 func (s *MemoryStore) ListByConcept(concept string, limit int) ([]MemoryRow, error) {
 	rows, err := s.db.Query(`
@@ -386,6 +417,28 @@ func (s *MemoryStore) ListByConcept(concept string, limit int) ([]MemoryRow, err
 	}
 	defer rows.Close()
 
+	return s.scanRows(rows)
+}
+
+// ListByFile returns latest memories that reference a file (JSON LIKE search).
+// Mirrors ListByConcept; used by lazy injection to pull memories about the files
+// (and blast-radius files) a turn is touching.
+func (s *MemoryStore) ListByFile(file string, limit int) ([]MemoryRow, error) {
+	rows, err := s.db.Query(`
+		SELECT id, created_at, updated_at, type, title, content,
+			COALESCE(concepts, '[]'), COALESCE(files, '[]'),
+			COALESCE(session_ids, '[]'), strength, version,
+			parent_id, COALESCE(supersedes, '[]'),
+			COALESCE(source_observation_ids, '[]'),
+			is_latest, forget_after, ttl_days, pinned
+		FROM memories
+		WHERE is_latest = 1 AND files LIKE '%"' || ? || '"%'
+		ORDER BY strength DESC
+		LIMIT ?`, file, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list memories by file: %w", err)
+	}
+	defer rows.Close()
 	return s.scanRows(rows)
 }
 

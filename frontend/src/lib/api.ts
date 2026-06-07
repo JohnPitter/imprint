@@ -86,4 +86,28 @@ export const api = {
 
   // Recall (search + LLM synthesis)
   recall: (query: string, limit = 8) => request<unknown>('POST', '/recall', { query, limit }),
+
+  // Economy (Phase 1 token saldo meter)
+  economy: (project = '', sinceDays = 0) => {
+    const qs = new URLSearchParams();
+    if (project) qs.set('project', project);
+    if (sinceDays > 0) qs.set('sinceDays', String(sinceDays));
+    const s = qs.toString();
+    return request<unknown>('GET', `/economy${s ? `?${s}` : ''}`);
+  },
+
+  // Intuitions (Phase 2 rooted layer — inspection screen, invariant 11)
+  listIntuitions: (project = '') =>
+    request<unknown>('GET', `/intuitions${project ? `?project=${encodeURIComponent(project)}` : ''}`),
+  intuitionContradictions: (id: string) =>
+    request<unknown>('GET', `/intuitions/contradictions?id=${encodeURIComponent(id)}`),
+  demoteIntuition: (id: string) => request<unknown>('POST', '/intuitions/demote', { id }),
+  deleteIntuition: (id: string) => request<unknown>('POST', '/intuitions/delete', { id }),
+  detectIntuitions: (project: string) => request<unknown>('POST', '/intuitions/detect', { project }),
+
+  // Memory governance (A5)
+  exportMemory: (project: string) =>
+    request<unknown>('GET', `/memory/export?project=${encodeURIComponent(project)}`),
+  purgeMemory: (project: string) => request<unknown>('POST', '/memory/purge', { project }),
+  resetMemory: () => request<unknown>('POST', '/memory/reset', { confirm: true }),
 };

@@ -84,6 +84,8 @@ func (g *GraphExtractor) Extract(ctx context.Context, obs *store.CompressedObser
 		UserPrompt:   userPrompt,
 		MaxTokens:    1500,
 		Temperature:  0.2,
+		SpendPoint:   "graph_extract",
+		SessionID:    obs.SessionID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("LLM graph extract: %w", err)

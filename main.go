@@ -75,6 +75,26 @@ func main() {
 	// Create service container
 	container := service.NewContainer(db)
 
+	// Token economy budget ceiling (Phase 1): protects *before* spend. When a cap
+	// is hit, instrumented Haiku calls are skipped and injection falls to the
+	// minimum, without breaking the main path.
+	llm.GlobalBudget.SetLimits(cfg.MaxHaikuTokensPerSession, cfg.MaxHaikuTokensPerDay)
+	log.Printf("[app] Token budget: %d/session, %d/day (0 = unlimited)", cfg.MaxHaikuTokensPerSession, cfg.MaxHaikuTokensPerDay)
+
+	// Wire the token economy ledger (Phase 1). The LLM layer reports every
+	// instrumented Haiku call here so spend is attributed per session/repo. The
+	// sink is best-effort and must never block the LLM path (invariant 6).
+	llm.SpendSink = func(e llm.SpendEvent) {
+		container.Ledger.AppendSpend(store.SpendEntry{
+			SpendPoint:   e.SpendPoint,
+			Provider:     e.Provider,
+			SessionID:    e.SessionID,
+			Project:      e.Project,
+			InputTokens:  e.InputTokens,
+			OutputTokens: e.OutputTokens,
+		})
+	}
+
 	// Attach file-based write-ahead log for crash recovery and poisoning detection.
 	wal, err := store.NewWAL(cfg.DataDir)
 	if err != nil {
@@ -104,13 +124,16 @@ func main() {
 
 	// Create pipeline components
 	compressor := pipeline.NewCompressor(llmProvider, cfg.ExtractionMode)
-	log.Printf("[app] Extraction mode: %s", cfg.ExtractionMode)
+	compressor.SetImportanceFilter(cfg.CompressFilterEnabled, cfg.CompressMinImportance)
+	log.Printf("[app] Extraction mode: %s · importance filter: %v (min %d)", cfg.ExtractionMode, cfg.CompressFilterEnabled, cfg.CompressMinImportance)
 	worker := pipeline.NewWorkerWithIndex(compressor, container.Observations, bm25, cfg.CompressWorkers)
+	worker.SetCrediter(container.Ledger) // Phase 1 "memory used" signal
 	log.Printf("[app] Compression worker pool started (%d workers)", cfg.CompressWorkers)
 
 	// Create services
 	contextSvc := service.NewContextService(container, cfg.ContextTokenBudget)
 	contextSvc.SetDataDir(cfg.DataDir)
+	contextSvc.SetInjectionCap(cfg.MaxInjectionTokens)
 	sessionSvc := service.NewSessionService(container, contextSvc)
 	sessionTracker := service.NewSessionTracker()
 	observeSvc := service.NewObserveService(container, cfg.MaxObservationsPerSession, cfg.ToolOutputMaxLen)
@@ -122,11 +145,38 @@ func main() {
 	graphExtractor := pipeline.NewGraphExtractor(llmProvider)
 	graphSvc := service.NewGraphService(container, graphExtractor)
 
+	// Phase 4: wire the graph blast radius into lazy injection as a relevance
+	// signal — editing a file also surfaces memories about structurally related files.
+	if cfg.BlastRadiusDepth > 0 {
+		contextSvc.SetBlastRadius(func(file string, depth int) []string {
+			files, _ := graphSvc.BlastRadius(file, depth)
+			return files
+		}, cfg.BlastRadiusDepth)
+	}
+
 	// Create pipeline services
 	summarizer := pipeline.NewSummarizer(llmProvider)
 	consolidator := pipeline.NewConsolidator(llmProvider)
 	reflector := pipeline.NewReflector(llmProvider)
 	pipelineSvc := service.NewPipelineService(container, summarizer, consolidator, reflector, graphSvc)
+
+	// Intuition (rooted layer, Phase 2): convergence detection + auto-weakening.
+	rooter := pipeline.NewRooter(llmProvider)
+	intuitionSvc := service.NewIntuitionService(container, rooter, service.IntuitionConfig{
+		MinStrength:      cfg.IntuitionMinStrength,
+		MinConvergence:   cfg.IntuitionMinConvergence,
+		MinSessions:      cfg.IntuitionMinSessions,
+		MaxActive:        cfg.IntuitionMaxActive,
+		ContradictionHit: cfg.IntuitionContradictionHit,
+		DemoteFloor:      cfg.IntuitionDemoteFloor,
+	})
+	contextSvc.SetIntuitionMax(cfg.IntuitionMaxActive)
+
+	// Memory governance (A5): purge/reset/export, dropping docs from the indexes.
+	memoryAdminSvc := service.NewMemoryAdminService(container, func(id string) {
+		_ = bm25.Remove(id)
+		vectors.Remove(id)
+	})
 
 	// Create advanced services
 	actionSvc := service.NewActionService(container)
@@ -153,6 +203,13 @@ func main() {
 		Settings:     handler.NewSettingsHandler(cfg),
 		Pipeline:     handler.NewPipelineHandler(pipelineSvc),
 		Recall:       handler.NewRecallHandler(recallSvc),
+		Economy: handler.NewEconomyHandler(container.Ledger, handler.EconomyConfig{
+			Plan:            resolvePlan(cfg),
+			PriceInPerMTok:  cfg.HaikuPriceInPerMTok,
+			PriceOutPerMTok: cfg.HaikuPriceOutPerMTok,
+		}),
+		Intuitions:  handler.NewIntuitionHandler(intuitionSvc),
+		MemoryAdmin: handler.NewMemoryAdminHandler(contextSvc, memoryAdminSvc, cfg.LazyInjectMax),
 	}
 
 	// Create router and HTTP server
@@ -165,6 +222,7 @@ func main() {
 
 	// Start background pipeline scheduler
 	scheduler := service.NewScheduler(pipelineSvc, sessionSvc, sessionTracker, cfg, cfg.PipelineIntervalMin)
+	scheduler.SetIntuition(intuitionSvc)
 	scheduler.Start()
 
 	// Wait for interrupt signal
@@ -200,6 +258,20 @@ func main() {
 	}
 
 	log.Println("[app] Shutdown complete")
+}
+
+// resolvePlan determines the billing plan for the economy display. An explicit
+// IMPRINT_PLAN wins; otherwise an API key implies the pay-per-token "api" plan
+// and Claude Code OAuth implies a subscription ("pro").
+func resolvePlan(cfg *config.Config) string {
+	switch cfg.Plan {
+	case "api", "pro", "max":
+		return cfg.Plan
+	}
+	if cfg.AnthropicAuthMode == "oauth" {
+		return "pro"
+	}
+	return "api"
 }
 
 // backfillBM25 reindexes every compressed observation in the DB into the BM25

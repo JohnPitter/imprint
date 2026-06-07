@@ -74,5 +74,5 @@ func (p *OpenRouterProvider) Complete(ctx context.Context, req CompletionRequest
 		return "", fmt.Errorf("openrouter: HTTP %d: %s", resp.StatusCode, string(respBody))
 	}
 
-	return parseChatCompletion(respBody, "openrouter")
+	return parseChatCompletion(respBody, "openrouter", req)
 }

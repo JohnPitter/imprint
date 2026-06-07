@@ -29,6 +29,9 @@ type RouterDeps struct {
 	Settings     *handler.SettingsHandler
 	Pipeline     *handler.PipelineHandler
 	Recall       *handler.RecallHandler
+	Economy      *handler.EconomyHandler
+	Intuitions   *handler.IntuitionHandler
+	MemoryAdmin  *handler.MemoryAdminHandler
 }
 
 var startTime = time.Now()
@@ -129,6 +132,41 @@ func NewRouter(cfg *config.Config, assets embed.FS, deps *RouterDeps) chi.Router
 			r.Post("/recall", deps.Recall.HandleRecall)
 		} else {
 			r.Post("/recall", notImplemented)
+		}
+
+		// Economy (Phase 1 token saldo meter)
+		if deps.Economy != nil {
+			r.Get("/economy", deps.Economy.HandleEconomy)
+		} else {
+			r.Get("/economy", notImplemented)
+		}
+
+		// Intuitions (Phase 2 rooted layer — inspection screen, invariant 11)
+		if deps.Intuitions != nil {
+			r.Get("/intuitions", deps.Intuitions.HandleList)
+			r.Get("/intuitions/contradictions", deps.Intuitions.HandleContradictions)
+			r.Post("/intuitions/demote", deps.Intuitions.HandleDemote)
+			r.Post("/intuitions/delete", deps.Intuitions.HandleDelete)
+			r.Post("/intuitions/detect", deps.Intuitions.HandleDetect)
+		} else {
+			r.Get("/intuitions", notImplemented)
+			r.Get("/intuitions/contradictions", notImplemented)
+			r.Post("/intuitions/demote", notImplemented)
+			r.Post("/intuitions/delete", notImplemented)
+			r.Post("/intuitions/detect", notImplemented)
+		}
+
+		// Lazy injection + memory governance (Phase 2 / A5)
+		if deps.MemoryAdmin != nil {
+			r.Post("/inject/lazy", deps.MemoryAdmin.HandleLazyInject)
+			r.Get("/memory/export", deps.MemoryAdmin.HandleExport)
+			r.Post("/memory/purge", deps.MemoryAdmin.HandlePurge)
+			r.Post("/memory/reset", deps.MemoryAdmin.HandleReset)
+		} else {
+			r.Post("/inject/lazy", notImplemented)
+			r.Get("/memory/export", notImplemented)
+			r.Post("/memory/purge", notImplemented)
+			r.Post("/memory/reset", notImplemented)
 		}
 
 		// Memories

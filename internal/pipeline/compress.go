@@ -27,6 +27,12 @@ import (
 type Compressor struct {
 	provider       llm.LLMProvider
 	extractionMode string
+
+	// Phase 3 importance gate: when enabled, observations scoring below
+	// minImportance are compressed deterministically (regex pre-pass only, no
+	// LLM) so Haiku is spent only on what can become a refined memory.
+	filterEnabled bool
+	minImportance int
 }
 
 // NewCompressor creates a new Compressor with the given LLM provider and
@@ -36,6 +42,14 @@ func NewCompressor(provider llm.LLMProvider, mode string) *Compressor {
 		mode = "hybrid"
 	}
 	return &Compressor{provider: provider, extractionMode: mode}
+}
+
+// SetImportanceFilter enables the Phase 3 pre-compression gate. minImportance is
+// the score (1–10) below which an observation skips the LLM and is captured
+// deterministically into the base layer.
+func (c *Compressor) SetImportanceFilter(enabled bool, minImportance int) {
+	c.filterEnabled = enabled
+	c.minImportance = minImportance
 }
 
 // Compress takes a raw observation and produces a compressed observation via LLM.
@@ -48,10 +62,21 @@ func (c *Compressor) Compress(ctx context.Context, raw *store.RawObservationRow)
 	input := truncate(string(raw.ToolInput), 2000)
 	output := truncate(string(raw.ToolOutput), 2000)
 
-	// Hybrid mode: deterministic pre-pass for the extractable entities.
+	// Hybrid mode: deterministic pre-pass for the extractable entities. When the
+	// importance filter is on we always need the pre-pass to both score and to
+	// build the deterministic fallback, so run it regardless of mode.
 	var prePass extract.Result
-	if c.extractionMode != "llm-only" {
+	if c.extractionMode != "llm-only" || c.filterEnabled {
 		prePass = extract.Extract(toolName, input, output)
+	}
+
+	// Phase 3 gate: skip the LLM entirely for clearly trivial observations,
+	// capturing them deterministically into the base layer. Saves Haiku on the
+	// long tail of read-only navigation that never becomes a refined memory.
+	if c.filterEnabled {
+		if score := ScoreImportance(toolName, input, output, prePass); score < c.minImportance {
+			return c.deterministicCompress(raw, toolName, input, output, prePass, score), nil
+		}
 	}
 
 	systemPrompt := compressSystemPrompt
@@ -60,12 +85,15 @@ func (c *Compressor) Compress(ctx context.Context, raw *store.RawObservationRow)
 	}
 	userPrompt := fmt.Sprintf(compressUserPrompt, toolName, input, output)
 
-	// Call LLM.
+	// Call LLM. SpendPoint tags this call so the token ledger can attribute the
+	// Haiku spend to this session (Phase 1 economy meter).
 	resp, err := c.provider.Complete(ctx, llm.CompletionRequest{
 		SystemPrompt: systemPrompt,
 		UserPrompt:   userPrompt,
 		MaxTokens:    1000,
 		Temperature:  0.3,
+		SpendPoint:   "compress",
+		SessionID:    raw.SessionID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("LLM compress: %w", err)
@@ -138,6 +166,40 @@ func (c *Compressor) Compress(ctx context.Context, raw *store.RawObservationRow)
 	}
 
 	return compressed, nil
+}
+
+// deterministicCompress builds a base-layer compressed observation from the
+// regex pre-pass alone — no LLM call. Used by the Phase 3 importance gate for
+// trivial observations. Title/type come from cheap heuristics; the low
+// importance keeps it out of L2 injection and consolidation, exactly where a
+// trivial capture belongs.
+func (c *Compressor) deterministicCompress(raw *store.RawObservationRow, toolName, input, output string, pre extract.Result, score int) *store.CompressedObservationRow {
+	obsType := ClassifyMemoryType(input + " " + output)
+	title := toolName
+	if title == "" {
+		title = "Observation"
+	}
+
+	var facts []string
+	facts = append(facts, pre.Errors...)
+	if len(facts) > 4 {
+		facts = facts[:4]
+	}
+
+	sourceID := raw.ID
+	return &store.CompressedObservationRow{
+		ID:                  "cobs_" + uuid.New().String()[:8],
+		SessionID:           raw.SessionID,
+		Timestamp:           raw.Timestamp,
+		Type:                obsType,
+		Title:               title,
+		Facts:               facts,
+		Concepts:            pre.Concepts,
+		Files:               pre.Files,
+		Importance:          score,
+		Confidence:          0.4, // deterministic, lower confidence than an LLM pass
+		SourceObservationID: &sourceID,
+	}
 }
 
 // mergeUnique appends every item from `extra` that is not already present in

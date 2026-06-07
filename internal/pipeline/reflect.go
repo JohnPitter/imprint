@@ -84,11 +84,18 @@ func (r *Reflector) Reflect(ctx context.Context, memories []store.MemoryRow, obs
 		len(memories), len(observations),
 		memSB.String(), obsSB.String())
 
+	// Best-effort session attribution from the first observation, if any.
+	sessionID := ""
+	if len(observations) > 0 {
+		sessionID = observations[0].SessionID
+	}
 	resp, err := r.provider.Complete(ctx, llm.CompletionRequest{
 		SystemPrompt: reflectSystemPrompt,
 		UserPrompt:   userPrompt,
 		MaxTokens:    2000,
 		Temperature:  0.4,
+		SpendPoint:   "reflect",
+		SessionID:    sessionID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("LLM reflect: %w", err)

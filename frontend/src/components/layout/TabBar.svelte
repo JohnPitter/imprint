@@ -3,10 +3,12 @@
   let { activeTab = $bindable('dashboard') }: { activeTab?: string } = $props();
   const tabs = [
     { id: 'dashboard', label: 'Dashboard' },
+    { id: 'economy', label: 'Economy' },
     { id: 'recall', label: 'Recall' },
     { id: 'sessions', label: 'Sessions' },
     { id: 'timeline', label: 'Timeline' },
     { id: 'memories', label: 'Memories' },
+    { id: 'intuitions', label: 'Intuitions' },
     { id: 'graph', label: 'Graph' },
     { id: 'actions', label: 'Actions' },
     { id: 'lessons', label: 'Lessons' },

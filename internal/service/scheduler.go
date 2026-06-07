@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"imprint/internal/config"
+	"imprint/internal/store"
 )
 
 // decayRunInterval mantém-se hardcoded — ele controla apenas a frequência
@@ -22,23 +23,34 @@ const decayRunInterval = 6 * time.Hour
 // preferimos não acioná-lo à toa. Se virar ajustável, expor em config.
 const sessionIdleThreshold = 15 * time.Minute
 
+// intuitionRunInterval controls how often the convergence/contradiction pass
+// runs. Rooting is deliberately expensive (3.5) and gated by the budget ceiling,
+// so we run it on a slow cadence rather than every tick.
+const intuitionRunInterval = 1 * time.Hour
+
 // Scheduler runs the pipeline periodically for active sessions.
 // It ticks at the configured interval and processes summarize + consolidate
 // for each active session, keeping memories up-to-date during the session
 // instead of deferring everything to the expensive session-end hook.
 type Scheduler struct {
-	pipeline *PipelineService
-	sessions *SessionService
-	tracker  *SessionTracker
-	cfg      *config.Config
-	interval time.Duration
+	pipeline  *PipelineService
+	sessions  *SessionService
+	tracker   *SessionTracker
+	intuition *IntuitionService // optional (Phase 2); nil-safe
+	cfg       *config.Config
+	interval  time.Duration
 
-	mu          sync.Mutex
-	running     bool
-	stopCh      chan struct{}
-	doneCh      chan struct{}
-	lastDecayAt time.Time
+	mu              sync.Mutex
+	running         bool
+	stopCh          chan struct{}
+	doneCh          chan struct{}
+	lastDecayAt     time.Time
+	lastIntuitionAt time.Time
 }
+
+// SetIntuition attaches the rooted-layer service so the scheduler runs the
+// convergence/contradiction pass periodically. Optional; nil-safe.
+func (s *Scheduler) SetIntuition(svc *IntuitionService) { s.intuition = svc }
 
 // NewScheduler creates a new Scheduler. If intervalMin <= 0, the scheduler is disabled.
 // O cfg é a referência viva — re-lemos dele a cada tick pra que mudanças via
@@ -186,6 +198,14 @@ func (s *Scheduler) tick() {
 		s.finalizeIdleSession(sess.ID, "DB-active without heartbeat")
 	}
 
+	// Intuition pass: detect convergent insights → root intuitions, and test
+	// active intuitions against recent refined memories → auto-weaken on
+	// contradiction. Runs on a slow cadence; scoped per active project (A1).
+	if s.intuition != nil && time.Since(s.lastIntuitionAt) >= intuitionRunInterval {
+		s.runIntuitionPass(active)
+		s.lastIntuitionAt = time.Now()
+	}
+
 	// Decay sweep: low-strength memories older than the cutoff get
 	// soft-deleted. Runs at most once every decayRunInterval; thresholds
 	// vêm do cfg vivo (editáveis via Settings UI sem restart).
@@ -207,6 +227,37 @@ func (s *Scheduler) tick() {
 			log.Printf("[scheduler] Decay: archived %d memories (strength<=%d, age>=%dd)", n, minStrength, maxAgeDays)
 		}
 		s.lastDecayAt = time.Now()
+	}
+}
+
+// runIntuitionPass roots intuitions from convergent insights and auto-weakens
+// those contradicted by recent refined memories, once per distinct active
+// project. Bounded and best-effort: failures here never affect the main path.
+func (s *Scheduler) runIntuitionPass(active []store.SessionRow) {
+	projects := map[string]struct{}{}
+	for _, sess := range active {
+		if sess.Project != "" {
+			projects[sess.Project] = struct{}{}
+		}
+	}
+	minStrength := s.cfg.IntuitionMinStrength
+	if minStrength <= 0 {
+		minStrength = 6
+	}
+	for project := range projects {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		if _, err := s.intuition.DetectAndRoot(ctx, project); err != nil {
+			log.Printf("[scheduler] intuition detect failed (%s): %v", project, err)
+		}
+		// Check contradictions against the project's strongest recent refined
+		// memories (bounded; already-judged pairs are skipped in the service).
+		mems, err := s.pipeline.c.Memories.ListRefinedByProject(project, minStrength, 10)
+		if err == nil && len(mems) > 0 {
+			if err := s.intuition.CheckContradictions(ctx, project, mems); err != nil {
+				log.Printf("[scheduler] intuition contradiction pass failed (%s): %v", project, err)
+			}
+		}
+		cancel()
 	}
 }
 
