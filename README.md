@@ -10,7 +10,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/JohnPitter/imprint/ci.yml?branch=master&style=flat-square&label=CI)](https://github.com/JohnPitter/imprint/actions)
 [![License](https://img.shields.io/badge/License-MIT-orange?style=flat-square)](#license)
 
-[Features](#-features) · [How It Works](#-how-it-works) · [Install](#-install) · [Tech Stack](#-tech-stack) · [Development](#-development)
+[Features](#features) · [How It Works](#how-it-works) · [Install](#install) · [Architecture](docs/ARCHITECTURE.md) · [Changelog](CHANGELOG.md) · [Development](#development)
 
 </div>
 
