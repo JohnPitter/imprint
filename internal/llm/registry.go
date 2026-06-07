@@ -21,6 +21,11 @@ func BuildProviderChain(cfg *config.Config) LLMProvider {
 			if p.Available() {
 				providers = append(providers, NewResilientProvider(p, NewCircuitBreaker(5, 60*time.Second)))
 			}
+		case "codex-oauth":
+			p := NewCodexOAuthProvider("", cfg.OpenAIOAuthModel, cfg.OpenAIReasoningEffort)
+			if p.Available() {
+				providers = append(providers, NewResilientProvider(p, NewCircuitBreaker(5, 60*time.Second)))
+			}
 		case "openai":
 			p := NewOpenAIProvider(cfg.OpenAIAPIKey, cfg.OpenAIBaseURL, cfg.OpenAIModel, cfg.OpenAIReasoningEffort)
 			if p.Available() {

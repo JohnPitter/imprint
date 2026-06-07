@@ -60,8 +60,11 @@ func main() {
 	} else if cfg.AnthropicAPIKey != "" {
 		log.Println("[app] Anthropic auth: API key")
 	}
+	if cfg.CodexOAuthAvailable {
+		log.Printf("[app] Codex ChatGPT-OAuth detected (~/.codex/auth.json) · model %s", cfg.OpenAIOAuthModel)
+	}
 	if cfg.OpenAIAuthMode == "codex" {
-		log.Printf("[app] OpenAI auth: Codex credential (auto-detected) · model %s", cfg.OpenAIModel)
+		log.Printf("[app] OpenAI auth: Codex API key (auto-detected) · model %s", cfg.OpenAIModel)
 	} else if cfg.OpenAIAPIKey != "" {
 		log.Printf("[app] OpenAI auth: API key · model %s", cfg.OpenAIModel)
 	}
@@ -269,7 +272,9 @@ func resolvePlan(cfg *config.Config) string {
 	case "api", "pro", "max":
 		return cfg.Plan
 	}
-	if cfg.AnthropicAuthMode == "oauth" {
+	// Subscription logins (Claude OAuth, Codex/ChatGPT OAuth) → "pro" so the UI
+	// shows breathing room (fôlego) instead of currency.
+	if cfg.AnthropicAuthMode == "oauth" || (cfg.CodexOAuthAvailable && cfg.AnthropicAPIKey == "") {
 		return "pro"
 	}
 	return "api"

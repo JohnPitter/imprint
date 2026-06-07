@@ -26,6 +26,8 @@ type Config struct {
 	OpenAIModel           string   // OPENAI_MODEL, default "gpt-5-mini" (cheap GPT-5 tier, Codex's Haiku equivalent)
 	OpenAIReasoningEffort string   // OPENAI_REASONING_EFFORT, default "minimal" (cheapest); "" lets the model decide
 	OpenAIAuthMode        string   // "api_key" or "codex" (auto-detected)
+	OpenAIOAuthModel      string   // OPENAI_OAUTH_MODEL, model for the Codex ChatGPT-OAuth path, default "gpt-5"
+	CodexOAuthAvailable   bool     // true when ~/.codex/auth.json has ChatGPT OAuth tokens (auto-detected)
 	OpenRouterAPIKey      string   // OPENROUTER_API_KEY
 	OpenRouterModel       string   // OPENROUTER_MODEL, default "anthropic/claude-haiku-4-5-20251001"
 	LlamaCppURL           string   // LLAMACPP_URL, default "http://localhost:8080"
@@ -127,11 +129,12 @@ func Load() (*Config, error) {
 		OpenAIBaseURL:         envStr("OPENAI_BASE_URL", "https://api.openai.com"),
 		OpenAIModel:           envStr("OPENAI_MODEL", "gpt-5-mini"),
 		OpenAIReasoningEffort: envStr("OPENAI_REASONING_EFFORT", "minimal"),
+		OpenAIOAuthModel:      envStr("OPENAI_OAUTH_MODEL", "gpt-5"),
 		OpenRouterAPIKey:      envStr("OPENROUTER_API_KEY", ""),
 		OpenRouterModel:       envStr("OPENROUTER_MODEL", "anthropic/claude-haiku-4-5-20251001"),
 		LlamaCppURL:           envStr("LLAMACPP_URL", "http://localhost:8080"),
 		LlamaCppModel:         envStr("LLAMACPP_MODEL", ""),
-		LLMProviderOrder:      envList("LLM_PROVIDER_ORDER", []string{"anthropic", "openai", "openrouter", "llamacpp"}),
+		LLMProviderOrder:      envList("LLM_PROVIDER_ORDER", []string{"anthropic", "codex-oauth", "openai", "openrouter", "llamacpp"}),
 
 		EmbeddingProvider: envStr("EMBEDDING_PROVIDER", "llamacpp"),
 		EmbeddingModel:    envStr("EMBEDDING_MODEL", ""),
@@ -201,7 +204,34 @@ func Load() (*Config, error) {
 		cfg.OpenAIAuthMode = "codex"
 	}
 
+	// Detect Codex ChatGPT-OAuth login (subscription tokens). The provider reads
+	// the tokens itself; this flag just drives logging and the economy plan view.
+	cfg.CodexOAuthAvailable = detectCodexOAuth()
+
 	return cfg, nil
+}
+
+// detectCodexOAuth reports whether ~/.codex/auth.json holds ChatGPT OAuth tokens
+// (a `codex login` with a ChatGPT account, not an API key). Best-effort.
+func detectCodexOAuth() bool {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return false
+	}
+	data, err := os.ReadFile(filepath.Join(home, ".codex", "auth.json"))
+	if err != nil {
+		return false
+	}
+	var auth struct {
+		Tokens *struct {
+			AccessToken  string `json:"access_token"`
+			RefreshToken string `json:"refresh_token"`
+		} `json:"tokens"`
+	}
+	if err := json.Unmarshal(data, &auth); err != nil || auth.Tokens == nil {
+		return false
+	}
+	return auth.Tokens.AccessToken != "" || auth.Tokens.RefreshToken != ""
 }
 
 // detectCodexAPIKey reads an OpenAI API key from Codex's credential file at

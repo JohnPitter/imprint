@@ -13,10 +13,20 @@ extraction) runs on a cheap model, just like Haiku on Claude Code. On Codex that
 defaults to **`gpt-5-mini`** (≈ $0.25 / $2.00 per 1M tokens). Set
 `OPENAI_MODEL=gpt-5-nano` (≈ $0.05 / $0.40) for the cheapest tier.
 
-Zero-config auth: Imprint auto-detects an OpenAI key from `OPENAI_API_KEY` or
-from `~/.codex/auth.json` (Codex api-key login). With no Anthropic key present,
-the provider chain uses OpenAI automatically, and the economy meter prices the
-saldo with GPT-5 rates. Tune via `OPENAI_MODEL`, `OPENAI_REASONING_EFFORT`
+Zero-config auth, in priority order (provider chain `anthropic → codex-oauth →
+openai → openrouter → llamacpp`):
+
+1. **Codex ChatGPT login (OAuth)** — if you ran `codex login` with a ChatGPT
+   plan, Imprint reuses those tokens from `~/.codex/auth.json` directly: it
+   refreshes the access token via `auth.openai.com` and calls the same ChatGPT
+   backend Responses API Codex uses, billing your subscription. No API key.
+   Model via `OPENAI_OAUTH_MODEL` (default `gpt-5`); the economy meter shows
+   "fôlego" (subscription) instead of currency.
+2. **OpenAI API key** — `OPENAI_API_KEY`, or an api-key `~/.codex/auth.json`.
+   Defaults to `gpt-5-mini` (`OPENAI_MODEL`); `gpt-5-nano` for the cheapest tier.
+   Priced per token, so the meter shows a currency saldo.
+
+Tune via `OPENAI_MODEL` / `OPENAI_OAUTH_MODEL`, `OPENAI_REASONING_EFFORT`
 (default `minimal`), `OPENAI_PRICE_IN` / `OPENAI_PRICE_OUT`.
 
 ## What Works
