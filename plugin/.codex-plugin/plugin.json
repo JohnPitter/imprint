@@ -1,6 +1,6 @@
 {
   "name": "imprint",
-  "version": "1.5.2",
+  "version": "2.0.0",
   "description": "Persistent memory for Codex and Claude Code. Captures observations, compresses with LLM, builds a knowledge graph, and exposes recall/search through MCP.",
   "author": {
     "name": "JohnPitter",

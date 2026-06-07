@@ -1,6 +1,6 @@
 # Imprint — Release Notes
 
-## Unreleased (proposed v1.6.0) — Token economy, three-tier memory & Codex support
+## v2.0.0 — Token economy, three-tier memory & Codex support
 
 The biggest release since the initial plugin: Imprint becomes a token-economy +
 high-value-memory plugin, and gains first-class **Codex** support alongside Claude Code.
