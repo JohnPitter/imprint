@@ -1,5 +1,11 @@
 # Imprint — Release Notes
 
+## v2.0.1 — CI/security patch
+
+- Bump CI/release Go toolchain 1.25.10 → 1.25.11, clearing the stdlib
+  vulnerabilities GO-2026-5039 (net/textproto) and GO-2026-5037 (crypto/x509).
+  No functional changes; rebuilds the v2.0.0 binaries on the patched toolchain.
+
 ## v2.0.0 — Token economy, three-tier memory & Codex support
 
 The biggest release since the initial plugin: Imprint becomes a token-economy +
