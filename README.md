@@ -5,7 +5,7 @@
 **Persistent memory for AI coding agents — every session builds on the last.**
 
 [![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
-[![Svelte](https://img.shields.io/badge/Svelte-3-FF3E00?style=flat-square&logo=svelte&logoColor=white)](https://svelte.dev)
+[![Svelte](https://img.shields.io/badge/Svelte-5-FF3E00?style=flat-square&logo=svelte&logoColor=white)](https://svelte.dev)
 [![SQLite](https://img.shields.io/badge/SQLite-WAL-003B57?style=flat-square&logo=sqlite&logoColor=white)](https://sqlite.org)
 [![CI](https://img.shields.io/github/actions/workflow/status/JohnPitter/imprint/ci.yml?branch=master&style=flat-square&label=CI)](https://github.com/JohnPitter/imprint/actions)
 [![License](https://img.shields.io/badge/License-MIT-orange?style=flat-square)](#license)
@@ -18,9 +18,13 @@
 
 ## What is Imprint?
 
-Imprint is a **plugin for Claude Code** that gives your AI agent persistent memory across sessions. Every tool call, decision, and discovery is captured, compressed via LLM, indexed for search, and injected as context into future sessions.
+Imprint is a **plugin for Claude Code and Codex** that gives your AI agent persistent memory across sessions. Every tool call, decision, and discovery is captured, compressed via a cheap LLM, indexed for search, and injected as context into future sessions.
+
+Since **v2.0** it is also a **token-economy + high-value-memory** plugin: it measures the token *saldo* (context saved − background LLM spent), organizes memory into **three explicit layers** (base → refined → rooted "intuitions"), injects lazily, and runs the background work on a cheap model — **Haiku** on Claude Code, **GPT-5 mini/nano** on Codex.
 
 **No Docker. No external databases. Single Go binary + SQLite.**
+
+> Works the same on both agents. On Claude Code it auto-detects the Claude OAuth token (Haiku); on Codex it reuses your `codex login` (ChatGPT OAuth) or an `OPENAI_API_KEY` (GPT-5). When an Anthropic key is present it takes priority; the providers are a fallback chain, so both can coexist in one install.
 
 Inspired by [agentmemory](https://github.com/rohitg00/agentmemory) (Node.js + Docker) and [MemPalace](https://github.com/MemPalace/mempalace) (Python + ChromaDB), rebuilt from scratch in Go with ideas from both: agentmemory's observation pipeline and UI, MemPalace's 4-layer memory stack, query sanitization, and write-ahead log.
 
@@ -30,6 +34,14 @@ Inspired by [agentmemory](https://github.com/rohitg00/agentmemory) (Node.js + Do
 
 | Category | What you get |
 |---|---|
+| **Token Economy Meter** *(v2.0)* | Append-only `token_ledger` + `injection_log` track every background-LLM spend and every injected memory. `GET /imprint/economy` and the **Economy** tab show the *saldo* (context saved − LLM spent) per repo, plan-aware: currency for API plans, "fôlego" (breathing room) for subscriptions. "Memory used" is measured cheaply via file/concept co-occurrence. |
+| **Budget Ceiling** *(v2.0)* | A spend ceiling (per session/day) that protects *before* overspending: when hit, background compression pauses and injection falls to the minimum — the main path never breaks. Configurable in Settings. |
+| **Three Memory Layers + Intuition** *(v2.0)* | Explicit layers: **base** (compressed observations) → **refined** (memories) → **rooted** (*intuitions* — cross-cutting "how to reason" premises). Intuitions are born only by convergence of many insights, injected resident at max priority, and **auto-weaken on contradiction**. The **Intuitions** tab is an always-on inspection screen (evidence, force, contradiction log, manual demote/delete). |
+| **Lazy Injection** *(v2.0)* | Instead of dumping everything at session start, pull refined memory **on demand** when a turn touches a file/concept (`POST /imprint/inject/lazy`) — memory the turn doesn't need is memory not spent. |
+| **Importance Gate** *(v2.0)* | Before compression, a cheap score decides if an observation can become a refined memory; trivial ones are captured deterministically into the base layer with **zero** LLM spend. |
+| **Code-Graph Relevance** *(v2.0)* | Editing a file pulls in memories about its graph **blast radius** (structurally related files), boosting lazy injection. Pure-Go over the existing graph (no tree-sitter / CGO). |
+| **Memory Governance (A5)** *(v2.0)* | Export, purge-by-repo, and full reset of your own memory — deletes from the search indexes too ("apagar é apagar"). |
+| **Codex + Cheap GPT-5** *(v2.0)* | Full feature parity on Codex. Background work runs on **gpt-5-mini** (or `gpt-5-nano`, cheapest) — the Codex equivalent of Haiku — via your `codex login` (ChatGPT OAuth, no API key) or `OPENAI_API_KEY`. Auto-detected, zero-config. |
 | **Automatic Capture** | 11 hooks capture every tool use, prompt, error, and decision — zero manual effort |
 | **LLM Compression** | Raw observations compressed into structured memories with concepts, files, and importance scores |
 | **Hybrid Extraction** *(v1.2.0)* | Regex pre-pass extracts files, PascalCase concepts, URLs, error markers, and git refs deterministically. The LLM only writes title/narrative/importance — fewer tokens, faster, half the Haiku spend. Toggle with `IMPRINT_EXTRACTION_MODE=llm-only` to revert. |
@@ -54,9 +66,9 @@ Inspired by [agentmemory](https://github.com/rohitg00/agentmemory) (Node.js + Do
 | **Hybrid Search** | BM25 (Bleve) + vector cosine similarity with Reciprocal Rank Fusion. Search responses now include per-result `bm25Score` / `vecScore` / `rank` *(v1.5.0)*. |
 | **Context Injection** | Relevant memories injected at session start and before context compaction. *(v1.5.0)* injected items now carry inline metadata sufixes — `(★N · Xd)` on memories, `(iN · Xd)` on observations — so the assistant sees strength and age without a DB query. |
 | **Smart Hooks** | User prompts captured as intent anchors, task completions sync to kanban, failures tracked for error learning. *(v1.5.0)* heuristic filter prevents short user prompts ("continua", "ok", task-notification XML) from polluting the Actions kanban. |
-| **Multi-Provider LLM** | Anthropic (API key + Claude Code OAuth auto-detect), OpenRouter, llama.cpp with circuit breaker + fallback |
+| **Multi-Provider LLM** | Anthropic (API key + Claude Code OAuth auto-detect), **OpenAI GPT-5** (API key), **Codex ChatGPT-OAuth** (reuses `codex login`), OpenRouter, llama.cpp — fallback chain with circuit breaker + token budget gate |
 | **MCP Server** | 8 tools for explicit memory recall, save, search, and graph queries |
-| **12-Tab Web UI** | Dashboard, Recall, Sessions, Timeline, Memories, Graph, Actions, Lessons, Activity, Audit, Profile, Settings |
+| **14-Tab Web UI** | Dashboard, **Economy**, Recall, Sessions, Timeline, Memories, **Intuitions**, Graph, Actions, Lessons, Activity, Audit, Profile, Settings |
 | **Global Topbar Search** | Modal search overlay on every page — query the Bleve index from anywhere with title, type, score, narrative, concepts and files. *(v1.5.0)* keyboard shortcut: press `/` from anywhere to focus. |
 | **URL-Synced UI State** *(v1.5.0)* | Memories slider and Lessons tag filters reflect in the query string (`?days=7&tags=auth,decay`). Refresh-resistant + shareable links. |
 | **Settings UI** | Select LLM provider/model, configure API keys, tune search weights, pipeline interval, decay thresholds — all from the browser |
@@ -206,6 +218,21 @@ ids. The transcript watcher still tails `~/.codex/sessions/**/*.jsonl` as a
 backfill path and keeps offsets in `~/.imprint/codex-watch-state.json` so
 restarts do not replay old transcript lines.
 
+**Background model (cheap GPT-5).** On Codex the heavy background work
+(compress / consolidate / summarize / graph / intuition) runs on a cheap model —
+the Codex equivalent of Haiku — with zero config:
+
+- **ChatGPT OAuth** — if you ran `codex login` with a ChatGPT plan, Imprint
+  reuses those tokens from `~/.codex/auth.json` directly (no API key): it
+  refreshes the access token and calls the same ChatGPT-backend Responses API
+  Codex uses. Model via `OPENAI_OAUTH_MODEL` (default `gpt-5`).
+- **API key** — set `OPENAI_API_KEY` (or use an api-key `~/.codex/auth.json`).
+  Defaults to `gpt-5-mini`; set `OPENAI_MODEL=gpt-5-nano` for the cheapest tier.
+
+The provider chain is `anthropic → codex-oauth → openai → openrouter → llamacpp`
+and each entry self-activates only when its credential exists, so Codex and
+Claude Code coexist cleanly. See `plugin/README-CODEX.md` for details.
+
 #### Legacy direct install
 
 If you prefer the pre-marketplace flow that writes hooks/MCP straight into
@@ -242,10 +269,10 @@ go run ./cmd/install --uninstall
 | **Database** | SQLite with WAL mode (modernc.org/sqlite) |
 | **Search** | Bleve (BM25 full-text) + in-memory vector (cosine similarity) |
 | **HTTP** | Chi router + embedded Svelte SPA |
-| **Frontend** | Svelte 3 + TypeScript + Vite |
-| **LLM** | Anthropic, OpenRouter, llama.cpp (configurable fallback chain) |
+| **Frontend** | Svelte 5 (runes) + TypeScript + Vite |
+| **LLM** | Anthropic (Haiku), OpenAI GPT-5 (mini/nano), Codex ChatGPT-OAuth, OpenRouter, llama.cpp — configurable fallback chain |
 | **Protocol** | MCP (JSON-RPC over stdio) |
-| **Hooks** | 11 compiled Go binaries + ensure-server launcher (~6MB each, <50ms startup) |
+| **Hooks** | 11 compiled Go hook binaries + ensure-server launcher; Codex adds `codex-hook` + `codex-watch` (~6MB each, <50ms startup) |
 | **Testing** | Go testing + httptest |
 | **CI/CD** | GitHub Actions (lint, test, build, security) |
 
@@ -282,23 +309,25 @@ go run ./cmd/install --build-only
 imprint/
   main.go                    # HTTP server + scheduler entrypoint
   internal/
-    config/                  # Config loader + user settings
-    store/                   # SQLite stores (17 stores, 28 tables)
+    config/                  # Config loader + user settings (+ Codex/OpenAI auth detect)
+    store/                   # SQLite stores (20 stores, 32 tables; migrations 001-007)
     search/                  # BM25 + vector + hybrid search
-    llm/                     # Provider interface + Anthropic/OpenRouter/llama.cpp
-    pipeline/                # Compress, summarize, consolidate, graph extract
+    llm/                     # Providers: Anthropic, OpenAI GPT-5, Codex OAuth, OpenRouter, llama.cpp + budget gate
+    pipeline/                # Compress (+ importance gate), summarize, consolidate, graph/intuition extract
     privacy/                 # Secret scrubbing (16 regex patterns)
-    service/                 # Business logic layer + scheduler
-    server/                  # HTTP handlers + Chi router
+    service/                 # Business logic + scheduler + intuition + memory admin (A5)
+    server/                  # HTTP handlers + Chi router (economy, intuitions, lazy inject, governance)
     mcp/                     # MCP JSON-RPC server
     hooks/                   # Shared hook library
   cmd/
     hooks/                   # 11 hook binaries
     ensure-server/           # cross-platform auto-start launcher invoked by SessionStart
     mcp-server/              # Standalone MCP binary
+    codex-hook/              # Codex hook adapter (Responses-aware)
+    codex-watch/             # Codex transcript watcher (~/.codex/sessions backfill)
     install/                 # One-command installer
-  frontend/                  # Svelte 3 + TypeScript UI
-  plugin/                    # Claude Code plugin structure
+  frontend/                  # Svelte 5 + TypeScript UI
+  plugin/                    # Claude Code + Codex plugin structure
 ```
 
 ### Environment Variables
@@ -309,8 +338,22 @@ imprint/
 | `IMPRINT_DATA_DIR` | `~/.imprint` | Data directory |
 | `IMPRINT_SECRET` | — | Optional Bearer token for API auth |
 | `ANTHROPIC_API_KEY` | auto-detect | API key or Claude Code OAuth |
+| `OPENAI_API_KEY` | auto-detect | OpenAI key, or api-key `~/.codex/auth.json` *(v2.0)* |
+| `OPENAI_MODEL` | `gpt-5-mini` | OpenAI model for the API-key path; `gpt-5-nano` = cheapest *(v2.0)* |
+| `OPENAI_OAUTH_MODEL` | `gpt-5` | Model for the Codex ChatGPT-OAuth path *(v2.0)* |
+| `OPENAI_REASONING_EFFORT` | `minimal` | GPT-5 reasoning effort (`minimal`/`low`/`medium`/`high`) *(v2.0)* |
+| `LLM_PROVIDER_ORDER` | `anthropic,codex-oauth,openai,openrouter,llamacpp` | Fallback chain order *(v2.0)* |
 | `OPENROUTER_API_KEY` | — | OpenRouter API key |
 | `LLAMACPP_URL` | `http://localhost:8080` | llama.cpp server URL |
+| `IMPRINT_PLAN` | auto-detect | `api` / `pro` / `max` — drives the economy display *(v2.0)* |
+| `IMPRINT_MAX_HAIKU_TOKENS_SESSION` | `500000` | Background token ceiling per session (0 = unlimited) *(v2.0)* |
+| `IMPRINT_MAX_HAIKU_TOKENS_DAY` | `3000000` | Background token ceiling per day (0 = unlimited) *(v2.0)* |
+| `IMPRINT_MAX_INJECTION_TOKENS` | `0` | Hard cap on injected tokens (0 = use layer budgets) *(v2.0)* |
+| `COMPRESS_FILTER` | `true` | Skip the LLM for trivial observations (importance gate) *(v2.0)* |
+| `COMPRESS_MIN_IMPORTANCE` | `4` | Score below which compression stays deterministic *(v2.0)* |
+| `LAZY_INJECT_MAX` | `5` | Max refined memories pulled per lazy injection *(v2.0)* |
+| `BLAST_RADIUS_DEPTH` | `2` | Graph hops for the relevance boost (0 = off) *(v2.0)* |
+| `INTUITION_MAX_ACTIVE` | `5` | Hard residency cap for rooted intuitions per repo *(v2.0)* |
 | `PIPELINE_INTERVAL_MIN` | `5` | Background pipeline interval (0 = disabled) |
 | `DECAY_MIN_STRENGTH` | `3` | Memories with strength ≤ this become decay candidates *(v1.5.0)* |
 | `DECAY_MAX_AGE_DAYS` | `30` | Min age before a weak memory is archived *(v1.5.0)* |
